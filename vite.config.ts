@@ -1,7 +1,18 @@
-import { defineConfig } from 'vite'
-
-
+import { defineConfig } from "vite";
+import glsl from "vite-plugin-glsl";
 
 export default defineConfig({
-  plugins: [],
-})
+  resolve: {
+    tsconfigPaths: true,
+  },
+  server: {
+    fs: {
+      allow: ["index.html", "src", "target/wasm32-unknown-unknown/release"],
+    },
+  },
+  build: {
+    assetsInlineLimit: 0,
+    modulePreload: false,
+  },
+  plugins: [glsl({ minify: true })],
+});

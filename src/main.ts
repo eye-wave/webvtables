@@ -1,75 +1,91 @@
-import { LGraph, LGraphCanvas, LiteGraph } from "litegraph.js";
-import { serializeGraph } from "./graph";
+import { loadWasm, makeStrReader, type WasmExports } from "./wasm";
+import { executeDrawBuffer, type Renderer } from "./renderer/renderer";
+import { Canvas2DRenderer } from "./renderer/canvas2d-renderer";
+import { WebGL2Renderer } from "./renderer/webgl2-renderer";
 
-const graph = new LGraph();
-new LGraphCanvas("#graph", graph);
+declare const viewport: HTMLDivElement;
+declare const canvas_graph: HTMLCanvasElement;
 
-const phasor = LiteGraph.createNode("wavetable/phasor")!;
-phasor.pos = [50, 80];
-graph.add(phasor);
+const CURSORS = ["default", "grab", "grabbing", "pointer"];
 
-const shape = LiteGraph.createNode("wavetable/shape")!;
-shape.pos = [300, 80];
-graph.add(shape);
-
-const gain = LiteGraph.createNode("wavetable/gain")!;
-gain.pos = [550, 80];
-graph.add(gain);
-
-const output = LiteGraph.createNode("wavetable/output")!;
-output.pos = [800, 80];
-graph.add(output);
-
-phasor.connect(0, shape, 0);
-shape.connect(0, gain, 0);
-gain.connect(0, output, 0);
-
-graph.start();
-
-let exports: WebAssembly.Exports;
-
-async function loadWasm() {
-  const resp = await fetch("/wavetable.wasm");
-  const { instance } = await WebAssembly.instantiateStreaming(resp, {});
-  exports = instance.exports;
+function createTextOverlay(base: HTMLCanvasElement): CanvasRenderingContext2D {
+  const overlay = document.createElement("canvas");
+  overlay.style.position = "absolute";
+  overlay.style.left = "0";
+  overlay.style.top = "0";
+  overlay.style.pointerEvents = "none";
+  base.insertAdjacentElement("afterend", overlay);
+  const ctx = overlay.getContext("2d");
+  if (!ctx) throw "Failed to get 2d context for text overlay";
+  return ctx;
 }
 
-function renderFrame(): Float32Array {
-  const bytes = serializeGraph(graph);
-  const memory = exports.memory as WebAssembly.Memory;
-  const capacity = (exports.input_capacity as CallableFunction)() as number;
-  if (bytes.length > capacity) {
-    throw new Error(`graph chain (${bytes.length}B) exceeds wasm input capacity (${capacity}B)`);
+function createRenderer(canvas: HTMLCanvasElement): Renderer {
+  const gl = canvas.getContext("webgl2");
+  if (gl) return new WebGL2Renderer(gl, createTextOverlay(canvas));
+
+  console.warn("WebGL2 unavailable, falling back to Canvas2D");
+  const ctx2d = canvas.getContext("2d");
+  if (!ctx2d) throw "Failed to get a rendering context";
+  return new Canvas2DRenderer(ctx2d);
+}
+
+async function init() {
+  const renderer = createRenderer(canvas_graph);
+
+  let logBuffer = "";
+  let readStr: (ptr: number, len: number) => string;
+
+  const exports: WasmExports = await loadWasm({
+    log_str(ptr: number, len: number) {
+      logBuffer += readStr(ptr, len);
+    },
+    log_i32(n: number) {
+      logBuffer += `${n}`;
+    },
+    log_f64(n: number) {
+      logBuffer += `${n}`;
+    },
+    log_flush() {
+      console.log(logBuffer);
+      logBuffer = "";
+    },
+
+    draw_flush(ptr: number, len: number) {
+      executeDrawBuffer(
+        new Uint8Array(exports.memory.buffer, ptr, len),
+        renderer,
+      );
+    },
+  });
+  readStr = makeStrReader(exports);
+
+  const posFromEvent = (e: MouseEvent): [number, number] => [
+    e.clientX - canvas_graph.offsetLeft,
+    e.clientY - canvas_graph.offsetTop,
+  ];
+
+  const mouseWrapper =
+    (cb: (x: number, y: number) => void) => (e: MouseEvent) =>
+      cb(...posFromEvent(e));
+
+  window.onmouseup = mouseWrapper(exports.on_mouse_up);
+  canvas_graph.onmousedown = mouseWrapper(exports.on_mouse_down);
+  canvas_graph.onmousemove = (e) => {
+    const pos = posFromEvent(e);
+    exports.on_mouse_move(...pos);
+    canvas_graph.style.cursor = CURSORS[exports.get_cursor_kind(...pos)];
+  };
+
+  exports.init();
+
+  function onCanvasResize() {
+    renderer.resize(viewport.offsetWidth, viewport.offsetHeight);
+    exports.render();
   }
 
-  const inputPtr = (exports.input_ptr as CallableFunction)() as number;
-  new Uint8Array(memory.buffer, inputPtr, bytes.length).set(bytes);
-  (exports.render as CallableFunction)(bytes.length);
-
-  const outPtr = (exports.output_ptr as CallableFunction)() as number;
-  const outLen = (exports.output_len as CallableFunction)() as number;
-  // copy out (slice) so the view survives if wasm memory later grows/moves
-  return new Float32Array(memory.buffer.slice(outPtr, outPtr + outLen * 4));
+  window.addEventListener("resize", onCanvasResize);
+  onCanvasResize();
 }
 
-function drawFrame(samples: Float32Array) {
-  const canvas = document.getElementById("wave") as HTMLCanvasElement;
-  canvas.width = canvas.clientWidth;
-  canvas.height = canvas.clientHeight;
-  const ctx = canvas.getContext("2d")!;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.strokeStyle = "#4af";
-  ctx.beginPath();
-  samples.forEach((s, i) => {
-    const x = (i / (samples.length - 1)) * canvas.width;
-    const y = canvas.height / 2 - s * (canvas.height / 2 - 4);
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-  });
-  ctx.stroke();
-}
-
-document.getElementById("render")!.addEventListener("click", () => {
-  drawFrame(renderFrame());
-});
-
-loadWasm();
+init();
