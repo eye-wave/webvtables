@@ -1,14 +1,9 @@
-use crate::draw::Draw;
-use crate::draw::DrawBuf;
-use crate::graph::FixedStr;
-use crate::graph::GraphState;
-use crate::graph::Param;
-use crate::graph::SocketKind;
-use crate::graph::input_pos;
-use crate::graph::is_valid_target;
+use crate::FixedStr;
+use crate::draw::{Draw, DrawBuf};
 use crate::graph::output_pos;
 
 use super::consts::*;
+use super::{GraphState, Param, SocketKind, input_pos, is_valid_target};
 
 /// What a node actually does. This is what the audio step will dispatch on
 /// (oscillator vs gain vs output), so title/params are derived from it
@@ -75,8 +70,6 @@ impl Node {
     }
 }
 
-// ponytail: filler for unused slots in the fixed-size node array; kind is
-// never read since node_count gates all iteration.
 pub const EMPTY_NODE: Node = Node {
     x: 0.0,
     y: 0.0,

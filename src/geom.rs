@@ -1,6 +1,4 @@
-//! Pure 2D geometry helpers. No dependency on graph/node state, so anything
-//! that's just points/rects/segments belongs here instead of wherever it
-//! first got used.
+//! 2D geometry helpers
 
 pub fn dist2(ax: f32, ay: f32, bx: f32, by: f32) -> f32 {
     let dx = ax - bx;

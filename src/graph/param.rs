@@ -1,6 +1,6 @@
 use core::ops::Deref;
 
-use crate::graph::FixedStr;
+use crate::FixedStr;
 
 trait ParamLogic {
     type ParamType;
@@ -10,10 +10,6 @@ trait ParamLogic {
     fn set_value(&mut self, val: f64);
 
     fn denormalize(&self, val: f64) -> Self::ParamType;
-
-    /// Writes the displayed (denormalized) value. Each param type formats
-    /// itself directly -- no shared default, since int/float/enum all need
-    /// different rendering and there's no core::fmt to dispatch on.
     fn write_denorm_value<const N: usize>(&self, buf: &mut FixedStr<N>);
 }
 

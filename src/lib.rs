@@ -19,12 +19,15 @@ mod geom;
 mod graph;
 mod js;
 mod log;
+mod str;
 
 use draw::drawbuf;
 use geom::{dist2, point_in_rect};
 use graph::*;
 
 use crate::draw::Draw;
+
+pub use str::*;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn init() {
