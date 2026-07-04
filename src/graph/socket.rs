@@ -1,3 +1,5 @@
+use crate::geom::dist2;
+
 use super::consts::*;
 use super::{GraphState, Node};
 
@@ -30,10 +32,4 @@ pub fn output_pos(n: &Node) -> (f32, f32) {
 
 pub fn input_pos(n: &Node) -> (f32, f32) {
     (n.x, n.y + Node::HEADER_H + (Node::H - Node::HEADER_H) / 2.0)
-}
-
-pub fn dist2(ax: f32, ay: f32, bx: f32, by: f32) -> f32 {
-    let dx = ax - bx;
-    let dy = ay - by;
-    dx * dx + dy * dy
 }

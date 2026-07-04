@@ -51,6 +51,8 @@ async function init() {
       logBuffer = "";
     },
 
+    round: (x: number) => Math.round(x),
+
     draw_flush(ptr: number, len: number) {
       executeDrawBuffer(
         new Uint8Array(exports.memory.buffer, ptr, len),

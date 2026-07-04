@@ -1,6 +1,7 @@
 use crate::{
     draw::{Draw, DrawBuf},
-    graph::{input_pos, output_pos, point_segment_dist2},
+    geom::point_segment_dist2,
+    graph::{input_pos, output_pos},
 };
 
 use super::GraphState;

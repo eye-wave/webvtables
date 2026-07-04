@@ -1,5 +1,3 @@
-use core::fmt::Write;
-
 mod link;
 mod node;
 mod param;
@@ -22,6 +20,8 @@ mod consts {
 
 pub use consts::*;
 
+use crate::js;
+
 pub struct FixedStr<const N: usize> {
     buf: [u8; N],
     len: usize,
@@ -38,15 +38,58 @@ impl<const N: usize> FixedStr<N> {
     fn as_str(&self) -> &str {
         core::str::from_utf8(&self.buf[..self.len]).unwrap_or("")
     }
-}
 
-impl<const N: usize> Write for FixedStr<N> {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+    fn push_byte(&mut self, b: u8) {
+        if self.len < N {
+            self.buf[self.len] = b;
+            self.len += 1;
+        }
+    }
+
+    fn push_str(&mut self, s: &str) {
         let bytes = s.as_bytes();
         let end = (self.len + bytes.len()).min(N);
         self.buf[self.len..end].copy_from_slice(&bytes[..end - self.len]);
         self.len = end;
-        Ok(())
+    }
+
+    /// Writes a signed decimal integer. Replaces `write!("{}", v)`.
+    fn push_int(&mut self, mut v: i64) {
+        if v < 0 {
+            self.push_byte(b'-');
+            v = -v;
+        }
+        let mut digits = [0u8; 20];
+        let mut n = 0;
+        if v == 0 {
+            digits[0] = b'0';
+            n = 1;
+        }
+        while v > 0 {
+            digits[n] = b'0' + (v % 10) as u8;
+            v /= 10;
+            n += 1;
+        }
+        for i in (0..n).rev() {
+            self.push_byte(digits[i]);
+        }
+    }
+
+    fn push_fixed2(&mut self, v: f64) {
+        let scaled = js::round(v * 100.0) as i64;
+        let (neg, scaled) = if scaled < 0 {
+            (true, -scaled)
+        } else {
+            (false, scaled)
+        };
+        if neg {
+            self.push_byte(b'-');
+        }
+        self.push_int(scaled / 100);
+        self.push_byte(b'.');
+        let frac = (scaled % 100) as u8;
+        self.push_byte(b'0' + frac / 10);
+        self.push_byte(b'0' + frac % 10);
     }
 }
 
@@ -80,21 +123,6 @@ static mut STATE: GraphState = GraphState {
 
 pub fn state() -> &'static mut GraphState {
     unsafe { &mut STATE }
-}
-
-pub fn point_in_rect(px: f32, py: f32, x: f32, y: f32, w: f32, h: f32) -> bool {
-    px >= x && px <= x + w && py >= y && py <= y + h
-}
-
-pub fn point_segment_dist2(px: f32, py: f32, x1: f32, y1: f32, x2: f32, y2: f32) -> f32 {
-    let (dx, dy) = (x2 - x1, y2 - y1);
-    let len2 = dx * dx + dy * dy;
-    let t = if len2 > 0.0 {
-        (((px - x1) * dx + (py - y1) * dy) / len2).clamp(0.0, 1.0)
-    } else {
-        0.0
-    };
-    dist2(px, py, x1 + dx * t, y1 + dy * t)
 }
 
 pub fn creates_cycle(s: &GraphState, from: usize, to: usize) -> bool {
