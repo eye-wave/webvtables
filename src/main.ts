@@ -51,6 +51,8 @@ async function init() {
       logBuffer = "";
     },
 
+    ln: (x: number) => Math.log(x),
+    exp: (x: number) => Math.exp(x),
     round: (x: number) => Math.round(x),
 
     draw_flush(ptr: number, len: number) {

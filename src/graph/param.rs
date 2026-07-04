@@ -4,7 +4,6 @@ use crate::{FixedStr, js};
 
 trait ParamLogic {
     fn name(&self) -> &'static str;
-
     fn value(&self) -> f64;
     fn set_value(&mut self, val: f64);
     fn drag_range_px(&self) -> f64;
@@ -12,18 +11,24 @@ trait ParamLogic {
 
 trait ParamWriteDenorm {
     type ParamType;
-
-    /// `val` is the normalized 0..1
     fn denormalize(&self, val: f64) -> Self::ParamType;
     fn write_denorm_value<const N: usize>(&self, buf: &mut FixedStr<N>);
 }
 
 #[derive(Clone, Copy)]
-pub struct FloatParam {
+pub struct LinearParam {
     name: &'static str,
     value: f64,
-    r_min: f32,
-    r_max: f32,
+    r_min: f64,
+    r_max: f64,
+}
+
+#[derive(Clone, Copy)]
+pub struct LogParam {
+    name: &'static str,
+    value: f64,
+    log_min: f64,
+    log_max: f64,
 }
 
 #[derive(Clone, Copy)]
@@ -35,37 +40,87 @@ pub struct EnumParam {
 
 #[derive(Clone, Copy)]
 pub enum ParamTypes {
-    Float(FloatParam),
+    Linear(LinearParam),
+    Log(LogParam),
     Enum(EnumParam),
 }
 
 #[derive(Clone, Copy)]
-pub struct Param(ParamTypes);
+pub struct Param {
+    inner: ParamTypes,
+    unit: Option<&'static str>,
+}
 
 impl Deref for Param {
     type Target = ParamTypes;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.inner
     }
 }
 
+#[inline]
+fn sym_log(val: f64) -> f64 {
+    val.signum() * js::ln(val.abs() + 1.0)
+}
+
+#[inline]
+fn sym_exp(val: f64) -> f64 {
+    val.signum() * (js::exp(val.abs()) - 1.0)
+}
+
 impl Param {
-    pub fn new_float(name: &'static str, value: f64, r_min: f32, r_max: f32) -> Self {
-        Self(ParamTypes::Float(FloatParam {
-            name,
-            value,
-            r_min,
-            r_max,
-        }))
+    pub fn new_linear(name: &'static str, value: f64, r_min: f64, r_max: f64) -> Self {
+        Self {
+            inner: ParamTypes::Linear(LinearParam {
+                name,
+                value,
+                r_min,
+                r_max,
+            }),
+            unit: None,
+        }
+    }
+
+    pub fn new_log(name: &'static str, value: f64, r_min: f64, r_max: f64) -> Self {
+        Self {
+            inner: ParamTypes::Log(LogParam {
+                name,
+                value,
+                log_min: sym_log(r_min),
+                log_max: sym_log(r_max),
+            }),
+            unit: None,
+        }
     }
 
     pub fn new_enum(name: &'static str, value: u8, data: &'static [&'static str]) -> Self {
-        Self(ParamTypes::Enum(EnumParam { name, value, data }))
+        Self {
+            inner: ParamTypes::Enum(EnumParam { name, value, data }),
+            unit: None,
+        }
     }
 
-    pub fn drag_from(&mut self, start_value: f64, delta_px: f32) {
-        self.0.drag_from(start_value, delta_px);
+    pub fn with_unit(mut self, unit: &'static str) -> Self {
+        self.unit = Some(unit);
+        self
+    }
+
+    pub fn format_value(&self, buf: &mut FixedStr<16>) {
+        match self.inner {
+            ParamTypes::Linear(p) => p.write_denorm_value(buf),
+            ParamTypes::Log(p) => p.write_denorm_value(buf),
+            ParamTypes::Enum(p) => p.write_denorm_value(buf),
+        }
+
+        if let Some(unit) = self.unit {
+            buf.push_str(" ");
+            buf.push_str(unit);
+        }
+    }
+
+    pub fn drag_from(&mut self, start_value: f64, delta_px: f64) {
+        self.inner.drag_from(start_value, delta_px);
     }
 }
 
@@ -78,16 +133,9 @@ impl ParamTypes {
         self.as_param().value()
     }
 
-    pub fn format_value(&self, buf: &mut FixedStr<16>) {
-        match self {
-            Self::Float(p) => p.write_denorm_value(buf),
-            Self::Enum(p) => p.write_denorm_value(buf),
-        }
-    }
-
-    fn drag_from(&mut self, start_value: f64, delta_px: f32) {
+    fn drag_from(&mut self, start_value: f64, delta_px: f64) {
         let range_px = self.as_param().drag_range_px();
-        let delta_norm = delta_px as f64 / range_px;
+        let delta_norm = delta_px / range_px;
         let val = (start_value + delta_norm).clamp(0.0, 1.0);
 
         self.as_param_mut().set_value(val);
@@ -96,7 +144,8 @@ impl ParamTypes {
     #[inline]
     fn as_param(&self) -> &dyn ParamLogic {
         match self {
-            Self::Float(p) => p,
+            Self::Linear(p) => p,
+            Self::Log(p) => p,
             Self::Enum(p) => p,
         }
     }
@@ -104,46 +153,73 @@ impl ParamTypes {
     #[inline]
     fn as_param_mut(&mut self) -> &mut dyn ParamLogic {
         match self {
-            Self::Float(p) => p,
+            Self::Linear(p) => p,
+            Self::Log(p) => p,
             Self::Enum(p) => p,
         }
     }
 }
 
-impl ParamLogic for FloatParam {
+// --- Linear Param ---
+impl ParamLogic for LinearParam {
     fn name(&self) -> &'static str {
         self.name
     }
-
     fn value(&self) -> f64 {
         self.value
     }
-
     fn set_value(&mut self, val: f64) {
         self.value = val;
     }
-
     fn drag_range_px(&self) -> f64 {
         150.0
     }
 }
 
-impl ParamWriteDenorm for FloatParam {
-    type ParamType = f32;
+impl ParamWriteDenorm for LinearParam {
+    type ParamType = f64;
 
     fn denormalize(&self, n: f64) -> Self::ParamType {
-        let min = self.r_min;
-        let max = self.r_max;
-
-        min + (n as f32) * (max - min)
+        self.r_min + n * (self.r_max - self.r_min)
     }
 
     fn write_denorm_value<const N: usize>(&self, buf: &mut FixedStr<N>) {
         let val = self.denormalize(self.value);
-        buf.push_fixed2(val as f64);
+        buf.push_fixed2(val);
     }
 }
 
+// --- Log Param ---
+impl ParamLogic for LogParam {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+    fn value(&self) -> f64 {
+        self.value
+    }
+    fn set_value(&mut self, val: f64) {
+        self.value = val;
+    }
+    fn drag_range_px(&self) -> f64 {
+        150.0
+    }
+}
+
+impl ParamWriteDenorm for LogParam {
+    type ParamType = f64;
+
+    fn denormalize(&self, n: f64) -> Self::ParamType {
+        let log_val = self.log_min + n * (self.log_max - self.log_min);
+        sym_exp(log_val)
+    }
+
+    fn write_denorm_value<const N: usize>(&self, buf: &mut FixedStr<N>) {
+        let val = self.denormalize(self.value);
+        buf.push_fixed2(val);
+    }
+}
+
+// --- Enum Param ---
 impl EnumParam {
     fn last_index(&self) -> f64 {
         (self.data.len().max(1) - 1) as f64
@@ -154,7 +230,6 @@ impl ParamLogic for EnumParam {
     fn name(&self) -> &'static str {
         self.name
     }
-
     fn value(&self) -> f64 {
         let last = self.last_index();
         if last == 0.0 {
@@ -163,11 +238,9 @@ impl ParamLogic for EnumParam {
             self.value as f64 / last
         }
     }
-
     fn set_value(&mut self, val: f64) {
         self.value = js::round(val * self.last_index()) as u8;
     }
-
     fn drag_range_px(&self) -> f64 {
         const PX_PER_STEP: f64 = 12.0;
         PX_PER_STEP * self.last_index().max(1.0)

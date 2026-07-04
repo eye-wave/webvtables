@@ -9,8 +9,8 @@ pub use param::*;
 pub use socket::*;
 
 mod consts {
-    pub const MAX_NODES: usize = 8;
-    pub const MAX_LINKS: usize = 16;
+    pub const MAX_NODES: usize = 100;
+    pub const MAX_LINKS: usize = 100;
     pub const MAX_PARAMS: usize = 4;
 
     pub const SOCKET_R: f32 = 5.0;
@@ -29,9 +29,9 @@ pub struct GraphState {
     pub dragging_param: Option<(usize, usize)>,
     pub drag_param_start_y: f32,
     pub drag_param_start_value: f64,
-    pub pending_link_from: Option<usize>,
+    pub pending_link_from: Option<(usize, usize)>,
     pub hovered_link: Option<usize>,
-    pub hovered_socket: Option<(usize, SocketKind)>,
+    pub hovered_socket: Option<SocketRef>,
     pub mouse: (f32, f32),
     /// Bumped whenever link topology changes. Lets JS cheaply detect
     /// if the audio graph need rebuilding.

@@ -33,6 +33,8 @@ wasm_imports! {
     fn log_f64(val: f64);
     fn log_flush();
 
+    fn ln(x: f64) -> f64;
+    fn exp(x: f64) -> f64;
     fn round(x: f64) -> f64;
 
     fn draw_flush(ptr: *const u8, len: usize);

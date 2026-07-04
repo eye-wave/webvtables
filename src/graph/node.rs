@@ -5,40 +5,59 @@ use crate::graph::output_pos;
 use super::consts::*;
 use super::{GraphState, Param, SocketKind, input_pos, is_valid_target};
 
+mod add;
+mod basic_shapes;
+mod filter;
+mod gain;
+mod output;
+
 #[derive(Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum NodeKind {
     BasicShapes,
     Gain,
+    Filter,
+    Add,
     Output,
 }
 
 impl NodeKind {
-    pub fn title(self) -> &'static str {
+    #[inline]
+    fn as_node(&self) -> &dyn NodeLogic {
         match self {
-            NodeKind::BasicShapes => "Basic shapes",
-            NodeKind::Gain => "Gain Control",
-            NodeKind::Output => "Output",
+            NodeKind::BasicShapes => &basic_shapes::BasicShapesNode,
+            NodeKind::Gain => &gain::GainNode,
+            NodeKind::Filter => &filter::FilterNode,
+            NodeKind::Add => &add::AddNode,
+            NodeKind::Output => &output::OutputNode,
         }
     }
+}
 
-    fn default_params(self) -> [Option<Param>; MAX_PARAMS] {
-        let mut p = [None; MAX_PARAMS];
-        match self {
-            NodeKind::BasicShapes => {
-                p[0] = Some(Param::new_enum(
-                    "Shape",
-                    0,
-                    &["Sine", "Triangle", "Square", "Sawtooth"],
-                ));
-            }
-            NodeKind::Gain => {
-                p[0] = Some(Param::new_float("Volume", 0.5, -30.0, 30.0));
-                p[1] = Some(Param::new_float("Pan", 0.5, -1.0, 1.0));
-            }
-            NodeKind::Output => {}
-        }
-        p
+pub trait NodeLogic {
+    fn title(&self) -> &'static str;
+    fn input_count(&self) -> usize;
+    fn output_count(&self) -> usize;
+    fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
+        [None; MAX_PARAMS]
+    }
+}
+
+impl NodeLogic for NodeKind {
+    fn title(&self) -> &'static str {
+        self.as_node().title()
+    }
+
+    fn input_count(&self) -> usize {
+        self.as_node().input_count()
+    }
+
+    fn output_count(&self) -> usize {
+        self.as_node().output_count()
+    }
+
+    fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
+        self.as_node().default_params()
     }
 }
 
@@ -57,7 +76,7 @@ impl Node {
     const VALUE_PAD: f32 = 6.0; // padding inside the value box
     const VALUE_BOX_H: f32 = 14.0;
 
-    pub const W: f32 = 130.0;
+    pub const W: f32 = 150.0;
     pub const H: f32 = Self::HEADER_H + (MAX_PARAMS as f32 * Self::PARAM_H) + 10.0;
 
     pub fn new(kind: NodeKind, x: f32, y: f32) -> Self {
@@ -106,8 +125,6 @@ impl Draw for Node {
             param.format_value(&mut vbuf);
 
             // Darker box behind the value, text left-aligned inside it so it
-            // can never overflow past the node edge. Also doubles as the
-            // drag hit-target (see `param_value_rect`).
             let (box_x, box_y, box_w, box_h) = self.param_value_rect(idx);
             buf.fill_style(25, 26, 32);
             buf.fill_rect(box_x, box_y, box_w, box_h);
@@ -118,55 +135,59 @@ impl Draw for Node {
             current_y += Self::PARAM_H;
         }
 
-        // 3. Draw Input Socket
-        let (ix, iy) = input_pos(self);
-        let is_hovered = s.hovered_socket == Some((i, SocketKind::Input));
-        let is_valid_drop_zone = match s.pending_link_from {
-            Some(from) => is_valid_target(s, from, i),
-            None => false,
-        };
+        // 3. Draw Input Sockets (0..N depending on node kind)
+        for inp in 0..self.kind.input_count() {
+            let (ix, iy) = input_pos(self, inp);
+            let is_hovered = s.hovered_socket == Some((i, SocketKind::Input, inp));
+            let is_valid_drop_zone = match s.pending_link_from {
+                Some((from, _)) => is_valid_target(s, from, i),
+                None => false,
+            };
 
-        if s.pending_link_from.is_some() {
-            if is_valid_drop_zone {
-                if is_hovered {
-                    buf.fill_style(255, 215, 0);
-                    buf.fill_circle(ix, iy, SOCKET_R + 4.0);
+            if s.pending_link_from.is_some() {
+                if is_valid_drop_zone {
+                    if is_hovered {
+                        buf.fill_style(255, 215, 0);
+                        buf.fill_circle(ix, iy, SOCKET_R + 4.0);
+                    } else {
+                        buf.fill_style(100, 220, 100);
+                        buf.fill_circle(ix, iy, SOCKET_R + 2.0);
+                    }
                 } else {
-                    buf.fill_style(100, 220, 100);
-                    buf.fill_circle(ix, iy, SOCKET_R + 2.0);
+                    buf.fill_style(50, 50, 50);
+                    buf.fill_circle(ix, iy, SOCKET_R);
                 }
             } else {
-                buf.fill_style(50, 50, 50);
-                buf.fill_circle(ix, iy, SOCKET_R);
+                buf.fill_style(
+                    if is_hovered { 150 } else { 60 },
+                    if is_hovered { 255 } else { 180 },
+                    if is_hovered { 150 } else { 250 },
+                );
+                buf.fill_circle(ix, iy, if is_hovered { SOCKET_R + 2.0 } else { SOCKET_R });
             }
-        } else {
-            buf.fill_style(
-                if is_hovered { 150 } else { 60 },
-                if is_hovered { 255 } else { 180 },
-                if is_hovered { 150 } else { 250 },
-            );
-            buf.fill_circle(ix, iy, if is_hovered { SOCKET_R + 2.0 } else { SOCKET_R });
         }
 
-        // 4. Draw Output Socket
-        let (ox, oy) = output_pos(self);
-        let output_active = match s.pending_link_from {
-            Some(from) => i == from,
-            None => s.hovered_socket == Some((i, SocketKind::Output)),
-        };
-        buf.fill_style(
-            250,
-            if output_active { 220 } else { 180 },
-            if output_active { 150 } else { 60 },
-        );
-        buf.fill_circle(
-            ox,
-            oy,
-            if output_active {
-                SOCKET_R + 2.0
-            } else {
-                SOCKET_R
-            },
-        );
+        // 4. Draw Output Sockets (0..N depending on node kind)
+        for out in 0..self.kind.output_count() {
+            let (ox, oy) = output_pos(self, out);
+            let output_active = match s.pending_link_from {
+                Some((from, from_socket)) => i == from && out == from_socket,
+                None => s.hovered_socket == Some((i, SocketKind::Output, out)),
+            };
+            buf.fill_style(
+                250,
+                if output_active { 220 } else { 180 },
+                if output_active { 150 } else { 60 },
+            );
+            buf.fill_circle(
+                ox,
+                oy,
+                if output_active {
+                    SOCKET_R + 2.0
+                } else {
+                    SOCKET_R
+                },
+            );
+        }
     }
 }

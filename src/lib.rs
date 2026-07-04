@@ -33,11 +33,20 @@ pub use str::*;
 pub extern "C" fn init() {
     let s = state();
     s.nodes[0] = Node::new(NodeKind::BasicShapes, 40.0, 40.0);
-    s.nodes[1] = Node::new(NodeKind::Gain, 240.0, 130.0);
-    s.nodes[2] = Node::new(NodeKind::Output, 440.0, 60.0);
-    s.node_count = 3;
-    s.links[0] = Some(Link { from: 0, to: 1 });
-    s.links[1] = Some(Link { from: 1, to: 2 });
+    s.nodes[1] = Node::new(NodeKind::BasicShapes, 40.0, 220.0);
+
+    s.nodes[2] = Node::new(NodeKind::Gain, 240.0, 80.0);
+    s.nodes[3] = Node::new(NodeKind::Add, 440.0, 140.0);
+    s.nodes[4] = Node::new(NodeKind::Filter, 620.0, 140.0);
+    s.nodes[5] = Node::new(NodeKind::Output, 800.0, 140.0);
+    s.node_count = 6;
+
+    s.links[0] = Some(Link::new(0, 0, 2, 0));
+    s.links[1] = Some(Link::new(1, 0, 3, 1));
+    s.links[2] = Some(Link::new(2, 0, 3, 0));
+    s.links[3] = Some(Link::new(3, 0, 4, 0));
+    s.links[4] = Some(Link::new(4, 0, 5, 0));
+
     s.version += 1;
     render();
 }
@@ -48,10 +57,13 @@ pub extern "C" fn on_mouse_down(x: f32, y: f32) {
     let s = state();
 
     for i in 0..s.node_count {
-        let (ox, oy) = output_pos(&s.nodes[i]);
-        if dist2(x, y, ox, oy) <= SOCKET_HIT_R2 {
-            s.pending_link_from = Some(i);
-            return;
+        let n = &s.nodes[i];
+        for o in 0..n.kind.output_count() {
+            let (ox, oy) = output_pos(n, o);
+            if dist2(x, y, ox, oy) <= SOCKET_HIT_R2 {
+                s.pending_link_from = Some((i, o));
+                return;
+            }
         }
     }
     for i in (0..s.node_count).rev() {
@@ -125,7 +137,7 @@ pub extern "C" fn on_mouse_move(x: f32, y: f32) {
     if let Some((i, p)) = s.dragging_param {
         let delta = s.drag_param_start_y - y; // dragging up increases the value
         if let Some(param) = s.nodes[i].params[p].as_mut() {
-            param.drag_from(s.drag_param_start_value, delta);
+            param.drag_from(s.drag_param_start_value, delta as f64);
         }
     }
 
@@ -147,29 +159,37 @@ pub extern "C" fn on_mouse_move(x: f32, y: f32) {
 #[unsafe(no_mangle)]
 pub extern "C" fn on_mouse_up(x: f32, y: f32) {
     let s = state();
-    if let Some(from) = s.pending_link_from {
-        for j in 0..s.node_count {
-            let (ix, iy) = input_pos(&s.nodes[j]);
-            if dist2(x, y, ix, iy) <= SOCKET_HIT_R2 {
-                if is_valid_target(s, from, j) {
-                    for slot in s.links.iter_mut() {
-                        if matches!(slot, Some(l) if l.to == j) {
-                            *slot = None;
+    if let Some((from, from_socket)) = s.pending_link_from {
+        'search: for j in 0..s.node_count {
+            let n = &s.nodes[j];
+            for to_socket in 0..n.kind.input_count() {
+                let (ix, iy) = input_pos(n, to_socket);
+                if dist2(x, y, ix, iy) <= SOCKET_HIT_R2 {
+                    if is_valid_target(s, from, j) {
+                        for slot in s.links.iter_mut() {
+                            if matches!(slot, Some(l) if l.to == j && l.to_socket == to_socket) {
+                                *slot = None;
+                            }
                         }
-                    }
 
-                    for slot in s.links.iter_mut() {
-                        if slot.is_none() {
-                            *slot = Some(Link { from, to: j });
-                            s.version += 1;
-                            console_print!("linked node ", from, " -> ", j);
-                            break;
+                        for slot in s.links.iter_mut() {
+                            if slot.is_none() {
+                                *slot = Some(Link {
+                                    from,
+                                    from_socket,
+                                    to: j,
+                                    to_socket,
+                                });
+                                s.version += 1;
+                                console_print!("linked node ", from, " -> ", j);
+                                break;
+                            }
                         }
+                    } else {
+                        console_print!("rejected link ", from, " -> ", j);
                     }
-                } else {
-                    console_print!("rejected link ", from, " -> ", j);
+                    break 'search;
                 }
-                break;
             }
         }
     }
@@ -205,12 +225,19 @@ pub extern "C" fn max_links() -> usize {
     MAX_LINKS
 }
 
-// Packed as (present << 31) | (from << 16) | to - avoids needing multi-value
-// returns across the FFI boundary. `slot` ranges over 0..max_links().
+// Packed as (present << 31) | (from << 24) | (from_socket << 16) | (to << 8)
+// | to_socket - avoids needing multi-value returns across the FFI boundary.
+// `slot` ranges over 0..max_links().
 #[unsafe(no_mangle)]
 pub extern "C" fn link_at(slot: usize) -> u32 {
     match state().links[slot] {
-        Some(l) => 0x8000_0000 | ((l.from as u32) << 16) | (l.to as u32),
+        Some(l) => {
+            0x8000_0000
+                | ((l.from as u32) << 24)
+                | ((l.from_socket as u32) << 16)
+                | ((l.to as u32) << 8)
+                | (l.to_socket as u32)
+        }
         None => 0,
     }
 }
@@ -232,10 +259,10 @@ pub extern "C" fn render() {
         }
     }
 
-    if let Some(from) = s.pending_link_from {
+    if let Some((from, from_socket)) = s.pending_link_from {
         buf.stroke_style(210, 180, 60);
         buf.line_width(2.0);
-        let (fx, fy) = output_pos(&s.nodes[from]);
+        let (fx, fy) = output_pos(&s.nodes[from], from_socket);
         buf.stroke_line(fx, fy, s.mouse.0, s.mouse.1);
     }
 
