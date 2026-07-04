@@ -15,9 +15,9 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 }
 
 mod draw;
+mod ffi;
 mod geom;
 mod graph;
-mod js;
 mod log;
 mod str;
 
@@ -36,16 +36,18 @@ pub extern "C" fn init() {
     s.nodes[1] = Node::new(NodeKind::BasicShapes, 40.0, 220.0);
 
     s.nodes[2] = Node::new(NodeKind::Gain, 240.0, 80.0);
-    s.nodes[3] = Node::new(NodeKind::Add, 440.0, 140.0);
-    s.nodes[4] = Node::new(NodeKind::Filter, 620.0, 140.0);
-    s.nodes[5] = Node::new(NodeKind::Output, 800.0, 140.0);
-    s.node_count = 6;
+    s.nodes[3] = Node::new(NodeKind::PhaseShift, 240.0, 220.0);
+    s.nodes[4] = Node::new(NodeKind::Add, 440.0, 140.0);
+    s.nodes[5] = Node::new(NodeKind::Filter, 620.0, 140.0);
+    s.nodes[6] = Node::new(NodeKind::Output, 800.0, 140.0);
+    s.node_count = 7;
 
     s.links[0] = Some(Link::new(0, 0, 2, 0));
-    s.links[1] = Some(Link::new(1, 0, 3, 1));
-    s.links[2] = Some(Link::new(2, 0, 3, 0));
-    s.links[3] = Some(Link::new(3, 0, 4, 0));
+    s.links[1] = Some(Link::new(1, 0, 3, 0));
+    s.links[2] = Some(Link::new(2, 0, 4, 0));
+    s.links[3] = Some(Link::new(3, 0, 4, 1));
     s.links[4] = Some(Link::new(4, 0, 5, 0));
+    s.links[5] = Some(Link::new(5, 0, 6, 0));
 
     s.version += 1;
     render();
@@ -199,7 +201,7 @@ pub extern "C" fn on_mouse_up(x: f32, y: f32) {
     render();
 }
 
-// Read-only accessors so JS can mirror this graph (node kinds, params, links).
+// Read-only accessors so Host can mirror this graph (node kinds, params, links).
 #[unsafe(no_mangle)]
 pub extern "C" fn node_count() -> usize {
     state().node_count
@@ -250,6 +252,8 @@ pub extern "C" fn graph_version() -> u32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn render() {
     let s = state();
+    process_graph(s);
+
     let buf = drawbuf();
     buf.begin_frame();
 
@@ -260,7 +264,7 @@ pub extern "C" fn render() {
     }
 
     if let Some((from, from_socket)) = s.pending_link_from {
-        buf.stroke_style(210, 180, 60);
+        buf.stroke_style([210, 180, 60]);
         buf.line_width(2.0);
         let (fx, fy) = output_pos(&s.nodes[from], from_socket);
         buf.stroke_line(fx, fy, s.mouse.0, s.mouse.1);
@@ -271,5 +275,5 @@ pub extern "C" fn render() {
     }
 
     let (ptr, len) = buf.as_ptr_len();
-    js::draw_flush(ptr, len);
+    ffi::draw_flush(ptr, len);
 }

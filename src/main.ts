@@ -54,6 +54,11 @@ async function init() {
     ln: (x: number) => Math.log(x),
     exp: (x: number) => Math.exp(x),
     round: (x: number) => Math.round(x),
+    sin: (x: number) => Math.sin(x),
+
+    cosf: (x: number) => Math.cos(x),
+    powf: (x: number, y: number) => Math.pow(x, y),
+    sqrtf: (x: number) => Math.sqrt(x),
 
     draw_flush(ptr: number, len: number) {
       executeDrawBuffer(

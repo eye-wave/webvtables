@@ -1,4 +1,6 @@
 
+cargo-features = ["profile-rustflags", "trim-paths"]
+
 [package]
 name = "webvtabes"
 version = "0.1.0"
@@ -13,4 +15,10 @@ crate-type = ["cdylib", "rlib"]
 panic = "abort"
 
 [profile.release]
+codegen-units = 1
+lto = "fat"
+opt-level = "z"
 panic = "abort"
+strip = true
+trim-paths = "all"
+rustflags = ["-Cdebuginfo=0", "-Zthreads=8"]

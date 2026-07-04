@@ -32,18 +32,20 @@ pub fn find_hovered_socket(s: &GraphState, x: f32, y: f32) -> Option<SocketRef> 
     None
 }
 
-/// Evenly spaces `count` sockets down the body of the node (below the
-/// header), returning the y for socket `idx`.
-fn socket_y(n: &Node, idx: usize, count: usize) -> f32 {
-    let body_top = n.y + Node::HEADER_H;
-    let body_h = Node::H - Node::HEADER_H;
-    body_top + body_h * (idx as f32 + 1.0) / (count as f32 + 1.0)
+pub fn input_pos(node: &Node, idx: usize) -> (f32, f32) {
+    let x = node.x;
+
+    let dynamic_h = node.height();
+    let y = node.y + (dynamic_h * (idx + 1) as f32 / (node.kind.input_count() + 1) as f32);
+
+    (x, y)
 }
 
-pub fn output_pos(n: &Node, idx: usize) -> (f32, f32) {
-    (n.x + Node::W, socket_y(n, idx, n.kind.output_count()))
-}
+pub fn output_pos(node: &Node, idx: usize) -> (f32, f32) {
+    let x = node.x + Node::W;
 
-pub fn input_pos(n: &Node, idx: usize) -> (f32, f32) {
-    (n.x, socket_y(n, idx, n.kind.input_count()))
+    let dynamic_h = node.height();
+    let y = node.y + (dynamic_h * (idx + 1) as f32 / (node.kind.output_count() + 1) as f32);
+
+    (x, y)
 }

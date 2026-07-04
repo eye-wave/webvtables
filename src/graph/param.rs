@@ -1,6 +1,6 @@
 use core::ops::Deref;
 
-use crate::{FixedStr, js};
+use crate::{FixedStr, ffi};
 
 trait ParamLogic {
     fn name(&self) -> &'static str;
@@ -32,6 +32,14 @@ pub struct LogParam {
 }
 
 #[derive(Clone, Copy)]
+pub struct IntParam {
+    name: &'static str,
+    value: f64,
+    r_min: i64,
+    r_max: i64,
+}
+
+#[derive(Clone, Copy)]
 pub struct EnumParam {
     name: &'static str,
     value: u8,
@@ -42,6 +50,7 @@ pub struct EnumParam {
 pub enum ParamTypes {
     Linear(LinearParam),
     Log(LogParam),
+    Int(IntParam),
     Enum(EnumParam),
 }
 
@@ -61,12 +70,12 @@ impl Deref for Param {
 
 #[inline]
 fn sym_log(val: f64) -> f64 {
-    val.signum() * js::ln(val.abs() + 1.0)
+    val.signum() * ffi::ln(val.abs() + 1.0)
 }
 
 #[inline]
 fn sym_exp(val: f64) -> f64 {
-    val.signum() * (js::exp(val.abs()) - 1.0)
+    val.signum() * (ffi::exp(val.abs()) - 1.0)
 }
 
 impl Param {
@@ -94,6 +103,18 @@ impl Param {
         }
     }
 
+    pub fn new_int(name: &'static str, value: f64, r_min: i64, r_max: i64) -> Self {
+        Self {
+            inner: ParamTypes::Int(IntParam {
+                name,
+                value,
+                r_min,
+                r_max,
+            }),
+            unit: None,
+        }
+    }
+
     pub fn new_enum(name: &'static str, value: u8, data: &'static [&'static str]) -> Self {
         Self {
             inner: ParamTypes::Enum(EnumParam { name, value, data }),
@@ -110,6 +131,7 @@ impl Param {
         match self.inner {
             ParamTypes::Linear(p) => p.write_denorm_value(buf),
             ParamTypes::Log(p) => p.write_denorm_value(buf),
+            ParamTypes::Int(p) => p.write_denorm_value(buf),
             ParamTypes::Enum(p) => p.write_denorm_value(buf),
         }
 
@@ -121,6 +143,18 @@ impl Param {
 
     pub fn drag_from(&mut self, start_value: f64, delta_px: f64) {
         self.inner.drag_from(start_value, delta_px);
+    }
+
+    /// The param's real-world (denormalized) numeric value — Hz, dB, etc.
+    /// for Linear/Log params, or the selected index for Enum params. This is
+    /// what DSP code should read; `value()` is the raw 0..1 slider position.
+    pub fn denorm(&self) -> f64 {
+        match self.inner {
+            ParamTypes::Linear(p) => p.denormalize(p.value),
+            ParamTypes::Log(p) => p.denormalize(p.value),
+            ParamTypes::Int(p) => p.denormalize(p.value) as f64,
+            ParamTypes::Enum(p) => p.value as f64,
+        }
     }
 }
 
@@ -146,6 +180,7 @@ impl ParamTypes {
         match self {
             Self::Linear(p) => p,
             Self::Log(p) => p,
+            Self::Int(p) => p,
             Self::Enum(p) => p,
         }
     }
@@ -155,6 +190,7 @@ impl ParamTypes {
         match self {
             Self::Linear(p) => p,
             Self::Log(p) => p,
+            Self::Int(p) => p,
             Self::Enum(p) => p,
         }
     }
@@ -219,6 +255,37 @@ impl ParamWriteDenorm for LogParam {
     }
 }
 
+// --- Int Param ---
+impl ParamLogic for IntParam {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+    fn value(&self) -> f64 {
+        self.value
+    }
+    fn set_value(&mut self, val: f64) {
+        self.value = val;
+    }
+    fn drag_range_px(&self) -> f64 {
+        150.0
+    }
+}
+
+impl ParamWriteDenorm for IntParam {
+    type ParamType = i64;
+
+    fn denormalize(&self, n: f64) -> Self::ParamType {
+        let range = (self.r_max - self.r_min) as f64;
+        let denorm_f64 = self.r_min as f64 + (n * range);
+        ffi::round(denorm_f64) as i64
+    }
+
+    fn write_denorm_value<const N: usize>(&self, buf: &mut FixedStr<N>) {
+        let val = self.denormalize(self.value);
+        buf.push_int(val);
+    }
+}
+
 // --- Enum Param ---
 impl EnumParam {
     fn last_index(&self) -> f64 {
@@ -239,7 +306,7 @@ impl ParamLogic for EnumParam {
         }
     }
     fn set_value(&mut self, val: f64) {
-        self.value = js::round(val * self.last_index()) as u8;
+        self.value = ffi::round(val * self.last_index()) as u8;
     }
     fn drag_range_px(&self) -> f64 {
         const PX_PER_STEP: f64 = 12.0;
@@ -251,7 +318,7 @@ impl ParamWriteDenorm for EnumParam {
     type ParamType = &'static str;
 
     fn denormalize(&self, val: f64) -> Self::ParamType {
-        let idx = js::round(val * self.last_index()) as usize;
+        let idx = ffi::round(val * self.last_index()) as usize;
         self.data.get(idx).unwrap_or(&"")
     }
 

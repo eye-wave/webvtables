@@ -1,8 +1,10 @@
+mod buffer;
 mod link;
 mod node;
 mod param;
 mod socket;
 
+pub use buffer::*;
 pub use link::*;
 pub use node::*;
 pub use param::*;
@@ -12,6 +14,11 @@ mod consts {
     pub const MAX_NODES: usize = 100;
     pub const MAX_LINKS: usize = 100;
     pub const MAX_PARAMS: usize = 4;
+    /// Per-node scratch state (e.g. a filter's IIR history) that must
+    /// survive across process() calls instead of resetting every frame.
+    pub const MAX_NODE_STATE: usize = 4;
+    /// Cap on input sockets a single node kind can have (Add uses 2 today).
+    pub const MAX_NODE_INPUTS: usize = 4;
 
     pub const SOCKET_R: f32 = 5.0;
     pub const SOCKET_HIT_R2: f32 = 10.0 * 10.0;
@@ -33,9 +40,11 @@ pub struct GraphState {
     pub hovered_link: Option<usize>,
     pub hovered_socket: Option<SocketRef>,
     pub mouse: (f32, f32),
-    /// Bumped whenever link topology changes. Lets JS cheaply detect
+    /// Bumped whenever link topology changes. Lets Host cheaply detect
     /// if the audio graph need rebuilding.
     pub version: u32,
+    /// Each node's most recently computed single-cycle output frame.
+    pub buffers: [Buffer; MAX_NODES],
 }
 
 static mut STATE: GraphState = GraphState {
@@ -52,6 +61,7 @@ static mut STATE: GraphState = GraphState {
     hovered_socket: None,
     mouse: (0.0, 0.0),
     version: 0,
+    buffers: [ZERO_BUFFER; MAX_NODES],
 };
 
 pub fn state() -> &'static mut GraphState {

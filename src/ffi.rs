@@ -36,6 +36,7 @@ wasm_imports! {
     fn ln(x: f64) -> f64;
     fn exp(x: f64) -> f64;
     fn round(x: f64) -> f64;
+    fn sin(x: f64) -> f64;
 
     fn draw_flush(ptr: *const u8, len: usize);
 }

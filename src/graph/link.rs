@@ -29,10 +29,10 @@ impl Link {
 impl Draw for Link {
     fn draw(&self, i: usize, s: &GraphState, buf: &mut DrawBuf) {
         if s.hovered_link == Some(i) {
-            buf.stroke_style(255, 240, 140);
+            buf.stroke_style([255, 240, 140]);
             buf.line_width(3.0);
         } else {
-            buf.stroke_style(210, 180, 60);
+            buf.stroke_style([210, 180, 60]);
             buf.line_width(2.0);
         }
         let (fx, fy) = output_pos(&s.nodes[self.from], self.from_socket);

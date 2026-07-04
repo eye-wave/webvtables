@@ -1,4 +1,4 @@
-use crate::js;
+use crate::ffi;
 
 pub struct FixedStr<const N: usize> {
     buf: [u8; N],
@@ -59,7 +59,7 @@ impl<const N: usize> FixedStr<N> {
     }
 
     pub fn push_fixed2(&mut self, v: f64) {
-        let scaled = js::round(v * 100.0) as i64;
+        let scaled = ffi::round(v * 100.0) as i64;
         let (neg, scaled) = if scaled < 0 {
             (true, -scaled)
         } else {
