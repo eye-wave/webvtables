@@ -111,7 +111,6 @@ impl DrawBuf {
 
     pub fn fill_text(&mut self, text: &str, x: f32, y: f32) {
         let bytes = text.as_bytes();
-        // ponytail: u16 length cap is plenty for node titles/labels.
         let len = bytes.len().min(u16::MAX as usize) as u16;
         self.push_u8(Op::FillText as u8);
         self.push_f32(x);

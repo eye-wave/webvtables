@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently 'vite' 'bun run dev:rust'",
-    "dev:rust": "cargo watch -w src -i '*' -i '!src/**/*.rs' -x 'build --target wasm32-unknown-unknown --release'",
+    "dev": "concurrently \"vite\" \"bun run dev:rust\"",
+    "dev:rust": "cargo watch -w src -x \"build --target wasm32-unknown-unknown --release\"",
     "build": "bun run build:rust && vite build",
     "build:rust": "cargo build --target wasm32-unknown-unknown --release",
     "preview": "vite preview"

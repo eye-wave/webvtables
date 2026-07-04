@@ -56,6 +56,15 @@ pub extern "C" fn on_mouse_down(x: f32, y: f32) {
     }
     for i in (0..s.node_count).rev() {
         let n = s.nodes[i];
+        for (p, param) in n.params.iter().flatten().enumerate() {
+            let (bx, by, bw, bh) = n.param_value_rect(p);
+            if point_in_rect(x, y, bx, by, bw, bh) {
+                s.dragging_param = Some((i, p));
+                s.drag_param_start_y = y;
+                s.drag_param_start_value = param.value();
+                return;
+            }
+        }
         if point_in_rect(x, y, n.x, n.y, Node::W, Node::HEADER_H) {
             s.dragging_node = Some(i);
             s.drag_offset = (x - n.x, y - n.y);
@@ -81,13 +90,19 @@ pub enum CursorKind {
 #[unsafe(no_mangle)]
 pub extern "C" fn get_cursor_kind(x: f32, y: f32) -> CursorKind {
     let s = state();
-    if s.dragging_node.is_some() {
+    if s.dragging_node.is_some() || s.dragging_param.is_some() {
         return CursorKind::Grabbing;
     }
     for i in 0..s.node_count {
         let n = s.nodes[i];
         if point_in_rect(x, y, n.x, n.y, Node::W, Node::HEADER_H) {
             return CursorKind::Grab;
+        }
+        for p in 0..n.params.iter().flatten().count() {
+            let (bx, by, bw, bh) = n.param_value_rect(p);
+            if point_in_rect(x, y, bx, by, bw, bh) {
+                return CursorKind::Grab;
+            }
         }
     }
     if find_hovered_link(s, x, y).is_some() {
@@ -105,6 +120,13 @@ pub extern "C" fn on_mouse_move(x: f32, y: f32) {
     if let Some(i) = s.dragging_node {
         s.nodes[i].x = x - s.drag_offset.0;
         s.nodes[i].y = y - s.drag_offset.1;
+    }
+
+    if let Some((i, p)) = s.dragging_param {
+        let delta = s.drag_param_start_y - y; // dragging up increases the value
+        if let Some(param) = s.nodes[i].params[p].as_mut() {
+            param.drag_from(s.drag_param_start_value, delta);
+        }
     }
 
     s.hovered_link = if s.dragging_node.is_none() && s.pending_link_from.is_none() {
@@ -153,6 +175,7 @@ pub extern "C" fn on_mouse_up(x: f32, y: f32) {
     }
     s.pending_link_from = None;
     s.dragging_node = None;
+    s.dragging_param = None;
     render();
 }
 
