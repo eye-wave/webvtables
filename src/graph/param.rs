@@ -1,4 +1,4 @@
-use core::ops::Deref;
+use core::ops::{Deref, DerefMut};
 
 use crate::{FixedStr, ffi};
 
@@ -6,7 +6,11 @@ trait ParamLogic {
     fn name(&self) -> &'static str;
     fn value(&self) -> f64;
     fn set_value(&mut self, val: f64);
-    fn drag_range_px(&self) -> f64;
+    fn drag_range_px(&self) -> f64 {
+        150.0
+    }
+
+    fn normalize(&self, denorm: f64) -> f64;
 }
 
 trait ParamWriteDenorm {
@@ -56,6 +60,7 @@ pub enum ParamTypes {
 
 #[derive(Clone, Copy)]
 pub struct Param {
+    default: f64,
     inner: ParamTypes,
     unit: Option<&'static str>,
 }
@@ -65,6 +70,12 @@ impl Deref for Param {
 
     fn deref(&self) -> &Self::Target {
         &self.inner
+    }
+}
+
+impl DerefMut for Param {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
     }
 }
 
@@ -79,11 +90,12 @@ fn sym_exp(val: f64) -> f64 {
 }
 
 impl Param {
-    pub fn new_linear(name: &'static str, value: f64, r_min: f64, r_max: f64) -> Self {
+    pub fn new_linear(name: &'static str, r_min: f64, r_max: f64) -> Self {
         Self {
+            default: 0.0,
             inner: ParamTypes::Linear(LinearParam {
                 name,
-                value,
+                value: 0.0,
                 r_min,
                 r_max,
             }),
@@ -91,11 +103,12 @@ impl Param {
         }
     }
 
-    pub fn new_log(name: &'static str, value: f64, r_min: f64, r_max: f64) -> Self {
+    pub fn new_log(name: &'static str, r_min: f64, r_max: f64) -> Self {
         Self {
+            default: 0.0,
             inner: ParamTypes::Log(LogParam {
                 name,
-                value,
+                value: 0.0,
                 log_min: sym_log(r_min),
                 log_max: sym_log(r_max),
             }),
@@ -105,6 +118,7 @@ impl Param {
 
     pub fn new_int(name: &'static str, value: f64, r_min: i64, r_max: i64) -> Self {
         Self {
+            default: 0.0,
             inner: ParamTypes::Int(IntParam {
                 name,
                 value,
@@ -115,9 +129,32 @@ impl Param {
         }
     }
 
-    pub fn new_enum(name: &'static str, value: u8, data: &'static [&'static str]) -> Self {
+    pub fn new_enum(name: &'static str, data: &'static [&'static str]) -> Self {
         Self {
-            inner: ParamTypes::Enum(EnumParam { name, value, data }),
+            default: 0.0,
+            inner: ParamTypes::Enum(EnumParam {
+                name,
+                value: 0,
+                data,
+            }),
+            unit: None,
+        }
+    }
+
+    pub fn new_bool(
+        name: &'static str,
+        value: bool,
+        data: Option<&'static [&'static str; 2]>,
+    ) -> Self {
+        const DEFAULT_NAMES: &[&str; 2] = &["No", "Yes"];
+
+        Self {
+            default: 0.0,
+            inner: ParamTypes::Enum(EnumParam {
+                name,
+                value: value as u8,
+                data: data.unwrap_or(DEFAULT_NAMES),
+            }),
             unit: None,
         }
     }
@@ -125,6 +162,23 @@ impl Param {
     pub fn with_unit(mut self, unit: &'static str) -> Self {
         self.unit = Some(unit);
         self
+    }
+
+    pub fn with_default_norm(mut self, v: f64) -> Self {
+        self.default = v;
+        self.as_param_mut().set_value(v);
+        self
+    }
+
+    pub fn with_default_denormf(mut self, v: f64) -> Self {
+        self.inner.set_denorm(v);
+        self.default = self.inner.value();
+        self
+    }
+
+    pub fn reset_to_default(&mut self) {
+        let val = self.default;
+        self.as_param_mut().set_value(val);
     }
 
     pub fn format_value(&self, buf: &mut FixedStr<16>) {
@@ -175,6 +229,27 @@ impl ParamTypes {
         self.as_param_mut().set_value(val);
     }
 
+    fn set_denorm(&mut self, denorm: f64) {
+        match self {
+            Self::Linear(p) => {
+                let n = p.normalize(denorm);
+                p.set_value(n);
+            }
+            Self::Log(p) => {
+                let n = p.normalize(denorm);
+                p.set_value(n);
+            }
+            Self::Int(p) => {
+                let n = p.normalize(ffi::round(denorm));
+                p.set_value(n);
+            }
+            Self::Enum(p) => {
+                let idx = (denorm.max(0.0) as usize).min(p.data.len().saturating_sub(1));
+                p.value = idx as u8;
+            }
+        }
+    }
+
     #[inline]
     fn as_param(&self) -> &dyn ParamLogic {
         match self {
@@ -207,8 +282,13 @@ impl ParamLogic for LinearParam {
     fn set_value(&mut self, val: f64) {
         self.value = val;
     }
-    fn drag_range_px(&self) -> f64 {
-        150.0
+    fn normalize(&self, denorm: f64) -> f64 {
+        let range = self.r_max - self.r_min;
+        if range == 0.0 {
+            0.0
+        } else {
+            ((denorm - self.r_min) / range).clamp(0.0, 1.0)
+        }
     }
 }
 
@@ -236,8 +316,14 @@ impl ParamLogic for LogParam {
     fn set_value(&mut self, val: f64) {
         self.value = val;
     }
-    fn drag_range_px(&self) -> f64 {
-        150.0
+    fn normalize(&self, denorm: f64) -> f64 {
+        let log_val = sym_log(denorm);
+        let range = self.log_max - self.log_min;
+        if range == 0.0 {
+            0.0
+        } else {
+            ((log_val - self.log_min) / range).clamp(0.0, 1.0)
+        }
     }
 }
 
@@ -266,8 +352,13 @@ impl ParamLogic for IntParam {
     fn set_value(&mut self, val: f64) {
         self.value = val;
     }
-    fn drag_range_px(&self) -> f64 {
-        150.0
+    fn normalize(&self, denorm: f64) -> f64 {
+        let range = (self.r_max - self.r_min) as f64;
+        if range == 0.0 {
+            0.0
+        } else {
+            ((denorm as i64 - self.r_min) as f64 / range).clamp(0.0, 1.0)
+        }
     }
 }
 
@@ -307,6 +398,13 @@ impl ParamLogic for EnumParam {
     }
     fn set_value(&mut self, val: f64) {
         self.value = ffi::round(val * self.last_index()) as u8;
+    }
+    fn normalize(&self, denorm: f64) -> f64 {
+        if self.data.is_empty() {
+            return 0.0;
+        }
+
+        denorm / self.data.len() as f64
     }
     fn drag_range_px(&self) -> f64 {
         const PX_PER_STEP: f64 = 12.0;

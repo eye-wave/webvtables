@@ -10,6 +10,7 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+paste = "1.0.15"
 
 [profile.dev]
 panic = "abort"

@@ -1,6 +1,8 @@
 use crate::ffi;
+use crate::graph::node::helpers::PI32;
 use crate::graph::{BUFFER_LEN, Buffer, Param, consts::*, node_colors};
 
+use super::helpers;
 use super::{NodeLogic, NodeState};
 
 pub struct BasicShapesNode;
@@ -27,11 +29,10 @@ impl NodeLogic for BasicShapesNode {
 
         p[0] = Some(Param::new_enum(
             "Shape",
-            0,
             &["Sine", "Triangle", "Square", "Sawtooth"],
         ));
 
-        p[1] = Some(Param::new_int("Freq", 0.0, 1, 100));
+        p[1] = Some(Param::new_int("Repeats", 0.0, 1, 100).with_unit("x"));
 
         p
     }
@@ -43,15 +44,15 @@ impl NodeLogic for BasicShapesNode {
         _state: &mut NodeState,
         out: &mut Buffer,
     ) {
-        let shape = params[0].map(|p| p.denorm() as u8).unwrap_or(0);
-        let freq = params[1].map(|p| p.denorm() as f32).unwrap_or(1.0);
+        let shape = helpers::param(params, 0, 0.0) as u8;
+        let freq = helpers::param(params, 1, 1.0) as f32;
 
         let mut phase = 0.0;
         let phase_inc = freq / BUFFER_LEN as f32;
 
         for sample in out.iter_mut() {
             *sample = match shape {
-                0 => ffi::sin((2.0 * core::f32::consts::PI * phase) as f64) as f32,
+                0 => ffi::sin((2.0 * PI32 * phase) as f64) as f32,
                 1 => {
                     if phase < 0.5 {
                         4.0 * phase - 1.0

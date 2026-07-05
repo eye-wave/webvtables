@@ -10,11 +10,19 @@ use super::{
 pub type NodeState = [f32; MAX_NODE_STATE];
 
 mod add;
+mod am;
 mod basic_shapes;
+mod bit_crush;
 mod filter;
+mod fm;
 mod gain;
+mod helpers;
 mod output;
 mod phase_shift;
+mod rm;
+mod saturation;
+mod sync_warp;
+mod window;
 
 pub mod node_colors {
     use crate::draw::Color;
@@ -26,27 +34,44 @@ pub mod node_colors {
     pub const EFFECT: Color = [75, 180, 100];
 }
 
+#[allow(unused)]
 #[derive(Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum NodeKind {
-    BasicShapes,
-    Gain,
-    Filter,
-    PhaseShift,
+    AM,
     Add,
+    BasicShapes,
+    BitCrush,
+    FM,
+    Filter,
+    Gain,
     Output,
+    PhaseShift,
+    RM,
+    Saturation,
+    SyncWarp,
+    SyncWindow,
 }
 
 impl NodeKind {
     #[inline]
     fn as_node(&self) -> &dyn NodeLogic {
+        use NodeKind::*;
+
         match self {
-            NodeKind::BasicShapes => &basic_shapes::BasicShapesNode,
-            NodeKind::Gain => &gain::GainNode,
-            NodeKind::Filter => &filter::FilterNode,
-            NodeKind::PhaseShift => &phase_shift::PhaseShiftNode,
-            NodeKind::Add => &add::AddNode,
-            NodeKind::Output => &output::OutputNode,
+            Add => &add::AddNode,
+            AM => &am::AMNode,
+            BasicShapes => &basic_shapes::BasicShapesNode,
+            BitCrush => &bit_crush::BitCrushNode,
+            Filter => &filter::FilterNode,
+            FM => &fm::FMNode,
+            Gain => &gain::GainNode,
+            Output => &output::OutputNode,
+            PhaseShift => &phase_shift::PhaseShiftNode,
+            RM => &rm::RMNode,
+            Saturation => &saturation::SaturationNode,
+            SyncWarp => &sync_warp::SyncWarpNode,
+            SyncWindow => &window::WindowNode,
         }
     }
 }
@@ -117,6 +142,10 @@ impl NodeLogic for NodeKind {
         self.as_node().default_params()
     }
 
+    fn has_widget(&self) -> bool {
+        self.as_node().has_widget()
+    }
+
     fn process(
         &self,
         inputs: &[&Buffer],
@@ -151,15 +180,17 @@ pub struct Node {
 impl Node {
     pub const HEADER_H: f32 = 20.0;
     pub const PARAM_H: f32 = 18.0;
-    const VALUE_X: f32 = 62.0;
+
+    const VALUE_X: f32 = 80.0;
     const VALUE_PAD: f32 = 6.0;
     const VALUE_BOX_H: f32 = 14.0;
 
     pub const WAVE_H: f32 = 34.0;
     pub const WIDGET_H: f32 = 40.0;
+
     const WAVE_POINTS: usize = 400;
 
-    pub const W: f32 = 150.0;
+    pub const W: f32 = 180.0;
 
     /// Computes total dynamic height based on active elements
     pub fn height(&self) -> f32 {
@@ -207,21 +238,31 @@ impl Node {
         buf.fill_style([20, 20, 24]);
         buf.fill_rect(x, y, w, h);
 
-        buf.stroke_style([120, 200, 255]);
         buf.line_width(1.5);
 
         let samples = &s.buffers[i];
         let half_h = h / 2.0 - 2.0;
-        let mut prev: Option<(f32, f32)> = None;
+        let mut prev: Option<(f32, f32, bool)> = None;
+
         for p in 0..Self::WAVE_POINTS {
             let sample_idx = p * BUFFER_LEN / Self::WAVE_POINTS;
-            let v = samples[sample_idx].clamp(-1.0, 1.0);
+            let raw_sample = samples[sample_idx];
+
+            let is_clipping = raw_sample > 1.0 || raw_sample < -1.0;
+
+            let v = raw_sample.clamp(-1.0, 1.0);
             let px = x + w * p as f32 / (Self::WAVE_POINTS - 1) as f32;
             let py = y + h / 2.0 - v * half_h;
-            if let Some((ppx, ppy)) = prev {
+
+            if let Some((ppx, ppy, prev_clipping)) = prev {
+                if is_clipping || prev_clipping {
+                    buf.stroke_style([255, 60, 60]);
+                } else {
+                    buf.stroke_style([120, 200, 255]);
+                }
                 buf.stroke_line(ppx, ppy, px, py);
             }
-            prev = Some((px, py));
+            prev = Some((px, py, is_clipping));
         }
     }
 }

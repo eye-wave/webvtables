@@ -37,9 +37,9 @@ pub extern "C" fn init() {
 
     s.nodes[2] = Node::new(NodeKind::Gain, 240.0, 80.0);
     s.nodes[3] = Node::new(NodeKind::PhaseShift, 240.0, 220.0);
-    s.nodes[4] = Node::new(NodeKind::Add, 440.0, 140.0);
-    s.nodes[5] = Node::new(NodeKind::Filter, 620.0, 140.0);
-    s.nodes[6] = Node::new(NodeKind::Output, 800.0, 140.0);
+    s.nodes[4] = Node::new(NodeKind::AM, 440.0, 140.0);
+    s.nodes[5] = Node::new(NodeKind::Saturation, 640.0, 140.0);
+    s.nodes[6] = Node::new(NodeKind::Output, 860.0, 140.0);
     s.node_count = 7;
 
     s.links[0] = Some(Link::new(0, 0, 2, 0));
@@ -156,6 +156,31 @@ pub extern "C" fn on_mouse_move(x: f32, y: f32) {
     };
 
     render();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn on_dblclick(x: f32, y: f32) {
+    let s = state();
+
+    for i in (0..s.node_count).rev() {
+        let n = &mut s.nodes[i];
+
+        for p in 0..n.params.iter().flatten().count() {
+            let (bx, by, bw, bh) = n.param_value_rect(p);
+
+            if point_in_rect(x, y, bx, by, bw, bh) {
+                if let Some(param) = n.params[p].as_mut() {
+                    console_print!("Double clicked parameter ", p, " on node ", i);
+
+                    param.reset_to_default();
+
+                    s.version += 1;
+                    render();
+                }
+                return;
+            }
+        }
+    }
 }
 
 #[unsafe(no_mangle)]

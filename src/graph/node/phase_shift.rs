@@ -1,4 +1,5 @@
 use super::NodeLogic;
+use super::helpers;
 use crate::graph::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeState, Param, node_colors};
 
 pub struct PhaseShiftNode;
@@ -22,8 +23,8 @@ impl NodeLogic for PhaseShiftNode {
 
     fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
         let mut p = [None; MAX_PARAMS];
-        // 0 to 360 degrees maps to 0 to BUFFER_LEN samples of delay
-        p[0] = Some(Param::new_linear("Shift", 0.0, 0.0, 360.0).with_unit("°"));
+
+        p[0] = Some(Param::new_linear("Shift", 0.0, 360.0).with_unit("°"));
         p
     }
 
@@ -39,7 +40,7 @@ impl NodeLogic for PhaseShiftNode {
             None => return,
         };
 
-        let deg = params[0].map(|p| p.denorm()).unwrap_or(0.0);
+        let deg = helpers::param(params, 0, 0.0);
 
         let normalized_shift = (deg % 360.0) / 360.0;
         let sample_shift = (normalized_shift * BUFFER_LEN as f64) as usize;

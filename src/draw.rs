@@ -41,7 +41,7 @@ impl DrawBuf {
 
     /// Returns true if `extra` bytes fit within BUF_CAP. Checked by all public ops
     /// before writing to ensure overflow frames drop trailing draw calls cleanly.
-    /// This prevents writing truncated instructions that would desync the JS decoder.
+    /// This prevents writing truncated instructions that would desync the Host decoder.
     fn reserve(&mut self, extra: usize) -> bool {
         self.len + extra <= BUF_CAP
     }

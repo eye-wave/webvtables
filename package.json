@@ -16,5 +16,8 @@
     "typescript": "~6.0.3",
     "vite": "^8.1.2",
     "vite-plugin-glsl": "^1.6.0"
+  },
+  "dependencies": {
+    "@eyewave/web-knobs": "^0.0.7"
   }
 }

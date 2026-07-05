@@ -3,6 +3,7 @@ import wasmUrl from "~wasm/webvtabes.wasm?url";
 export type WasmExports = {
   on_mouse_move: (x: number, y: number) => void;
   on_mouse_down: (x: number, y: number) => void;
+  on_dblclick: (x: number, y: number) => void;
   on_mouse_up: (x: number, y: number) => void;
   get_cursor_kind: (x: number, y: number) => number;
   init: () => void;

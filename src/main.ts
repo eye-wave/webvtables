@@ -2,6 +2,9 @@ import { loadWasm, makeStrReader, type WasmExports } from "./wasm";
 import { executeDrawBuffer, type Renderer } from "./renderer/renderer";
 import { Canvas2DRenderer } from "./renderer/canvas2d-renderer";
 import { WebGL2Renderer } from "./renderer/webgl2-renderer";
+import { createKnobs } from "./audio/knobs";
+
+createKnobs();
 
 declare const viewport: HTMLDivElement;
 declare const canvas_graph: HTMLCanvasElement;
@@ -36,7 +39,7 @@ async function init() {
   let logBuffer = "";
   let readStr: (ptr: number, len: number) => string;
 
-  const exports: WasmExports = await loadWasm({
+  const wasm_ffi = {
     log_str(ptr: number, len: number) {
       logBuffer += readStr(ptr, len);
     },
@@ -51,27 +54,37 @@ async function init() {
       logBuffer = "";
     },
 
-    ln: (x: number) => Math.log(x),
-    exp: (x: number) => Math.exp(x),
-    round: (x: number) => Math.round(x),
-    sin: (x: number) => Math.sin(x),
-
-    cosf: (x: number) => Math.cos(x),
-    powf: (x: number, y: number) => Math.pow(x, y),
-    sqrtf: (x: number) => Math.sqrt(x),
-
     draw_flush(ptr: number, len: number) {
       executeDrawBuffer(
         new Uint8Array(exports.memory.buffer, ptr, len),
         renderer,
       );
     },
-  });
+  };
+
+  const math_ffi: Record<string, Math[keyof Math]> = {
+    pow: Math.pow,
+    exp: Math.exp,
+    ln: Math.log,
+    floor: Math.floor,
+    round: Math.round,
+    sin: Math.sin,
+    cos: Math.cos,
+    tanh: Math.tanh,
+    sqrt: Math.sqrt,
+  };
+
+  for (const [name, fn] of Object.entries(math_ffi)) {
+    math_ffi[name + "f"] = fn;
+  }
+
+  const exports: WasmExports = await loadWasm({ ...wasm_ffi, ...math_ffi });
+
   readStr = makeStrReader(exports);
 
   const posFromEvent = (e: MouseEvent): [number, number] => [
-    e.clientX - canvas_graph.offsetLeft,
-    e.clientY - canvas_graph.offsetTop,
+    e.clientX - viewport.offsetLeft,
+    e.clientY - viewport.offsetTop,
   ];
 
   const mouseWrapper =
@@ -80,6 +93,7 @@ async function init() {
 
   window.onmouseup = mouseWrapper(exports.on_mouse_up);
   canvas_graph.onmousedown = mouseWrapper(exports.on_mouse_down);
+  canvas_graph.ondblclick = mouseWrapper(exports.on_dblclick);
   canvas_graph.onmousemove = (e) => {
     const pos = posFromEvent(e);
     exports.on_mouse_move(...pos);
