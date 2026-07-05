@@ -1,4 +1,4 @@
-import { loadWasm, makeStrReader, type WasmExports } from "./wasm";
+import { loadWasm, makeStrReader, type RawStr, type WasmExports } from "./wasm";
 import { executeDrawBuffer, type Renderer } from "./renderer/renderer";
 import { Canvas2DRenderer } from "./renderer/canvas2d-renderer";
 import { WebGL2Renderer } from "./renderer/webgl2-renderer";
@@ -40,7 +40,7 @@ async function init() {
   let logBuffer = "";
   let readStr: (ptr: number, len: number) => string;
 
-  const nodeNames: Record<string, string[]> = {};
+  const nodeNames: Record<string, RawStr[]> = {};
   let openMenu: (x: number, y: number, id: number) => void;
 
   const wasm_ffi = {
@@ -59,11 +59,10 @@ async function init() {
     },
 
     push_node_name: (ptr: number, len: number, ptr2: number, len2: number) => {
-      const name = readStr(ptr, len);
       const category = readStr(ptr2, len2);
 
       if (!nodeNames[category]) nodeNames[category] = [];
-      nodeNames[category].push(name);
+      nodeNames[category].push({ ptr, len });
     },
     open_context_menu: (x: number, y: number, id: number) => openMenu(x, y, id),
     draw_flush(ptr: number, len: number) {
@@ -97,7 +96,7 @@ async function init() {
   readStr = makeStrReader(exports);
 
   exports.iter_all_nodes();
-  openMenu = registerContextMenu(nodeNames);
+  openMenu = registerContextMenu(exports, nodeNames);
 
   const posFromEvent = (e: MouseEvent): [number, number] => [
     e.clientX - viewport.offsetLeft,

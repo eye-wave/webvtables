@@ -79,7 +79,7 @@ pub enum NodeKind {
 
 impl NodeKind {
     #[inline]
-    fn as_node(&self) -> &dyn NodeLogic {
+    pub fn as_node(&self) -> &dyn NodeLogic {
         use NodeKind::*;
 
         match self {
@@ -99,7 +99,19 @@ impl NodeKind {
         }
     }
 
-    pub fn iter() -> impl Iterator<Item = &'static dyn NodeLogic> {
+    pub fn from_title(title: &'static str) -> Option<Self> {
+        for node in Self::iter() {
+            if node.as_node().title() != title {
+                continue;
+            }
+
+            return Some(*node);
+        }
+
+        None
+    }
+
+    pub fn iter() -> impl Iterator<Item = &'static Self> {
         use NodeKind::*;
 
         const NODES: &[NodeKind] = &[
@@ -118,7 +130,7 @@ impl NodeKind {
             SyncWindow,
         ];
 
-        NODES.iter().map(|kind| kind.as_node())
+        NODES.iter()
     }
 }
 

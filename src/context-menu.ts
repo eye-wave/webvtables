@@ -1,6 +1,13 @@
+import { makeStrReader, type RawStr, type WasmExports } from "./wasm";
+
 declare const menu: HTMLDivElement;
 
-export function registerContextMenu(nodeNames: Record<string, string[]>) {
+export function registerContextMenu(
+  exports: WasmExports,
+  nodeNames: Record<string, RawStr[]>,
+) {
+  const readStr = makeStrReader(exports);
+
   document.addEventListener("click", () => (menu.style.display = "none"));
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") menu.style.display = "none";
@@ -38,19 +45,24 @@ export function registerContextMenu(nodeNames: Record<string, string[]>) {
 
   function addSubmenu(
     text: string,
-    items: string[] | Record<string, string[]>,
+    items: RawStr[] | Record<string, RawStr[]>,
     style = "",
-    parent: HTMLElement = menu,
+    parent: HTMLElement,
+    x: number,
+    y: number,
   ) {
     const el = addItem(text, ">", style, parent);
     const sub = document.createElement("div");
     sub.className = "menu submenu";
 
     if (Array.isArray(items)) {
-      items.forEach((name) => addItem(name, "", "", sub));
+      items.forEach((name) => {
+        const item = addItem(readStr(name.ptr, name.len), "", "", sub);
+        item.onclick = () => exports.add_node(x, y, name.ptr, name.len);
+      });
     } else {
       Object.entries(items).forEach(([group, names]) =>
-        addSubmenu(group, names, "", sub),
+        addSubmenu(group, names, "", sub, x, y),
       );
     }
 
@@ -63,12 +75,15 @@ export function registerContextMenu(nodeNames: Record<string, string[]>) {
     }
 
     if (id === -1) {
-      addSubmenu("New node", nodeNames, "highlight");
+      addSubmenu("New node", nodeNames, "highlight", menu, x, y);
       addItem("Auto arrange", "Shift+I");
     } else {
       addItem("Duplicate");
       addDivider();
-      addItem("Remove", "⌫", "danger");
+
+      const rem = addItem("Remove", "⌫", "danger");
+
+      rem.onclick = () => exports.remove_node(id);
     }
 
     menu.style.left = x + "px";

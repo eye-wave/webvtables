@@ -138,7 +138,7 @@ pub extern "C" fn get_cursor_kind(x: f32, y: f32) -> CursorKind {
 pub extern "C" fn iter_all_nodes() {
     for node in NodeKind::iter() {
         let title = node.title();
-        let categ = node.category().as_str();
+        let categ = node.as_node().category().as_str();
 
         ffi::push_node_name(title.as_ptr(), title.len(), categ.as_ptr(), categ.len());
     }
@@ -330,4 +330,111 @@ pub extern "C" fn render() {
 
     let (ptr, len) = ctx.as_ptr_len();
     ffi::draw_flush(ptr, len);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn remove_node(target_idx: usize) {
+    let s = state();
+
+    if target_idx >= s.node_count {
+        return;
+    }
+
+    // clear out links
+    for slot in s.links.iter_mut() {
+        if let Some(l) = slot {
+            if l.from == target_idx || l.to == target_idx {
+                *slot = None;
+            } else {
+                if l.from > target_idx {
+                    l.from -= 1;
+                }
+                if l.to > target_idx {
+                    l.to -= 1;
+                }
+            }
+        }
+    }
+
+    // shift the remaining nodes down to fill the gap
+    for i in target_idx..(s.node_count - 1) {
+        s.nodes[i] = s.nodes[i + 1];
+    }
+
+    s.node_count -= 1;
+
+    // clear leftover state
+    if s.dragging_node == Some(target_idx) {
+        s.dragging_node = None;
+    } else if let Some(idx) = s.dragging_node
+        && idx > target_idx
+    {
+        s.dragging_node = Some(idx - 1);
+    }
+
+    if let Some((idx, _)) = s.dragging_param {
+        if idx == target_idx {
+            s.dragging_param = None;
+        } else if idx > target_idx {
+            s.dragging_param = s.dragging_param.map(|(_, p)| (idx - 1, p));
+        }
+    }
+
+    if let Some((idx, _)) = s.pending_link_from {
+        if idx == target_idx {
+            s.pending_link_from = None;
+        } else if idx > target_idx {
+            s.pending_link_from = s.pending_link_from.map(|(_, o)| (idx - 1, o));
+        }
+    }
+
+    s.version += 1;
+    render();
+}
+
+/// # Safety
+///
+/// This function is unsafe because it dereferences the raw pointer `name_ptr`.
+/// The caller must ensure that `name_ptr` points to a valid, initialized block of
+/// memory containing at least `name_len` bytes, and that the memory remains valid
+/// and immutable for the duration of this call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn add_node(x: f32, y: f32, name_ptr: *const u8, name_len: usize) -> isize {
+    let s = state();
+
+    if s.node_count >= MAX_NODES {
+        console_print!("Error: Maximum node capacity reached.");
+        return -1;
+    }
+
+    if name_ptr.is_null() {
+        console_print!("Null ptr deref.");
+        return -1;
+    }
+
+    let name_slice = unsafe { core::slice::from_raw_parts(name_ptr, name_len) };
+    let name_str = match core::str::from_utf8(name_slice) {
+        Ok(s) => s,
+        Err(_) => {
+            console_print!("Invalid UTF-8 in node name");
+            return -1;
+        }
+    };
+
+    let kind = match NodeKind::from_title(name_str) {
+        Some(n) => n,
+        None => {
+            console_print!("Error: Unknown node title requested.");
+            return -1;
+        }
+    };
+
+    let new_idx = s.node_count;
+    s.nodes[new_idx] = Node::new(kind, x, y);
+    s.node_count += 1;
+
+    s.version += 1;
+    render();
+
+    new_idx as isize
 }

@@ -1,22 +1,37 @@
 import wasmUrl from "~wasm/webvtabes.wasm?url";
 
-export type WasmExports = {
-  on_mouse_move: (x: number, y: number) => void;
-  on_mouse_down: (x: number, y: number) => void;
-  on_dblclick: (x: number, y: number) => void;
-  on_mouse_up: (x: number, y: number) => void;
-  get_cursor_kind: (x: number, y: number) => number;
-  iter_all_nodes: () => void;
-  init: () => void;
-  render: () => void;
+export type RawStr = {
+  ptr: number;
+  len: number;
+};
 
-  node_count: () => number;
-  node_kind: (i: number) => number;
-  node_param_count: (i: number) => number;
-  node_param_value: (i: number, p: number) => number;
-  max_links: () => number;
-  link_at: (slot: number) => number;
-  graph_version: () => number;
+type u8 = number;
+type const_u8 = number;
+type usize = number;
+type isize = number;
+type u32 = number;
+type f32 = number;
+type f64 = number;
+type CursorKind = number;
+
+export type WasmExports = {
+  init: () => void;
+  on_mouse_down: (x: f32, y: f32) => void;
+  get_cursor_kind: (x: f32, y: f32) => CursorKind;
+  iter_all_nodes: () => void;
+  on_mouse_move: (x: f32, y: f32) => void;
+  on_dblclick: (x: f32, y: f32) => void;
+  on_mouse_up: (x: f32, y: f32) => void;
+  node_count: () => usize;
+  node_kind: (i: usize) => u8;
+  node_param_count: (i: usize) => usize;
+  node_param_value: (i: usize, p: usize) => f64;
+  max_links: () => usize;
+  link_at: (slot: usize) => u32;
+  graph_version: () => u32;
+  render: () => void;
+  remove_node: (target_idx: usize) => void;
+  add_node: (x: f32, y: f32, name_ptr: const_u8, name_len: usize) => isize;
 
   memory: WebAssembly.Memory;
 };
