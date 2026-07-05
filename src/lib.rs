@@ -54,9 +54,16 @@ pub extern "C" fn init() {
     render();
 }
 
+#[repr(u8)]
+pub enum MouseDownResult {
+    /// Nothing under the cursor - the click landed on empty canvas.
+    Empty = 0,
+    /// The click started a drag, grabbed a link, or was otherwise consumed.
+    Interactive = 1,
+}
+
 #[unsafe(no_mangle)]
-pub extern "C" fn on_mouse_down(x: f32, y: f32) {
-    console_print!("mouse down x: ", x, ", y: ", y);
+pub extern "C" fn on_mouse_down(x: f32, y: f32) -> MouseDownResult {
     let s = state();
 
     for i in 0..s.node_count {
@@ -65,33 +72,44 @@ pub extern "C" fn on_mouse_down(x: f32, y: f32) {
             let (ox, oy) = output_pos(n, o);
             if dist2(x, y, ox, oy) <= SOCKET_HIT_R2 {
                 s.pending_link_from = Some((i, o));
-                return;
+                return MouseDownResult::Interactive;
             }
         }
     }
+
     for i in (0..s.node_count).rev() {
         let n = s.nodes[i];
+
         for (p, param) in n.params.iter().flatten().enumerate() {
             let (bx, by, bw, bh) = n.param_value_rect(p);
             if point_in_rect(x, y, bx, by, bw, bh) {
                 s.dragging_param = Some((i, p));
                 s.drag_param_start_y = y;
                 s.drag_param_start_value = param.value();
-                return;
+                return MouseDownResult::Interactive;
             }
         }
+
         if point_in_rect(x, y, n.x, n.y, Node::W, Node::HEADER_H) {
             s.dragging_node = Some(i);
             s.drag_offset = (x - n.x, y - n.y);
-            return;
+            return MouseDownResult::Interactive;
+        }
+
+        if point_in_rect(x, y, n.x, n.y, Node::W, n.height()) {
+            return MouseDownResult::Interactive;
         }
     }
+
     if let Some(i) = find_hovered_link(s, x, y) {
         s.links[i] = None;
         s.hovered_link = None;
         s.version += 1;
         console_print!("removed link ", i);
+        return MouseDownResult::Interactive;
     }
+
+    MouseDownResult::Empty
 }
 
 #[repr(u8)]
@@ -138,7 +156,7 @@ pub extern "C" fn iter_all_nodes() {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn on_mouse_move(x: f32, y: f32) {
+pub extern "C" fn on_mouse_move(x: f32, y: f32, _btn: u8, alt_key: bool) {
     let s = state();
     s.mouse = (x, y);
 
@@ -150,15 +168,26 @@ pub extern "C" fn on_mouse_move(x: f32, y: f32) {
     if let Some((i, p)) = s.dragging_param {
         let delta = s.drag_param_start_y - y; // dragging up increases the value
         if let Some(param) = s.nodes[i].params[p].as_mut() {
-            param.drag_from(s.drag_param_start_value, delta as f64);
+            param.drag_from(s.drag_param_start_value, delta as f64, alt_key);
         }
     }
 
-    s.hovered_link = if s.dragging_node.is_none() && s.pending_link_from.is_none() {
-        find_hovered_link(s, x, y)
-    } else {
-        None
-    };
+    let mut mouse_over_any_node = false;
+    for i in 0..s.node_count {
+        let n = s.nodes[i];
+
+        if point_in_rect(x, y, n.x, n.y, Node::W, n.height()) {
+            mouse_over_any_node = true;
+            break;
+        }
+    }
+
+    s.hovered_link =
+        if s.dragging_node.is_none() && s.pending_link_from.is_none() && !mouse_over_any_node {
+            find_hovered_link(s, x, y)
+        } else {
+            None
+        };
 
     s.hovered_socket = if s.dragging_node.is_none() {
         find_hovered_socket(s, x, y)

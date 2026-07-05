@@ -195,8 +195,9 @@ impl Param {
         }
     }
 
-    pub fn drag_from(&mut self, start_value: f64, delta_px: f64) {
-        self.inner.drag_from(start_value, delta_px);
+    pub fn drag_from(&mut self, start_value: f64, delta_px: f64, precise: bool) {
+        let mul = 1.0 - 0.99 * (precise as u8 as f64);
+        self.inner.drag_from(start_value, delta_px * mul);
     }
 
     pub fn set_value_norm(&mut self, val: f64) {

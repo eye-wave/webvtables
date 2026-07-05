@@ -6,6 +6,7 @@ const enum Op {
   FillCircle = 5,
   StrokeLine = 6,
   FillText = 7,
+  FontSize = 8,
 }
 
 export interface Renderer {
@@ -18,6 +19,7 @@ export interface Renderer {
   fillCircle(x: number, y: number, r: number): void;
   strokeLine(x1: number, y1: number, x2: number, y2: number): void;
   fillText(text: string, x: number, y: number): void;
+  fontSize(x: number): void;
   endFrame(): void;
 }
 
@@ -88,6 +90,9 @@ export function executeDrawBuffer(bytes: Uint8Array, r: Renderer) {
         p += len;
         r.fillText(text, x, y);
         break;
+      }
+      case Op.FontSize: {
+        // TODO
       }
       default:
         console.error(`unknown draw opcode ${op} at byte ${p - 1}`);

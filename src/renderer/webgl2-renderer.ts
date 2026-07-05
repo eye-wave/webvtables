@@ -1,4 +1,5 @@
 import type { Renderer } from "./renderer";
+import { camera } from "../camera";
 import VERTEX_SRC from "./shader-vert.glsl";
 import FRAGMENT_SRC from "./shader-frag.glsl";
 
@@ -34,6 +35,7 @@ export class WebGL2Renderer implements Renderer {
   private lineW = 1;
   private width = 0;
   private height = 0;
+  private _fontSize: number = 13;
 
   constructor(
     private gl: WebGL2RenderingContext,
@@ -103,7 +105,10 @@ export class WebGL2Renderer implements Renderer {
   beginFrame() {
     this.count = 0;
     this.nextZ = 0;
-    this.textCtx.clearRect(0, 0, this.width, this.height);
+    const { textCtx } = this;
+    textCtx.setTransform(1, 0, 0, 1, 0, 0);
+    textCtx.clearRect(0, 0, this.width, this.height);
+    textCtx.setTransform(camera.zoom, 0, 0, camera.zoom, camera.x, camera.y);
     const { gl } = this;
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -149,26 +154,42 @@ export class WebGL2Renderer implements Renderer {
   }
 
   fillRect(x: number, y: number, w: number, h: number) {
-    this.pushInstance(x + w / 2, y + h / 2, w, h, 0, this.fill, 0);
+    const { zoom } = camera;
+    const cx = (x + w / 2) * zoom + camera.x;
+    const cy = (y + h / 2) * zoom + camera.y;
+    this.pushInstance(cx, cy, w * zoom, h * zoom, 0, this.fill, 0);
   }
 
   fillCircle(x: number, y: number, r: number) {
-    this.pushInstance(x, y, r * 2, r * 2, 0, this.fill, 1);
+    const { zoom } = camera;
+    const cx = x * zoom + camera.x;
+    const cy = y * zoom + camera.y;
+    const d = r * 2 * zoom;
+    this.pushInstance(cx, cy, d, d, 0, this.fill, 1);
   }
 
   strokeLine(x1: number, y1: number, x2: number, y2: number) {
-    const dx = x2 - x1;
-    const dy = y2 - y1;
+    const { zoom } = camera;
+    const sx1 = x1 * zoom + camera.x;
+    const sy1 = y1 * zoom + camera.y;
+    const sx2 = x2 * zoom + camera.x;
+    const sy2 = y2 * zoom + camera.y;
+    const dx = sx2 - sx1;
+    const dy = sy2 - sy1;
     const len = Math.hypot(dx, dy);
     const rot = Math.atan2(dy, dx);
 
     // prettier-ignore
-    this.pushInstance((x1 + x2) / 2,(y1 + y2) / 2,len,this.lineW,rot,this.stroke,0);
+    this.pushInstance((sx1 + sx2) / 2,(sy1 + sy2) / 2,len,this.lineW * zoom,rot,this.stroke,0);
+  }
+
+  fontSize(n: number) {
+    this._fontSize = n;
   }
 
   fillText(text: string, x: number, y: number) {
     const [r, g, b] = this.fill;
-    this.textCtx.font = "13px sans";
+    this.textCtx.font = `${this._fontSize}px sans`;
     this.textCtx.fillStyle = `rgb(${r * 255},${g * 255},${b * 255})`;
     this.textCtx.fillText(text, x, y);
   }

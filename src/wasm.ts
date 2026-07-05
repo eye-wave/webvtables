@@ -20,6 +20,8 @@ export type u32 = number & { __brand: "u32" };
 export type f32 = number & { __brand: "f32" };
 export type f64 = number & { __brand: "f64" };
 export type CursorKind = number & { __brand: "CursorKind" };
+export type MouseDownResult = number & { __brand: "MouseDownResult" };
+export const MouseDownResult = { Empty: 0, Interactive: 1 } as const;
 
 export function unpackBuffer(packed: bigint): RawBuffer {
   const ptr = Number(packed >> 32n) as mut_u8;
@@ -30,12 +32,12 @@ export function unpackBuffer(packed: bigint): RawBuffer {
 
 export type WasmExports = {
   init: () => void;
-  on_mouse_down: (x: f32, y: f32) => void;
   get_cursor_kind: (x: f32, y: f32) => CursorKind;
   iter_all_nodes: () => void;
-  on_mouse_move: (x: f32, y: f32) => void;
-  on_dblclick: (x: f32, y: f32) => void;
-  on_mouse_up: (x: f32, y: f32) => void;
+  on_mouse_down: (x: f32, y: f32, btn: u8, altKey: boolean) => MouseDownResult;
+  on_mouse_move: (x: f32, y: f32, btn: u8, altKey: boolean) => void;
+  on_dblclick: (x: f32, y: f32, btn: u8, altKey: boolean) => void;
+  on_mouse_up: (x: f32, y: f32, btn: u8, altKey: boolean) => void;
   node_count: () => usize;
   node_kind: (i: usize) => u8;
   node_param_count: (i: usize) => usize;
