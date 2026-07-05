@@ -199,6 +199,10 @@ impl Param {
         self.inner.drag_from(start_value, delta_px);
     }
 
+    pub fn set_value_norm(&mut self, val: f64) {
+        self.as_param_mut().set_value(val);
+    }
+
     /// The param's real-world (denormalized) numeric value — Hz, dB, etc.
     /// for Linear/Log params, or the selected index for Enum params. This is
     /// what DSP code should read; `value()` is the raw 0..1 slider position.

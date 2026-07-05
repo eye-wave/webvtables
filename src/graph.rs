@@ -10,6 +10,7 @@ pub use buffer::*;
 pub use link::*;
 pub use node::*;
 pub use param::*;
+use serde::{Deserialize, Serialize};
 pub use socket::*;
 
 mod consts {
@@ -28,6 +29,8 @@ mod consts {
 }
 
 pub use consts::*;
+
+use crate::render;
 
 pub struct GraphState {
     pub nodes: [Node; MAX_NODES],
@@ -49,6 +52,72 @@ pub struct GraphState {
     /// heap-allocated (see `init()`) instead of a static array, so
     /// it doesn't inflate the binary; `None` only before init() runs.
     pub buffers: Option<Box<[Buffer]>>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct GraphSnapshot {
+    node_count: usize,
+    nodes: heapless::Vec<NodeSnapshot, MAX_NODES>,
+    links: heapless::Vec<Option<Link>, MAX_LINKS>,
+}
+
+impl From<&GraphState> for GraphSnapshot {
+    fn from(state: &GraphState) -> Self {
+        let mut nodes = heapless::Vec::new();
+
+        for i in 0..state.node_count {
+            let _ = nodes.push(state.nodes[i].into());
+        }
+
+        let mut links = heapless::Vec::new();
+        for slot in state.links.iter() {
+            let _ = links.push(*slot);
+        }
+
+        GraphSnapshot {
+            node_count: state.node_count,
+            nodes,
+            links,
+        }
+    }
+}
+
+impl GraphState {
+    pub fn serialize(&self) -> Result<alloc::vec::Vec<u8>, postcard::Error> {
+        let snapshot: GraphSnapshot = self.into();
+        postcard::to_allocvec(&snapshot)
+    }
+
+    pub fn patch(&mut self, snapshot: GraphSnapshot) {
+        self.node_count = snapshot.node_count;
+        for i in 0..MAX_NODES {
+            if i < snapshot.nodes.len() {
+                self.nodes[i] = snapshot.nodes[i].clone().into();
+            } else {
+                self.nodes[i] = EMPTY_NODE;
+            }
+        }
+
+        for i in 0..MAX_LINKS {
+            if i < snapshot.links.len() {
+                self.links[i] = snapshot.links[i];
+            } else {
+                self.links[i] = None;
+            }
+        }
+
+        self.dragging_node = None;
+        self.drag_offset = (0.0, 0.0);
+        self.dragging_param = None;
+        self.drag_param_start_y = 0.0;
+        self.drag_param_start_value = 0.0;
+        self.pending_link_from = None;
+        self.hovered_link = None;
+        self.hovered_socket = None;
+
+        self.version += 1;
+        render();
+    }
 }
 
 static mut STATE: GraphState = GraphState {

@@ -392,6 +392,27 @@ pub extern "C" fn remove_node(target_idx: usize) {
     render();
 }
 
+#[unsafe(no_mangle)]
+pub extern "C" fn remove_all_nodes() {
+    let s = state();
+
+    s.nodes = [EMPTY_NODE; MAX_NODES];
+    s.node_count = 0;
+
+    for slot in s.links.iter_mut() {
+        *slot = None;
+    }
+
+    s.dragging_node = None;
+    s.dragging_param = None;
+    s.pending_link_from = None;
+    s.hovered_link = None;
+    s.hovered_socket = None;
+
+    s.version = 0;
+    render();
+}
+
 /// # Safety
 ///
 /// This function is unsafe because it dereferences the raw pointer `name_ptr`.
@@ -437,4 +458,90 @@ pub unsafe extern "C" fn add_node(x: f32, y: f32, name_ptr: *const u8, name_len:
     render();
 
     new_idx as isize
+}
+
+#[repr(C)]
+pub struct SerializationResult {
+    ptr: *mut u8,
+    len: usize,
+}
+
+impl SerializationResult {
+    fn pack(&self) -> u64 {
+        ((self.ptr as u64) << 32) | (self.len as u64)
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn serialize_graph() -> u64 {
+    let s = state();
+
+    match s.serialize() {
+        Ok(buf) => {
+            let mut boxed_slice = buf.into_boxed_slice();
+            let ptr = boxed_slice.as_mut_ptr();
+            let len = boxed_slice.len();
+
+            core::mem::forget(boxed_slice);
+            SerializationResult { ptr, len }.pack()
+        }
+        Err(_) => {
+            console_print!("Error: Failed to serialize graph state.");
+            SerializationResult {
+                ptr: core::ptr::null_mut(),
+                len: 0,
+            }
+            .pack()
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn free_buffer(ptr: *mut u8, len: usize) {
+    if !ptr.is_null() && len > 0 {
+        unsafe {
+            let _ = alloc::boxed::Box::from_raw(core::ptr::slice_from_raw_parts_mut(ptr, len));
+        };
+    }
+}
+
+/// # Safety
+///
+/// Allocates a chunk of heap memory of `len` bytes for JavaScript to write into.
+/// The JavaScript side must pass this exact pointer back into `patch_graph`
+/// to ensure the memory is properly freed and not leaked.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn allocate_patch_buffer(len: usize) -> *mut u8 {
+    let mut buf = alloc::vec![0u8; len].into_boxed_slice();
+    let ptr = buf.as_mut_ptr();
+
+    core::mem::forget(buf);
+    ptr
+}
+
+/// # Safety
+///
+/// This function is unsafe because it dereferences the raw pointer `buf_ptr`.
+/// The caller must guarantee that `buf_ptr` points to `buf_len` contiguous bytes of
+/// valid, initialized memory containing valid Postcard-serialized data.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn patch_graph(buf_ptr: *mut u8, buf_len: usize) -> i32 {
+    if buf_ptr.is_null() || buf_len == 0 {
+        return -1;
+    }
+
+    let bytes_slice = unsafe { core::slice::from_raw_parts_mut(buf_ptr, buf_len) };
+    let _boxed_buffer = unsafe { alloc::boxed::Box::from_raw(bytes_slice) };
+
+    let s = state();
+    match postcard::from_bytes::<GraphSnapshot>(bytes_slice) {
+        Ok(snapshot) => {
+            s.patch(snapshot);
+            0
+        }
+        Err(_) => {
+            console_print!("Error: Failed to deserialize snapshot payload.");
+            -1
+        }
+    }
 }

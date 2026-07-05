@@ -1,4 +1,14 @@
-import { makeStrReader, type RawStr, type WasmExports } from "./wasm";
+import { loadFile, saveFile } from "./file-io";
+import {
+  makeBufReader,
+  makeStrReader,
+  unpackBuffer,
+  type f32,
+  type i32,
+  type RawStr,
+  type usize,
+  type WasmExports,
+} from "./wasm";
 
 declare const menu: HTMLDivElement;
 
@@ -7,6 +17,7 @@ export function registerContextMenu(
   nodeNames: Record<string, RawStr[]>,
 ) {
   const readStr = makeStrReader(exports);
+  const readBuf = makeBufReader(exports);
 
   document.addEventListener("click", () => (menu.style.display = "none"));
   document.addEventListener("keydown", (e) => {
@@ -48,8 +59,8 @@ export function registerContextMenu(
     items: RawStr[] | Record<string, RawStr[]>,
     style = "",
     parent: HTMLElement,
-    x: number,
-    y: number,
+    x: f32,
+    y: f32,
   ) {
     const el = addItem(text, ">", style, parent);
     const sub = document.createElement("div");
@@ -69,7 +80,7 @@ export function registerContextMenu(
     el.append(sub);
   }
 
-  return (x: number, y: number, id: number) => {
+  return (x: f32, y: f32, id: i32) => {
     while (menu.firstChild) {
       menu.firstChild.remove();
     }
@@ -77,13 +88,43 @@ export function registerContextMenu(
     if (id === -1) {
       addSubmenu("New node", nodeNames, "highlight", menu, x, y);
       addItem("Auto arrange", "Shift+I");
+
+      addItem("Delete all", "⌫", "danger").onclick = () =>
+        exports.remove_all_nodes();
+
+      addItem("Export", "Ctrl+S").onclick = () => {
+        const packed = exports.serialize_graph();
+        const addr = unpackBuffer(packed);
+
+        const view = readBuf(addr.ptr, addr.len);
+        const buf = new Uint8Array(view).slice();
+
+        saveFile("project.wbt", buf);
+
+        exports.free_buffer(addr.ptr, addr.len);
+      };
+
+      addItem("Import", "Ctrl+O").onclick = () =>
+        loadFile("*.wbt")
+          .then((bytes) => {
+            const len = bytes.byteLength as usize;
+            const addr = exports.allocate_patch_buffer(len);
+
+            const bufSpace = new Uint8Array(exports.memory.buffer, addr, len);
+            bufSpace.set(bytes);
+            exports.patch_graph(addr, len);
+          })
+          .catch();
     } else {
       addItem("Duplicate");
       addDivider();
 
       const rem = addItem("Remove", "⌫", "danger");
 
-      rem.onclick = () => exports.remove_node(id);
+      rem.onclick = () => {
+        if (id < 0) return;
+        exports.remove_node(id as number as usize);
+      };
     }
 
     menu.style.left = x + "px";

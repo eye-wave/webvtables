@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::FixedStr;
 use crate::draw::{Draw, DrawBuf};
 use crate::graph::output_pos;
@@ -99,7 +101,7 @@ impl NodeKind {
         }
     }
 
-    pub fn from_title(title: &'static str) -> Option<Self> {
+    pub fn from_title(title: &str) -> Option<Self> {
         for node in Self::iter() {
             if node.as_node().title() != title {
                 continue;
@@ -227,6 +229,15 @@ impl NodeLogic for NodeKind {
     ) -> bool {
         self.as_node().draw_widget(node, i, s, ctx, rect)
     }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct NodeSnapshot {
+    pub x: f32,
+    pub y: f32,
+    pub title: heapless::String<64>,
+    pub params: heapless::Vec<f64, MAX_PARAMS>,
+    pub state: NodeState,
 }
 
 #[derive(Clone, Copy)]
@@ -439,5 +450,42 @@ impl Draw for Node {
                 },
             );
         }
+    }
+}
+
+impl From<Node> for NodeSnapshot {
+    fn from(node: Node) -> Self {
+        let mut title = heapless::String::new();
+        let _ = title.push_str(node.kind.title());
+
+        let mut params = heapless::Vec::new();
+        for param in node.params.iter().flatten() {
+            let _ = params.push(param.value());
+        }
+
+        NodeSnapshot {
+            x: node.x,
+            y: node.y,
+            title,
+            params,
+            state: node.state,
+        }
+    }
+}
+
+impl From<NodeSnapshot> for Node {
+    fn from(snapshot: NodeSnapshot) -> Self {
+        let matched_kind =
+            NodeKind::from_title(snapshot.title.as_str()).unwrap_or(NodeKind::BasicShapes);
+
+        let mut node = Node::new(matched_kind, snapshot.x, snapshot.y);
+        node.state = snapshot.state;
+
+        for (snap, param) in snapshot.params.iter().zip(node.params.iter_mut()) {
+            let Some(param) = param else { continue };
+            param.set_value_norm(*snap);
+        }
+
+        node
     }
 }

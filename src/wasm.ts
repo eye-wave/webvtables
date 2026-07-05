@@ -1,18 +1,32 @@
 import wasmUrl from "~wasm/webvtabes.wasm?url";
 
-export type RawStr = {
-  ptr: number;
-  len: number;
+export type RawBuffer = {
+  ptr: mut_u8;
+  len: usize;
 };
 
-type u8 = number;
-type const_u8 = number;
-type usize = number;
-type isize = number;
-type u32 = number;
-type f32 = number;
-type f64 = number;
-type CursorKind = number;
+export type RawStr = {
+  ptr: const_u8;
+  len: usize;
+};
+
+export type u8 = number & { __brand: "u8" };
+export type mut_u8 = number & { __brand: "mut_u8" };
+export type const_u8 = number & { __brand: "const_u8" };
+export type usize = number & { __brand: "usize" };
+export type isize = number & { __brand: "isize" };
+export type i32 = number & { __brand: "i32" };
+export type u32 = number & { __brand: "u32" };
+export type f32 = number & { __brand: "f32" };
+export type f64 = number & { __brand: "f64" };
+export type CursorKind = number & { __brand: "CursorKind" };
+
+export function unpackBuffer(packed: bigint): RawBuffer {
+  const ptr = Number(packed >> 32n) as mut_u8;
+  const len = Number(packed & 0xffffffffn) as usize;
+
+  return { ptr, len };
+}
 
 export type WasmExports = {
   init: () => void;
@@ -31,7 +45,12 @@ export type WasmExports = {
   graph_version: () => u32;
   render: () => void;
   remove_node: (target_idx: usize) => void;
+  remove_all_nodes: () => void;
   add_node: (x: f32, y: f32, name_ptr: const_u8, name_len: usize) => isize;
+  serialize_graph: () => bigint;
+  free_buffer: (ptr: mut_u8, len: usize) => void;
+  patch_graph: (buf_ptr: mut_u8, buf_len: usize) => i32;
+  allocate_patch_buffer: (len: usize) => mut_u8;
 
   memory: WebAssembly.Memory;
 };
@@ -48,6 +67,11 @@ export function unpackLink(
 export function makeStrReader(exports: WasmExports) {
   return (ptr: number, len: number) =>
     new TextDecoder().decode(new Uint8Array(exports.memory.buffer, ptr, len));
+}
+
+export function makeBufReader(exports: WasmExports) {
+  return (ptr: number, len: number) =>
+    new Uint8Array(exports.memory.buffer, ptr, len);
 }
 
 export async function loadWasm(

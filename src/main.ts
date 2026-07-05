@@ -1,4 +1,14 @@
-import { loadWasm, makeStrReader, type RawStr, type WasmExports } from "./wasm";
+import {
+  loadWasm,
+  makeStrReader,
+  type const_u8,
+  type f32,
+  type f64,
+  type i32,
+  type RawStr,
+  type usize,
+  type WasmExports,
+} from "./wasm";
 import { executeDrawBuffer, type Renderer } from "./renderer/renderer";
 import { Canvas2DRenderer } from "./renderer/canvas2d-renderer";
 import { WebGL2Renderer } from "./renderer/webgl2-renderer";
@@ -41,16 +51,16 @@ async function init() {
   let readStr: (ptr: number, len: number) => string;
 
   const nodeNames: Record<string, RawStr[]> = {};
-  let openMenu: (x: number, y: number, id: number) => void;
+  let openMenu: (x: f32, y: f32, id: i32) => void;
 
   const wasm_ffi = {
-    log_str(ptr: number, len: number) {
+    log_str(ptr: const_u8, len: usize) {
       logBuffer += readStr(ptr, len);
     },
-    log_i32(n: number) {
+    log_i32(n: i32) {
       logBuffer += `${n}`;
     },
-    log_f64(n: number) {
+    log_f64(n: f64) {
       logBuffer += `${n}`;
     },
     log_flush() {
@@ -58,14 +68,19 @@ async function init() {
       logBuffer = "";
     },
 
-    push_node_name: (ptr: number, len: number, ptr2: number, len2: number) => {
+    push_node_name: (
+      ptr: const_u8,
+      len: usize,
+      ptr2: const_u8,
+      len2: usize,
+    ) => {
       const category = readStr(ptr2, len2);
 
       if (!nodeNames[category]) nodeNames[category] = [];
       nodeNames[category].push({ ptr, len });
     },
-    open_context_menu: (x: number, y: number, id: number) => openMenu(x, y, id),
-    draw_flush(ptr: number, len: number) {
+    open_context_menu: (x: f32, y: f32, id: i32) => openMenu(x, y, id),
+    draw_flush(ptr: const_u8, len: usize) {
       executeDrawBuffer(
         new Uint8Array(exports.memory.buffer, ptr, len),
         renderer,
@@ -98,14 +113,13 @@ async function init() {
   exports.iter_all_nodes();
   openMenu = registerContextMenu(exports, nodeNames);
 
-  const posFromEvent = (e: MouseEvent): [number, number] => [
-    e.clientX - viewport.offsetLeft,
-    e.clientY - viewport.offsetTop,
+  const posFromEvent = (e: MouseEvent): [f32, f32] => [
+    (e.clientX - viewport.offsetLeft) as f32,
+    (e.clientY - viewport.offsetTop) as f32,
   ];
 
-  const mouseWrapper =
-    (cb: (x: number, y: number) => void) => (e: MouseEvent) =>
-      cb(...posFromEvent(e));
+  const mouseWrapper = (cb: (x: f32, y: f32) => void) => (e: MouseEvent) =>
+    cb(...posFromEvent(e));
 
   window.onmouseup = mouseWrapper(exports.on_mouse_up);
   canvas_graph.onmousedown = mouseWrapper(exports.on_mouse_down);
