@@ -199,7 +199,7 @@ pub extern "C" fn on_mouse_move(x: f32, y: f32, _btn: u8, alt_key: bool) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn on_dblclick(x: f32, y: f32) {
+pub extern "C" fn on_context_menu(x: f32, y: f32) {
     let s = state();
 
     for i in (0..s.node_count).rev() {

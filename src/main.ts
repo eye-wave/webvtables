@@ -17,6 +17,7 @@ import { WebGL2Renderer } from "./renderer/webgl2-renderer";
 import { createKnobs } from "./audio/knobs";
 import { registerContextMenu } from "./context-menu";
 import { toWorld, zoomAt, pan, panByDrag } from "./camera";
+import { registerNodePicker } from "./node-picker";
 
 createKnobs();
 
@@ -55,6 +56,7 @@ async function init() {
 
   const nodeNames: Record<string, RawStr[]> = {};
   let openMenu: (x: f32, y: f32, id: i32) => void;
+  let openPicker: (x: f32, y: f32, id: i32) => void;
 
   const wasm_ffi = {
     log_str(ptr: const_u8, len: usize) {
@@ -115,7 +117,9 @@ async function init() {
   readStr = makeStrReader(exports);
 
   exports.iter_all_nodes();
+
   openMenu = registerContextMenu(exports, nodeNames);
+  openPicker = registerNodePicker(exports, nodeNames);
 
   // Screen -> world through the camera. Rendering (both renderer impls)
   // applies the same camera to draw commands, so this stays in sync.
@@ -159,14 +163,18 @@ async function init() {
       lastScreen = [e.clientX, e.clientY];
     }
   };
+  canvas_graph.ondblclick = (e) => {
+    const pos = posFromEvent(e);
+    const hit = exports.on_mouse_down(...pos, e.button as u8, e.altKey);
+
+    if (hit === MouseDownResult.Empty && e.button === 0) {
+      openPicker(...pos, e.button as i32);
+    }
+  };
   canvas_graph.oncontextmenu = (e) => {
     e.preventDefault();
     rememberMenuPos(e);
-    exports.on_dblclick(...posFromEvent(e), e.button as u8, e.altKey);
-  };
-  canvas_graph.ondblclick = (e) => {
-    rememberMenuPos(e);
-    mouseWrapper(exports.on_dblclick)(e);
+    exports.on_context_menu(...posFromEvent(e), e.button as u8, e.altKey);
   };
 
   canvas_graph.addEventListener(
