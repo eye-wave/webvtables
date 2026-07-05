@@ -1,8 +1,10 @@
+import { camera, toWorld } from "./camera";
 import { loadFile, saveFile } from "./file-io";
 import {
   makeBufReader,
   makeStrReader,
   unpackBuffer,
+  unpackFloats,
   type f32,
   type i32,
   type RawStr,
@@ -69,7 +71,8 @@ export function registerContextMenu(
     if (Array.isArray(items)) {
       items.forEach((name) => {
         const item = addItem(readStr(name.ptr, name.len), "", "", sub);
-        item.onclick = () => exports.add_node(x, y, name.ptr, name.len);
+        const [wx, wy] = toWorld(x, y);
+        item.onclick = () => exports.add_node(wx, wy, name.ptr, name.len);
       });
     } else {
       Object.entries(items).forEach(([group, names]) =>
@@ -87,12 +90,20 @@ export function registerContextMenu(
 
     if (id === -1) {
       addSubmenu("New node", nodeNames, "highlight", menu, x, y);
-      addItem("Auto arrange", "Shift+I");
+      addItem("Auto arrange", "_+_");
+      addItem("Zoom to content", "_+_").onclick = () => {
+        const packed = exports.node_average_pos();
+        const [x, y] = unpackFloats(packed);
 
-      addItem("Delete all", "⌫", "danger").onclick = () =>
-        exports.remove_all_nodes();
+        camera.x = x;
+        camera.y = y;
+        camera.zoom = 1;
 
-      addItem("Export", "Ctrl+S").onclick = () => {
+        exports.render();
+      };
+
+      addDivider();
+      addItem("Save project", "Ctrl+S").onclick = () => {
         const packed = exports.serialize_graph();
         const addr = unpackBuffer(packed);
 
@@ -104,7 +115,7 @@ export function registerContextMenu(
         exports.free_buffer(addr.ptr, addr.len);
       };
 
-      addItem("Import", "Ctrl+O").onclick = () =>
+      addItem("Import project", "Ctrl+O").onclick = () =>
         loadFile("*.wbt")
           .then((bytes) => {
             const len = bytes.byteLength as usize;
@@ -115,13 +126,15 @@ export function registerContextMenu(
             exports.patch_graph(addr, len);
           })
           .catch();
+
+      addDivider();
+      addItem("Delete all", "⌫", "danger").onclick = () =>
+        exports.remove_all_nodes();
     } else {
       addItem("Duplicate");
       addDivider();
 
-      const rem = addItem("Remove", "⌫", "danger");
-
-      rem.onclick = () => {
+      addItem("Remove", "⌫", "danger").onclick = () => {
         if (id < 0) return;
         exports.remove_node(id as number as usize);
       };

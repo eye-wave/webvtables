@@ -17,17 +17,34 @@ export type usize = number & { __brand: "usize" };
 export type isize = number & { __brand: "isize" };
 export type i32 = number & { __brand: "i32" };
 export type u32 = number & { __brand: "u32" };
+export type u64 = bigint & { __brand: "u64" };
 export type f32 = number & { __brand: "f32" };
 export type f64 = number & { __brand: "f64" };
 export type CursorKind = number & { __brand: "CursorKind" };
 export type MouseDownResult = number & { __brand: "MouseDownResult" };
 export const MouseDownResult = { Empty: 0, Interactive: 1 } as const;
 
-export function unpackBuffer(packed: bigint): RawBuffer {
+export function unpackBuffer(packed: u64): RawBuffer {
   const ptr = Number(packed >> 32n) as mut_u8;
   const len = Number(packed & 0xffffffffn) as usize;
 
   return { ptr, len };
+}
+
+export function unpackFloats(value: u64): [f32, f32] {
+  const aBits = Number((value >> 32n) & 0xffffffffn);
+  const bBits = Number(value & 0xffffffffn);
+
+  const buffer = new ArrayBuffer(4);
+  const view = new DataView(buffer);
+
+  view.setUint32(0, aBits);
+  const a = view.getFloat32(0) as f32;
+
+  view.setUint32(0, bBits);
+  const b = view.getFloat32(0) as f32;
+
+  return [a, b];
 }
 
 export type WasmExports = {
@@ -49,10 +66,11 @@ export type WasmExports = {
   remove_node: (target_idx: usize) => void;
   remove_all_nodes: () => void;
   add_node: (x: f32, y: f32, name_ptr: const_u8, name_len: usize) => isize;
-  serialize_graph: () => bigint;
+  serialize_graph: () => u64;
   free_buffer: (ptr: mut_u8, len: usize) => void;
   patch_graph: (buf_ptr: mut_u8, buf_len: usize) => i32;
   allocate_patch_buffer: (len: usize) => mut_u8;
+  node_average_pos: () => u64;
 
   memory: WebAssembly.Memory;
 };

@@ -567,3 +567,24 @@ pub unsafe extern "C" fn patch_graph(buf_ptr: *mut u8, buf_len: usize) -> i32 {
         }
     }
 }
+
+fn pack(a: f32, b: f32) -> u64 {
+    ((a.to_bits() as u64) << 32) | (b.to_bits() as u64)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn node_average_pos() -> u64 {
+    let s = state();
+
+    let avg = s
+        .nodes
+        .iter()
+        .filter(|n| n.x != 0.0 && n.y != 0.0)
+        .map(|n| (n.x, n.y))
+        .fold((0.0, 0.0, 0), |(sx, sy, n), (x, y)| (sx + x, sy + y, n + 1));
+
+    let (sx, sy, n) = avg;
+    let avg = (sx / n as f32, sy / n as f32);
+
+    pack(avg.0, avg.1)
+}

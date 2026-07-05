@@ -23,7 +23,7 @@ createKnobs();
 declare const viewport: HTMLDivElement;
 declare const canvas_graph: HTMLCanvasElement;
 
-const CURSORS = ["grab", "grab", "grabbing", "pointer"];
+const CURSORS = ["default", "grab", "grabbing", "pointer"];
 
 function createTextOverlay(base: HTMLCanvasElement): CanvasRenderingContext2D {
   const overlay = document.createElement("canvas");
@@ -157,7 +157,6 @@ async function init() {
     if (hit === MouseDownResult.Empty && e.button === 0) {
       isPanning = true;
       lastScreen = [e.clientX, e.clientY];
-      canvas_graph.style.cursor = CURSORS[2]; // grabbing
     }
   };
   canvas_graph.oncontextmenu = (e) => {
