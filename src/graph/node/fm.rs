@@ -6,9 +6,9 @@ use crate::{
     },
 };
 
-pub struct FMNode;
+pub struct FmNode;
 
-impl NodeLogic for FMNode {
+impl NodeLogic for FmNode {
     fn title(&self) -> &'static str {
         "Frequency Modulation"
     }

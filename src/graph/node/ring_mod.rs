@@ -1,8 +1,8 @@
 use crate::graph::{BUFFER_LEN, MAX_PARAMS, NodeLogic, Param, node::helpers};
 
-pub struct RMNode;
+pub struct RingModNode;
 
-impl NodeLogic for RMNode {
+impl NodeLogic for RingModNode {
     fn title(&self) -> &'static str {
         "Ring Modulation"
     }

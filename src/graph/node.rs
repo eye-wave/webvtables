@@ -11,20 +11,53 @@ use super::{
 
 pub type NodeState = [f32; MAX_NODE_STATE];
 
-mod add;
-mod am;
-mod basic_shapes;
-mod bit_crush;
-mod filter;
-mod fm;
-mod gain;
 mod helpers;
-mod output;
-mod phase_shift;
-mod rm;
-mod saturation;
-mod sync_warp;
-mod window;
+
+macro_rules! define_nodes {
+    ($($variant:ident),+ $(,)?) => {
+        paste::paste! {
+            $(mod [<$variant:snake>];)+
+
+            #[allow(unused)]
+            #[derive(Clone, Copy, PartialEq)]
+            #[repr(u8)]
+            pub enum NodeKind {
+                $($variant),+
+            }
+
+            impl NodeKind {
+                #[inline]
+                pub fn as_node(&self) -> &dyn NodeLogic {
+                    match self {
+                        $(NodeKind::$variant => &[<$variant:snake>]::[<$variant Node>]),+
+                    }
+                }
+
+                pub fn iter() -> impl Iterator<Item = &'static Self> {
+                    const NODES: &[NodeKind] = &[$(NodeKind::$variant),+];
+                    NODES.iter()
+                }
+            }
+        }
+    };
+}
+
+define_nodes!(
+    Add,
+    Am,
+    BasicShapes,
+    BitCrush,
+    Filter,
+    Fm,
+    Gain,
+    Invert,
+    Output,
+    PhaseShift,
+    RingMod,
+    Saturation,
+    SyncWarp,
+    Window,
+);
 
 pub mod node_colors {
     use crate::draw::Color;
@@ -60,47 +93,7 @@ impl NodeCategory {
     }
 }
 
-#[allow(unused)]
-#[derive(Clone, Copy, PartialEq)]
-#[repr(u8)]
-pub enum NodeKind {
-    AM,
-    Add,
-    BasicShapes,
-    BitCrush,
-    FM,
-    Filter,
-    Gain,
-    Output,
-    PhaseShift,
-    RM,
-    Saturation,
-    SyncWarp,
-    SyncWindow,
-}
-
 impl NodeKind {
-    #[inline]
-    pub fn as_node(&self) -> &dyn NodeLogic {
-        use NodeKind::*;
-
-        match self {
-            Add => &add::AddNode,
-            AM => &am::AMNode,
-            BasicShapes => &basic_shapes::BasicShapesNode,
-            BitCrush => &bit_crush::BitCrushNode,
-            Filter => &filter::FilterNode,
-            FM => &fm::FMNode,
-            Gain => &gain::GainNode,
-            Output => &output::OutputNode,
-            PhaseShift => &phase_shift::PhaseShiftNode,
-            RM => &rm::RMNode,
-            Saturation => &saturation::SaturationNode,
-            SyncWarp => &sync_warp::SyncWarpNode,
-            SyncWindow => &window::WindowNode,
-        }
-    }
-
     pub fn from_title(title: &str) -> Option<Self> {
         for node in Self::iter() {
             if node.as_node().title() != title {
@@ -111,28 +104,6 @@ impl NodeKind {
         }
 
         None
-    }
-
-    pub fn iter() -> impl Iterator<Item = &'static Self> {
-        use NodeKind::*;
-
-        const NODES: &[NodeKind] = &[
-            Add,
-            AM,
-            BasicShapes,
-            BitCrush,
-            Filter,
-            FM,
-            Gain,
-            Output,
-            PhaseShift,
-            RM,
-            Saturation,
-            SyncWarp,
-            SyncWindow,
-        ];
-
-        NODES.iter()
     }
 }
 

@@ -10,6 +10,8 @@ pub struct FilterNode;
 
 impl FilterNode {
     fn magnitude(shape: u8, x: f32, q: f32, gain_db: f32) -> f32 {
+        let q = q.max(f32::EPSILON);
+
         let x2 = x * x;
         let reso = x2 / (q * q);
         let denom = (1.0 - x2) * (1.0 - x2) + reso;

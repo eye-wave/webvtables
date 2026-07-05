@@ -1,8 +1,8 @@
 use crate::graph::{BUFFER_LEN, MAX_PARAMS, NodeLogic, Param, node::helpers};
 
-pub struct AMNode;
+pub struct AmNode;
 
-impl NodeLogic for AMNode {
+impl NodeLogic for AmNode {
     fn title(&self) -> &'static str {
         "Amplitude Modulation"
     }
