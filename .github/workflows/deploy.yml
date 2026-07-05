@@ -28,7 +28,14 @@ jobs:
         with:
           cache: "bun"
 
-      - uses: dtolnay/rust-toolchain@master
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+
+      - name: Add wasm target
+        run: rustup target add wasm32-unknown-unknown
+
       - uses: Swatinem/rust-cache@v2
 
       - name: Install dependencies
