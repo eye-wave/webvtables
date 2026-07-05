@@ -2,6 +2,8 @@
 #![cfg_attr(not(test), no_main)]
 #![allow(static_mut_refs)]
 
+extern crate alloc;
+
 #[cfg(all(target_arch = "wasm32", not(test)))]
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -13,6 +15,9 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 fn panic(_: &core::panic::PanicInfo) -> ! {
     loop {}
 }
+
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 mod draw;
 mod ffi;
@@ -37,10 +42,13 @@ pub extern "C" fn init() {
 
     s.nodes[2] = Node::new(NodeKind::Gain, 240.0, 80.0);
     s.nodes[3] = Node::new(NodeKind::PhaseShift, 240.0, 220.0);
-    s.nodes[4] = Node::new(NodeKind::AM, 440.0, 140.0);
-    s.nodes[5] = Node::new(NodeKind::Saturation, 640.0, 140.0);
+    s.nodes[4] = Node::new(NodeKind::Add, 440.0, 140.0);
+    s.nodes[5] = Node::new(NodeKind::Filter, 640.0, 140.0);
     s.nodes[6] = Node::new(NodeKind::Output, 860.0, 140.0);
     s.node_count = 7;
+
+    // heap-allocated once here instead of a static array, to keep it out of the binary.
+    s.buffers = Some(alloc::vec![ZERO_BUFFER; MAX_NODES].into_boxed_slice());
 
     s.links[0] = Some(Link::new(0, 0, 2, 0));
     s.links[1] = Some(Link::new(1, 0, 3, 0));
@@ -127,6 +135,16 @@ pub extern "C" fn get_cursor_kind(x: f32, y: f32) -> CursorKind {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn iter_all_nodes() {
+    for node in NodeKind::iter() {
+        let title = node.title();
+        let categ = node.category().as_str();
+
+        ffi::push_node_name(title.as_ptr(), title.len(), categ.as_ptr(), categ.len());
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn on_mouse_move(x: f32, y: f32) {
     let s = state();
     s.mouse = (x, y);
@@ -163,13 +181,17 @@ pub extern "C" fn on_dblclick(x: f32, y: f32) {
     let s = state();
 
     for i in (0..s.node_count).rev() {
-        let n = &mut s.nodes[i];
+        let n = s.nodes[i];
+
+        if !point_in_rect(x, y, n.x, n.y, Node::W, n.height()) {
+            continue;
+        }
 
         for p in 0..n.params.iter().flatten().count() {
             let (bx, by, bw, bh) = n.param_value_rect(p);
 
             if point_in_rect(x, y, bx, by, bw, bh) {
-                if let Some(param) = n.params[p].as_mut() {
+                if let Some(param) = s.nodes[i].params[p].as_mut() {
                     console_print!("Double clicked parameter ", p, " on node ", i);
 
                     param.reset_to_default();
@@ -180,7 +202,14 @@ pub extern "C" fn on_dblclick(x: f32, y: f32) {
                 return;
             }
         }
+
+        console_print!("Opening context menu for node ", i);
+        ffi::open_context_menu(x, y, i as i32);
+        return;
     }
+
+    ffi::open_context_menu(x, y, -1);
+    console_print!("Opening context menu on x:", x, "y:", y);
 }
 
 #[unsafe(no_mangle)]
@@ -279,26 +308,26 @@ pub extern "C" fn render() {
     let s = state();
     process_graph(s);
 
-    let buf = drawbuf();
-    buf.begin_frame();
+    let ctx = drawbuf();
+    ctx.begin_frame();
 
     for (i, slot) in s.links.iter().enumerate() {
         if let Some(link) = slot {
-            link.draw(i, s, buf);
+            link.draw(i, s, ctx);
         }
     }
 
     if let Some((from, from_socket)) = s.pending_link_from {
-        buf.stroke_style([210, 180, 60]);
-        buf.line_width(2.0);
+        ctx.stroke_style([210, 180, 60]);
+        ctx.line_width(2.0);
         let (fx, fy) = output_pos(&s.nodes[from], from_socket);
-        buf.stroke_line(fx, fy, s.mouse.0, s.mouse.1);
+        ctx.stroke_line(fx, fy, s.mouse.0, s.mouse.1);
     }
 
     for i in 0..s.node_count {
-        s.nodes[i].draw(i, s, buf);
+        s.nodes[i].draw(i, s, ctx);
     }
 
-    let (ptr, len) = buf.as_ptr_len();
+    let (ptr, len) = ctx.as_ptr_len();
     ffi::draw_flush(ptr, len);
 }

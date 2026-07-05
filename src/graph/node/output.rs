@@ -1,3 +1,6 @@
+use crate::draw::DrawBuf;
+use crate::ffi;
+use crate::graph::{BUFFER_LEN, GraphState, Node};
 use crate::graph::{MAX_PARAMS, Param, node_colors};
 
 use super::NodeLogic;
@@ -8,6 +11,10 @@ pub struct OutputNode;
 impl NodeLogic for OutputNode {
     fn title(&self) -> &'static str {
         "Output"
+    }
+
+    fn category(&self) -> super::NodeCategory {
+        super::NodeCategory::Outputs
     }
 
     fn header_color(&self) -> [u8; 3] {
@@ -61,5 +68,62 @@ impl NodeLogic for OutputNode {
                 }
             }
         }
+    }
+
+    fn has_widget(&self) -> bool {
+        true
+    }
+
+    fn draw_widget(
+        &self,
+        _node: &Node,
+        i: usize,
+        s: &GraphState,
+        ctx: &mut DrawBuf,
+        rect: (f32, f32, f32, f32),
+    ) -> bool {
+        let (x, y, w, h) = rect;
+
+        let mut samples: crate::graph::Buffer = s.buffers.as_ref().unwrap()[i];
+        let spectrum = microfft::real::rfft_2048(&mut samples);
+        let bins = BUFFER_LEN / 2;
+
+        ctx.fill_style([16, 16, 20]);
+        ctx.fill_rect(x, y, w, h);
+
+        let db_min = -60.0f32;
+        let db_max = 0.0f32;
+
+        let mut peak_mag = 1e-6f32;
+        for s in spectrum.iter().take(bins).skip(1) {
+            let c = s;
+            peak_mag = peak_mag.max(ffi::sqrtf(c.re * c.re + c.im * c.im));
+        }
+        let db_floor = 20.0 * ffi::log10f(peak_mag);
+        let db_to_y =
+            |db: f32| y + h * (1.0 - (db.clamp(db_min, db_max) - db_min) / (db_max - db_min));
+
+        ctx.stroke_style([100, 220, 160]);
+        ctx.line_width(2.0);
+        let steps = w as usize;
+        let mut prev: Option<(f32, f32)> = None;
+        for px in 0..=steps {
+            let t = px as f32 / steps.max(1) as f32;
+            let bin = ffi::powf(bins as f32, t).clamp(1.0, (bins - 1) as f32);
+            let k = bin as usize;
+            let c = spectrum[k];
+            let mag = ffi::sqrtf(c.re * c.re + c.im * c.im);
+            let db = 20.0 * ffi::log10f(mag.max(1e-6)) - db_floor;
+
+            let px_x = x + px as f32;
+            let px_y = db_to_y(db);
+            if let Some((lx, ly)) = prev {
+                ctx.stroke_line(lx, ly, px_x, px_y);
+            }
+
+            prev = Some((px_x, px_y));
+        }
+
+        true
     }
 }

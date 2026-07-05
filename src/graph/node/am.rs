@@ -7,6 +7,10 @@ impl NodeLogic for AMNode {
         "Amplitude Modulation"
     }
 
+    fn category(&self) -> super::NodeCategory {
+        super::NodeCategory::Combine
+    }
+
     fn input_count(&self) -> usize {
         2
     }

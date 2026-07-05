@@ -1,3 +1,5 @@
+use alloc::boxed::Box;
+
 mod buffer;
 mod link;
 mod node;
@@ -13,7 +15,7 @@ pub use socket::*;
 mod consts {
     pub const MAX_NODES: usize = 100;
     pub const MAX_LINKS: usize = 100;
-    pub const MAX_PARAMS: usize = 4;
+    pub const MAX_PARAMS: usize = 5;
     /// Per-node scratch state (e.g. a filter's IIR history) that must
     /// survive across process() calls instead of resetting every frame.
     pub const MAX_NODE_STATE: usize = 4;
@@ -44,7 +46,9 @@ pub struct GraphState {
     /// if the audio graph need rebuilding.
     pub version: u32,
     /// Each node's most recently computed single-cycle output frame.
-    pub buffers: [Buffer; MAX_NODES],
+    /// heap-allocated (see `init()`) instead of a static array, so
+    /// it doesn't inflate the binary; `None` only before init() runs.
+    pub buffers: Option<Box<[Buffer]>>,
 }
 
 static mut STATE: GraphState = GraphState {
@@ -61,7 +65,7 @@ static mut STATE: GraphState = GraphState {
     hovered_socket: None,
     mouse: (0.0, 0.0),
     version: 0,
-    buffers: [ZERO_BUFFER; MAX_NODES],
+    buffers: None,
 };
 
 pub fn state() -> &'static mut GraphState {

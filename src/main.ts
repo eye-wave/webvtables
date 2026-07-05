@@ -3,6 +3,7 @@ import { executeDrawBuffer, type Renderer } from "./renderer/renderer";
 import { Canvas2DRenderer } from "./renderer/canvas2d-renderer";
 import { WebGL2Renderer } from "./renderer/webgl2-renderer";
 import { createKnobs } from "./audio/knobs";
+import { registerContextMenu } from "./context-menu";
 
 createKnobs();
 
@@ -39,6 +40,9 @@ async function init() {
   let logBuffer = "";
   let readStr: (ptr: number, len: number) => string;
 
+  const nodeNames: Record<string, string[]> = {};
+  let openMenu: (x: number, y: number, id: number) => void;
+
   const wasm_ffi = {
     log_str(ptr: number, len: number) {
       logBuffer += readStr(ptr, len);
@@ -54,6 +58,14 @@ async function init() {
       logBuffer = "";
     },
 
+    push_node_name: (ptr: number, len: number, ptr2: number, len2: number) => {
+      const name = readStr(ptr, len);
+      const category = readStr(ptr2, len2);
+
+      if (!nodeNames[category]) nodeNames[category] = [];
+      nodeNames[category].push(name);
+    },
+    open_context_menu: (x: number, y: number, id: number) => openMenu(x, y, id),
     draw_flush(ptr: number, len: number) {
       executeDrawBuffer(
         new Uint8Array(exports.memory.buffer, ptr, len),
@@ -72,6 +84,8 @@ async function init() {
     cos: Math.cos,
     tanh: Math.tanh,
     sqrt: Math.sqrt,
+    log10: Math.log10,
+    max: Math.max,
   };
 
   for (const [name, fn] of Object.entries(math_ffi)) {
@@ -81,6 +95,9 @@ async function init() {
   const exports: WasmExports = await loadWasm({ ...wasm_ffi, ...math_ffi });
 
   readStr = makeStrReader(exports);
+
+  exports.iter_all_nodes();
+  openMenu = registerContextMenu(nodeNames);
 
   const posFromEvent = (e: MouseEvent): [number, number] => [
     e.clientX - viewport.offsetLeft,
@@ -94,6 +111,7 @@ async function init() {
   window.onmouseup = mouseWrapper(exports.on_mouse_up);
   canvas_graph.onmousedown = mouseWrapper(exports.on_mouse_down);
   canvas_graph.ondblclick = mouseWrapper(exports.on_dblclick);
+
   canvas_graph.onmousemove = (e) => {
     const pos = posFromEvent(e);
     exports.on_mouse_move(...pos);

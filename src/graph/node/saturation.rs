@@ -12,6 +12,10 @@ impl NodeLogic for SaturationNode {
         "Saturation"
     }
 
+    fn category(&self) -> super::NodeCategory {
+        super::NodeCategory::Distortion
+    }
+
     fn header_color(&self) -> [u8; 3] {
         node_colors::EFFECT
     }

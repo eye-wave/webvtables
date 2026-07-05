@@ -6,6 +6,7 @@ export type WasmExports = {
   on_dblclick: (x: number, y: number) => void;
   on_mouse_up: (x: number, y: number) => void;
   get_cursor_kind: (x: number, y: number) => number;
+  iter_all_nodes: () => void;
   init: () => void;
   render: () => void;
 

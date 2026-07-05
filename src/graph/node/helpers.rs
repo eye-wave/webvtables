@@ -1,9 +1,7 @@
 use crate::ffi;
 use crate::graph::{BUFFER_LEN, Buffer, Param, ZERO_BUFFER, consts::MAX_PARAMS};
 
-pub const PI64: f64 = core::f64::consts::PI;
 pub const PI32: f32 = core::f32::consts::PI;
-
 pub const TAU32: f32 = core::f32::consts::TAU;
 
 /// Denormalized value of `params[idx]`, or `default` if that slot is empty.

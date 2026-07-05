@@ -10,7 +10,10 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-paste = "1.0.15"
+microfft = { version = "0.6.0", default-features = false, features = [
+  "size-4096",
+] }
+wee_alloc = "0.4.5"
 
 [profile.dev]
 panic = "abort"

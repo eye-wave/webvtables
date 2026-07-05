@@ -2,8 +2,8 @@ import type { Renderer } from "./renderer";
 import VERTEX_SRC from "./shader-vert.glsl";
 import FRAGMENT_SRC from "./shader-frag.glsl";
 
-const MAX_INSTANCES = 4096;
 const FLOATS_PER_INSTANCE = 10;
+const INITIAL_CAPACITY = 1024;
 
 function compile(
   gl: WebGL2RenderingContext,
@@ -26,7 +26,7 @@ export class WebGL2Renderer implements Renderer {
   private vao: WebGLVertexArrayObject;
   private instanceBuf: WebGLBuffer;
   private uResolution: WebGLUniformLocation;
-  private data = new Float32Array(MAX_INSTANCES * FLOATS_PER_INSTANCE);
+  private data = new Float32Array(INITIAL_CAPACITY * FLOATS_PER_INSTANCE);
   private count = 0;
   private nextZ = 0;
   private fill: [number, number, number] = [0, 0, 0];
@@ -67,11 +67,6 @@ export class WebGL2Renderer implements Renderer {
 
     const instanceBuf = gl.createBuffer()!;
     gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuf);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      MAX_INSTANCES * FLOATS_PER_INSTANCE * 4,
-      gl.DYNAMIC_DRAW,
-    );
     const stride = FLOATS_PER_INSTANCE * 4;
     const attr = (location: number, size: number, offsetFloats: number) => {
       gl.enableVertexAttribArray(location);
@@ -126,6 +121,13 @@ export class WebGL2Renderer implements Renderer {
     this.lineW = w;
   }
 
+  private growIfNeeded() {
+    if (this.count * FLOATS_PER_INSTANCE < this.data.length) return;
+    const grown = new Float32Array(this.data.length * 2);
+    grown.set(this.data);
+    this.data = grown;
+  }
+
   private pushInstance(
     cx: number,
     cy: number,
@@ -135,7 +137,7 @@ export class WebGL2Renderer implements Renderer {
     color: [number, number, number],
     shape: 0 | 1,
   ) {
-    if (this.count >= MAX_INSTANCES) return;
+    this.growIfNeeded();
 
     const z = 1 - this.nextZ++ / 1_000_000;
     const o = this.count * FLOATS_PER_INSTANCE;
@@ -177,8 +179,11 @@ export class WebGL2Renderer implements Renderer {
     gl.useProgram(this.program);
     gl.bindVertexArray(this.vao);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuf);
-    // prettier-ignore
-    gl.bufferSubData(gl.ARRAY_BUFFER,0,this.data,0,this.count * FLOATS_PER_INSTANCE);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      this.data.subarray(0, this.count * FLOATS_PER_INSTANCE),
+      gl.DYNAMIC_DRAW,
+    );
     gl.uniform2f(this.uResolution, this.width, this.height);
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.count);
     gl.bindVertexArray(null);

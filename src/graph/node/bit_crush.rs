@@ -11,6 +11,10 @@ impl NodeLogic for BitCrushNode {
         "Bit crusher"
     }
 
+    fn category(&self) -> super::NodeCategory {
+        super::NodeCategory::Distortion
+    }
+
     fn header_color(&self) -> [u8; 3] {
         node_colors::EFFECT
     }

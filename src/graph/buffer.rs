@@ -1,3 +1,6 @@
+use alloc::vec;
+use alloc::vec::Vec;
+
 use super::{GraphState, MAX_NODE_INPUTS, MAX_NODES, NodeLogic};
 
 pub const BUFFER_LEN: usize = 2048;
@@ -32,21 +35,17 @@ fn eval_node(s: &mut GraphState, idx: usize, done: &mut [bool; MAX_NODES]) {
     }
 
     let input_count = s.nodes[idx].kind.input_count().min(MAX_NODE_INPUTS);
-    let mut inputs: [Buffer; MAX_NODE_INPUTS] = [ZERO_BUFFER; MAX_NODE_INPUTS];
+    let mut inputs: Vec<Buffer> = vec![ZERO_BUFFER; input_count];
     for (slot_idx, src) in sources.iter().enumerate().take(input_count) {
         if let Some(src) = src {
-            inputs[slot_idx] = s.buffers[*src];
+            inputs[slot_idx] = s.buffers.as_ref().unwrap()[*src];
         }
     }
-    let input_refs = [&inputs[0], &inputs[1], &inputs[2], &inputs[3]];
+    let input_refs: Vec<&Buffer> = inputs.iter().collect();
 
     let mut out = ZERO_BUFFER;
     let node = &mut s.nodes[idx];
-    node.kind.process(
-        &input_refs[..input_count],
-        &node.params,
-        &mut node.state,
-        &mut out,
-    );
-    s.buffers[idx] = out;
+    node.kind
+        .process(&input_refs, &node.params, &mut node.state, &mut out);
+    s.buffers.as_mut().unwrap()[idx] = out;
 }

@@ -12,6 +12,10 @@ impl NodeLogic for BasicShapesNode {
         "Basic shapes"
     }
 
+    fn category(&self) -> super::NodeCategory {
+        super::NodeCategory::Inputs
+    }
+
     fn header_color(&self) -> [u8; 3] {
         node_colors::INPUT
     }

@@ -10,6 +10,10 @@ impl NodeLogic for GainNode {
         "Gain"
     }
 
+    fn category(&self) -> super::NodeCategory {
+        super::NodeCategory::Effect
+    }
+
     fn header_color(&self) -> [u8; 3] {
         node_colors::EFFECT
     }

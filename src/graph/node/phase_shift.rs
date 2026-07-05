@@ -9,6 +9,10 @@ impl NodeLogic for PhaseShiftNode {
         "Phase shift"
     }
 
+    fn category(&self) -> super::NodeCategory {
+        super::NodeCategory::Effect
+    }
+
     fn header_color(&self) -> [u8; 3] {
         node_colors::EFFECT
     }

@@ -9,6 +9,10 @@ impl NodeLogic for AddNode {
         "Add"
     }
 
+    fn category(&self) -> super::NodeCategory {
+        super::NodeCategory::Combine
+    }
+
     fn input_count(&self) -> usize {
         2
     }

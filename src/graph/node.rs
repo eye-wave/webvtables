@@ -34,6 +34,30 @@ pub mod node_colors {
     pub const EFFECT: Color = [75, 180, 100];
 }
 
+pub enum NodeCategory {
+    Fft,
+    Inputs,
+    Outputs,
+    Distortion,
+    Combine,
+    Effect,
+    Unknown,
+}
+
+impl NodeCategory {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            NodeCategory::Fft => "FFT",
+            NodeCategory::Inputs => "Inputs",
+            NodeCategory::Outputs => "Outputs",
+            NodeCategory::Distortion => "Distortion",
+            NodeCategory::Combine => "Combine",
+            NodeCategory::Effect => "Effect",
+            NodeCategory::Unknown => "Other",
+        }
+    }
+}
+
 #[allow(unused)]
 #[derive(Clone, Copy, PartialEq)]
 #[repr(u8)]
@@ -74,10 +98,35 @@ impl NodeKind {
             SyncWindow => &window::WindowNode,
         }
     }
+
+    pub fn iter() -> impl Iterator<Item = &'static dyn NodeLogic> {
+        use NodeKind::*;
+
+        const NODES: &[NodeKind] = &[
+            Add,
+            AM,
+            BasicShapes,
+            BitCrush,
+            Filter,
+            FM,
+            Gain,
+            Output,
+            PhaseShift,
+            RM,
+            Saturation,
+            SyncWarp,
+            SyncWindow,
+        ];
+
+        NODES.iter().map(|kind| kind.as_node())
+    }
 }
 
 pub trait NodeLogic {
     fn title(&self) -> &'static str;
+    fn category(&self) -> NodeCategory {
+        NodeCategory::Unknown
+    }
     fn header_color(&self) -> [u8; 3] {
         node_colors::DEFAULT
     }
@@ -114,7 +163,7 @@ pub trait NodeLogic {
         _node: &Node,
         _i: usize,
         _s: &GraphState,
-        _buf: &mut DrawBuf,
+        _ctx: &mut DrawBuf,
         _rect: (f32, f32, f32, f32),
     ) -> bool {
         false
@@ -161,10 +210,10 @@ impl NodeLogic for NodeKind {
         node: &Node,
         i: usize,
         s: &GraphState,
-        buf: &mut DrawBuf,
+        ctx: &mut DrawBuf,
         rect: (f32, f32, f32, f32),
     ) -> bool {
-        self.as_node().draw_widget(node, i, s, buf, rect)
+        self.as_node().draw_widget(node, i, s, ctx, rect)
     }
 }
 
@@ -240,7 +289,7 @@ impl Node {
 
         buf.line_width(1.5);
 
-        let samples = &s.buffers[i];
+        let samples = &s.buffers.as_ref().unwrap()[i];
         let half_h = h / 2.0 - 2.0;
         let mut prev: Option<(f32, f32, bool)> = None;
 
@@ -276,42 +325,42 @@ pub const EMPTY_NODE: Node = Node {
 };
 
 impl Draw for Node {
-    fn draw(&self, i: usize, s: &GraphState, buf: &mut DrawBuf) {
+    fn draw(&self, i: usize, s: &GraphState, ctx: &mut DrawBuf) {
         let current_h = self.height();
 
         // Dynamic background container
-        buf.fill_style([40, 42, 48]);
-        buf.fill_rect(self.x, self.y, Self::W, current_h);
+        ctx.fill_style([40, 42, 48]);
+        ctx.fill_rect(self.x, self.y, Self::W, current_h);
 
         // Header
-        buf.fill_style(self.kind.header_color());
-        buf.fill_rect(self.x, self.y, Self::W, Self::HEADER_H);
+        ctx.fill_style(self.kind.header_color());
+        ctx.fill_rect(self.x, self.y, Self::W, Self::HEADER_H);
 
-        buf.fill_style([230, 230, 230]);
-        buf.fill_text(self.kind.title(), self.x + 6.0, self.y + 14.0);
+        ctx.fill_style([230, 230, 230]);
+        ctx.fill_text(self.kind.title(), self.x + 6.0, self.y + 14.0);
 
         // Parameters
         let mut current_y = self.y + Self::HEADER_H + 12.0;
 
         for (active_idx, param) in self.params.iter().flatten().enumerate() {
-            buf.fill_style([180, 180, 180]);
-            buf.fill_text(param.name(), self.x + 8.0, current_y);
+            ctx.fill_style([180, 180, 180]);
+            ctx.fill_text(param.name(), self.x + 8.0, current_y);
 
             let mut vbuf: FixedStr<16> = FixedStr::new();
             param.format_value(&mut vbuf);
 
             let (box_x, box_y, box_w, box_h) = self.param_value_rect(active_idx);
-            buf.fill_style([25, 26, 32]);
-            buf.fill_rect(box_x, box_y, box_w, box_h);
+            ctx.fill_style([25, 26, 32]);
+            ctx.fill_rect(box_x, box_y, box_w, box_h);
 
-            buf.fill_style([140, 200, 140]);
-            buf.fill_text(vbuf.as_str(), box_x + Self::VALUE_PAD, current_y);
+            ctx.fill_style([140, 200, 140]);
+            ctx.fill_text(vbuf.as_str(), box_x + Self::VALUE_PAD, current_y);
 
             current_y += Self::PARAM_H;
         }
 
         // Waveform preview
-        self.draw_waveform(i, s, buf);
+        self.draw_waveform(i, s, ctx);
 
         // Widget
         if self.kind.has_widget() {
@@ -321,7 +370,7 @@ impl Draw for Node {
                 Self::W,
                 Self::WIDGET_H,
             );
-            self.kind.draw_widget(self, i, s, buf, widget_rect);
+            self.kind.draw_widget(self, i, s, ctx, widget_rect);
         }
 
         // Input Sockets
@@ -336,23 +385,23 @@ impl Draw for Node {
             if s.pending_link_from.is_some() {
                 if is_valid_drop_zone {
                     if is_hovered {
-                        buf.fill_style([255, 215, 0]);
-                        buf.fill_circle(ix, iy, SOCKET_R + 4.0);
+                        ctx.fill_style([255, 215, 0]);
+                        ctx.fill_circle(ix, iy, SOCKET_R + 4.0);
                     } else {
-                        buf.fill_style([100, 220, 100]);
-                        buf.fill_circle(ix, iy, SOCKET_R + 2.0);
+                        ctx.fill_style([100, 220, 100]);
+                        ctx.fill_circle(ix, iy, SOCKET_R + 2.0);
                     }
                 } else {
-                    buf.fill_style([50, 50, 50]);
-                    buf.fill_circle(ix, iy, SOCKET_R);
+                    ctx.fill_style([50, 50, 50]);
+                    ctx.fill_circle(ix, iy, SOCKET_R);
                 }
             } else {
-                buf.fill_style([
+                ctx.fill_style([
                     if is_hovered { 150 } else { 60 },
                     if is_hovered { 255 } else { 180 },
                     if is_hovered { 150 } else { 250 },
                 ]);
-                buf.fill_circle(ix, iy, if is_hovered { SOCKET_R + 2.0 } else { SOCKET_R });
+                ctx.fill_circle(ix, iy, if is_hovered { SOCKET_R + 2.0 } else { SOCKET_R });
             }
         }
 
@@ -363,12 +412,12 @@ impl Draw for Node {
                 Some((from, from_socket)) => i == from && out == from_socket,
                 None => s.hovered_socket == Some((i, SocketKind::Output, out)),
             };
-            buf.fill_style([
+            ctx.fill_style([
                 250,
                 if output_active { 220 } else { 180 },
                 if output_active { 150 } else { 60 },
             ]);
-            buf.fill_circle(
+            ctx.fill_circle(
                 ox,
                 oy,
                 if output_active {
