@@ -37,25 +37,18 @@ pub use str::*;
 #[unsafe(no_mangle)]
 pub extern "C" fn init() {
     let s = state();
-    s.nodes[0] = Node::new(NodeKind::BasicShapes, 40.0, 40.0);
-    s.nodes[1] = Node::new(NodeKind::BasicShapes, 40.0, 220.0);
-
-    s.nodes[2] = Node::new(NodeKind::Gain, 240.0, 80.0);
-    s.nodes[3] = Node::new(NodeKind::PhaseShift, 240.0, 220.0);
-    s.nodes[4] = Node::new(NodeKind::Add, 440.0, 140.0);
-    s.nodes[5] = Node::new(NodeKind::Filter, 640.0, 140.0);
-    s.nodes[6] = Node::new(NodeKind::Output, 860.0, 140.0);
-    s.node_count = 7;
 
     // heap-allocated once here instead of a static array, to keep it out of the binary.
     s.buffers = Some(alloc::vec![ZERO_BUFFER; MAX_NODES].into_boxed_slice());
 
-    s.links[0] = Some(Link::new(0, 0, 2, 0));
-    s.links[1] = Some(Link::new(1, 0, 3, 0));
-    s.links[2] = Some(Link::new(2, 0, 4, 0));
-    s.links[3] = Some(Link::new(3, 0, 4, 1));
-    s.links[4] = Some(Link::new(4, 0, 5, 0));
-    s.links[5] = Some(Link::new(5, 0, 6, 0));
+    s.nodes[0] = Node::new(NodeKind::BasicShapes, 40.0, 40.0);
+    s.nodes[1] = Node::new(NodeKind::Output, 340.0, 40.0);
+
+    s.nodes[0].params[0].as_mut().unwrap().set_value_norm(1.0);
+
+    s.node_count = 2;
+
+    s.links[0] = Some(Link::new(0, 0, 1, 0));
 
     s.version += 1;
     render();
