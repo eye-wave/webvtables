@@ -52,6 +52,7 @@ define_nodes!(
     Gain,
     Invert,
     Output,
+    Partials,
     PhaseShift,
     PulseWave,
     RingMod,

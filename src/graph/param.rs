@@ -39,8 +39,8 @@ pub struct LogParam {
 pub struct IntParam {
     name: &'static str,
     value: f64,
-    r_min: i64,
-    r_max: i64,
+    r_min: i32,
+    r_max: i32,
 }
 
 #[derive(Clone, Copy)]
@@ -116,7 +116,7 @@ impl Param {
         }
     }
 
-    pub fn new_int(name: &'static str, value: f64, r_min: i64, r_max: i64) -> Self {
+    pub fn new_int(name: &'static str, value: f64, r_min: i32, r_max: i32) -> Self {
         Self {
             default: 0.0,
             inner: ParamTypes::Int(IntParam {
@@ -362,18 +362,18 @@ impl ParamLogic for IntParam {
         if range == 0.0 {
             0.0
         } else {
-            ((denorm as i64 - self.r_min) as f64 / range).clamp(0.0, 1.0)
+            ((denorm as i32 - self.r_min) as f64 / range).clamp(0.0, 1.0)
         }
     }
 }
 
 impl ParamWriteDenorm for IntParam {
-    type ParamType = i64;
+    type ParamType = i32;
 
     fn denormalize(&self, n: f64) -> Self::ParamType {
         let range = (self.r_max - self.r_min) as f64;
         let denorm_f64 = self.r_min as f64 + (n * range);
-        ffi::round(denorm_f64) as i64
+        ffi::round(denorm_f64) as i32
     }
 
     fn write_denorm_value<const N: usize>(&self, buf: &mut FixedStr<N>) {

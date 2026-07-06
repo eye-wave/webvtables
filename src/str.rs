@@ -37,7 +37,7 @@ impl<const N: usize> FixedStr<N> {
         self.len = end;
     }
 
-    pub fn push_int(&mut self, mut v: i64) {
+    pub fn push_int(&mut self, mut v: i32) {
         if v < 0 {
             self.push_byte(b'-');
             v = -v;
@@ -59,7 +59,7 @@ impl<const N: usize> FixedStr<N> {
     }
 
     pub fn push_fixed2(&mut self, v: f64) {
-        let scaled = ffi::round(v * 100.0) as i64;
+        let scaled = ffi::round(v * 100.0) as i32;
         let (neg, scaled) = if scaled < 0 {
             (true, -scaled)
         } else {
