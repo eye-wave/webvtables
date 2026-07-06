@@ -24,6 +24,8 @@ export class WaveformPlayer {
   private sender: ((buf: Float32Array) => void) | null = null;
   private isPlaying: boolean = false;
 
+  public onInit?: () => void;
+
   constructor() {}
 
   /**
@@ -50,7 +52,7 @@ export class WaveformPlayer {
     this.gainNode.connect(this.audioCtx.destination);
 
     this.sender = this.createSender(this.workletNode);
-    this.isPlaying = true;
+    this.onInit?.();
   }
 
   /**

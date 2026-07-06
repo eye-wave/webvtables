@@ -27,6 +27,7 @@ createKnobs();
 
 declare const viewport: HTMLDivElement;
 declare const canvas_graph: HTMLCanvasElement;
+declare const play_btn: HTMLButtonElement;
 
 const CURSORS = ["default", "grab", "grabbing", "pointer"];
 
@@ -215,9 +216,22 @@ async function init() {
     canvas_graph.style.cursor = CURSORS[exports.get_cursor_kind(...pos)];
   };
 
-  window.addEventListener("pointerdown", async () => await player.initialize());
-
   exports.init();
+
+  play_btn.onclick = async () => {
+    if (player.status === "uninitialized") {
+      await player.initialize();
+      exports.render();
+    }
+
+    if (player.status === "paused") {
+      player.resume();
+      play_btn.textContent = "Pause";
+    } else {
+      player.pause();
+      play_btn.textContent = "Play";
+    }
+  };
 
   function onCanvasResize() {
     renderer.resize(viewport.offsetWidth, viewport.offsetHeight);
