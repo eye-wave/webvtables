@@ -1,6 +1,6 @@
 use crate::draw::DrawBuf;
 use crate::ffi;
-use crate::graph::{BUFFER_LEN, Buffer, GraphState, Node, Param, consts::*, node_colors};
+use crate::graph::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, GraphState, Node, Param, consts::*};
 use microfft::Complex32;
 
 use super::helpers;
@@ -53,10 +53,6 @@ impl NodeLogic for FilterNode {
         super::NodeCategory::Fft
     }
 
-    fn header_color(&self) -> [u8; 3] {
-        node_colors::EFFECT
-    }
-
     fn input_count(&self) -> usize {
         1
     }
@@ -66,39 +62,30 @@ impl NodeLogic for FilterNode {
     }
 
     fn default_params(&self) -> [Option<crate::graph::Param>; crate::graph::MAX_PARAMS] {
-        let mut p = [None; MAX_PARAMS];
-
-        p[0] = Some(Param::new_enum(
-            "Shape",
-            &[
-                "Lowpass",
-                "Highpass",
-                "Bandpass",
-                "Lowshelf",
-                "Highshelf",
-                "Peaking",
-                "Notch",
-            ],
-        ));
-
-        p[1] = Some(
-            Param::new_log("Freq", 1.0, BUFFER_LEN as f64)
+        crate::params![
+            Param::new_enum(
+                "Shape",
+                &[
+                    "Lowpass",
+                    "Highpass",
+                    "Bandpass",
+                    "Lowshelf",
+                    "Highshelf",
+                    "Peaking",
+                    "Notch",
+                ],
+            ),
+            Param::new_log("Freq", 1.0, BUFFER_LEN_F64)
                 .with_unit("bins")
                 .with_default_denormf(777.77),
-        );
-        p[2] = Some(
             Param::new_linear("Gain", -30.0, 30.0)
                 .with_unit("dB")
                 .with_default_norm(0.5),
-        );
-        p[3] = Some(Param::new_linear("Q", 0.0, 10.0).with_default_denormf(1.0));
-        p[4] = Some(
+            Param::new_linear("Q", 0.0, 10.0).with_default_denormf(1.0),
             Param::new_linear("Mix", 0.0, 100.0)
                 .with_unit("%")
                 .with_default_norm(1.0),
-        );
-
-        p
+        ]
     }
 
     fn process(

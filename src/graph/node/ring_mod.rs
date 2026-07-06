@@ -1,4 +1,4 @@
-use crate::graph::{BUFFER_LEN, MAX_PARAMS, NodeLogic, Param, node::helpers};
+use crate::graph::{MAX_PARAMS, NodeLogic, Param, node::helpers};
 
 pub struct RingModNode;
 
@@ -26,11 +26,6 @@ impl NodeLogic for RingModNode {
         _state: &mut super::NodeState,
         out: &mut crate::graph::Buffer,
     ) {
-        let a = helpers::input(inputs, 0);
-        let b = helpers::input(inputs, 1);
-
-        for i in 0..BUFFER_LEN {
-            out[i] = a[i] * b[i];
-        }
+        helpers::map2(inputs, out, |a, b| a * b);
     }
 }

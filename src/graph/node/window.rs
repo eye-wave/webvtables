@@ -1,8 +1,9 @@
 use super::NodeLogic;
 use super::helpers;
 use crate::ffi;
+use crate::graph::BUFFER_LEN_F32;
 use crate::graph::node::helpers::PI32;
-use crate::graph::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeState, Param, node_colors};
+use crate::graph::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeState, Param};
 
 pub struct WindowNode;
 
@@ -15,10 +16,6 @@ impl NodeLogic for WindowNode {
         super::NodeCategory::Effect
     }
 
-    fn header_color(&self) -> [u8; 3] {
-        node_colors::EFFECT
-    }
-
     fn input_count(&self) -> usize {
         1
     }
@@ -28,21 +25,17 @@ impl NodeLogic for WindowNode {
     }
 
     fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
-        let mut p = [None; MAX_PARAMS];
-
-        p[0] = Some(
+        crate::params![
             Param::new_linear("Size", 0.0, 50.0)
                 .with_unit("%")
                 .with_default_denormf(15.0),
-        );
-        p[1] = Some(Param::new_enum(
-            "Type",
-            &[
-                "Hann", "Hamming", "Blackman", "BH", "Bartlett", "Welch", "Sine",
-            ],
-        ));
-
-        p
+            Param::new_enum(
+                "Type",
+                &[
+                    "Hann", "Hamming", "Blackman", "BH", "Bartlett", "Welch", "Sine"
+                ],
+            ),
+        ]
     }
 
     fn process(
@@ -56,7 +49,7 @@ impl NodeLogic for WindowNode {
         let win_type = helpers::param(params, 1, 0.0) as u8;
 
         let src = helpers::input(inputs, 0);
-        let taper_len = (win_size * BUFFER_LEN as f32) as usize;
+        let taper_len = (win_size * BUFFER_LEN_F32) as usize;
 
         macro_rules! loop_over {
             ($win_fn:expr) => {

@@ -1,6 +1,6 @@
 use crate::ffi;
 use crate::graph::node::helpers::PI32;
-use crate::graph::{BUFFER_LEN, Buffer, Param, consts::*, node_colors};
+use crate::graph::{BUFFER_LEN, Buffer, Param, consts::*};
 
 use super::helpers;
 use super::{NodeLogic, NodeState};
@@ -16,10 +16,6 @@ impl NodeLogic for SaturationNode {
         super::NodeCategory::Distortion
     }
 
-    fn header_color(&self) -> [u8; 3] {
-        node_colors::EFFECT
-    }
-
     fn input_count(&self) -> usize {
         1
     }
@@ -29,29 +25,18 @@ impl NodeLogic for SaturationNode {
     }
 
     fn default_params(&self) -> [Option<crate::graph::Param>; crate::graph::MAX_PARAMS] {
-        let mut p = [None; MAX_PARAMS];
-
-        p[0] = Some(Param::new_enum(
-            "Shape",
-            &["Soft clip", "Hard clip", "Lin warp", "Sin warp"],
-        ));
-        p[1] = Some(
+        crate::params![
+            Param::new_enum("Shape", &["Soft clip", "Hard clip", "Lin warp", "Sin warp"]),
             Param::new_linear("In", -40.0, 60.0)
                 .with_unit("dB")
                 .with_default_denormf(0.0),
-        );
-        p[2] = Some(
             Param::new_linear("Out", -40.0, 10.0)
                 .with_unit("dB")
                 .with_default_denormf(0.0),
-        );
-        p[3] = Some(
             Param::new_linear("Mix", 0.0, 100.0)
                 .with_unit("%")
                 .with_default_norm(1.0),
-        );
-
-        p
+        ]
     }
 
     fn process(

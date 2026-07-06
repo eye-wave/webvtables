@@ -1,4 +1,4 @@
-use crate::graph::{BUFFER_LEN, Buffer, Param, consts::*, node_colors};
+use crate::graph::{Buffer, Param, consts::*};
 
 use super::helpers;
 use super::{NodeLogic, NodeState};
@@ -12,10 +12,6 @@ impl NodeLogic for InvertNode {
 
     fn category(&self) -> super::NodeCategory {
         super::NodeCategory::Effect
-    }
-
-    fn header_color(&self) -> [u8; 3] {
-        node_colors::EFFECT
     }
 
     fn input_count(&self) -> usize {
@@ -33,10 +29,6 @@ impl NodeLogic for InvertNode {
         _state: &mut NodeState,
         out: &mut Buffer,
     ) {
-        let src = helpers::input(inputs, 0);
-
-        for i in 0..BUFFER_LEN {
-            out[i] = -src[i];
-        }
+        helpers::map1(inputs, out, |x| -x);
     }
 }

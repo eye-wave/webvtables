@@ -1,5 +1,5 @@
 use crate::ffi;
-use crate::graph::{BUFFER_LEN, Buffer, Param, consts::*, node_colors};
+use crate::graph::{BUFFER_LEN, Buffer, Param, consts::*};
 
 use super::helpers;
 use super::{NodeLogic, NodeState};
@@ -15,10 +15,6 @@ impl NodeLogic for BitCrushNode {
         super::NodeCategory::Distortion
     }
 
-    fn header_color(&self) -> [u8; 3] {
-        node_colors::EFFECT
-    }
-
     fn input_count(&self) -> usize {
         1
     }
@@ -28,18 +24,14 @@ impl NodeLogic for BitCrushNode {
     }
 
     fn default_params(&self) -> [Option<crate::graph::Param>; crate::graph::MAX_PARAMS] {
-        let mut p = [None; MAX_PARAMS];
-
-        p[0] = Some(Param::new_enum("Type", &["Bit crush", "Downsample"]));
-        p[1] = Some(Param::new_linear("Strength", 0.0, 1.0));
-        p[2] = Some(Param::new_linear("Shift", 0.0, 1.0));
-        p[3] = Some(
+        crate::params![
+            Param::new_enum("Type", &["Bit crush", "Downsample"]),
+            Param::new_linear("Strength", 0.0, 1.0),
+            Param::new_linear("Shift", 0.0, 1.0),
             Param::new_linear("Mix", 0.0, 100.0)
                 .with_unit("%")
                 .with_default_norm(1.0),
-        );
-
-        p
+        ]
     }
 
     fn process(

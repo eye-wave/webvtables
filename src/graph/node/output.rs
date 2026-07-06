@@ -1,7 +1,7 @@
 use crate::draw::DrawBuf;
 use crate::ffi;
 use crate::graph::{BUFFER_LEN, GraphState, Node};
-use crate::graph::{MAX_PARAMS, Param, node_colors};
+use crate::graph::{MAX_PARAMS, Param};
 
 use super::NodeLogic;
 use super::helpers;
@@ -17,10 +17,6 @@ impl NodeLogic for OutputNode {
         super::NodeCategory::Outputs
     }
 
-    fn header_color(&self) -> [u8; 3] {
-        node_colors::OUTPUT
-    }
-
     fn input_count(&self) -> usize {
         1
     }
@@ -30,11 +26,7 @@ impl NodeLogic for OutputNode {
     }
 
     fn default_params(&self) -> [Option<crate::graph::Param>; crate::graph::MAX_PARAMS] {
-        let mut p = [None; MAX_PARAMS];
-
-        p[0] = Some(Param::new_bool("Peaks", true, Some(&["Normalize", "Clip"])));
-
-        p
+        crate::params![Param::new_bool("Peaks", true, Some(&["Normalize", "Clip"]))]
     }
 
     fn process(

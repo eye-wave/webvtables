@@ -1,6 +1,6 @@
 use crate::ffi;
 use crate::graph::node::helpers::PI32;
-use crate::graph::{BUFFER_LEN, Buffer, Param, consts::*, node_colors};
+use crate::graph::{BUFFER_LEN_F32, Buffer, Param, consts::*};
 
 use super::helpers;
 use super::{NodeLogic, NodeState};
@@ -16,10 +16,6 @@ impl NodeLogic for BasicShapesNode {
         super::NodeCategory::Inputs
     }
 
-    fn header_color(&self) -> [u8; 3] {
-        node_colors::INPUT
-    }
-
     fn input_count(&self) -> usize {
         0
     }
@@ -29,16 +25,10 @@ impl NodeLogic for BasicShapesNode {
     }
 
     fn default_params(&self) -> [Option<crate::graph::Param>; crate::graph::MAX_PARAMS] {
-        let mut p = [None; MAX_PARAMS];
-
-        p[0] = Some(Param::new_enum(
-            "Shape",
-            &["Sine", "Triangle", "Square", "Sawtooth"],
-        ));
-
-        p[1] = Some(Param::new_int("Repeats", 0.0, 1, 100).with_unit("x"));
-
-        p
+        crate::params![
+            Param::new_enum("Shape", &["Sine", "Triangle", "Square", "Sawtooth"]),
+            Param::new_int("Repeats", 0.0, 1, 100).with_unit("x"),
+        ]
     }
 
     fn process(
@@ -52,7 +42,7 @@ impl NodeLogic for BasicShapesNode {
         let freq = helpers::param(params, 1, 1.0) as f32;
 
         let mut phase = 0.0;
-        let phase_inc = freq / BUFFER_LEN as f32;
+        let phase_inc = freq / BUFFER_LEN_F32;
 
         for sample in out.iter_mut() {
             *sample = match shape {

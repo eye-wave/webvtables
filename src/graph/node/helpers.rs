@@ -40,3 +40,34 @@ pub fn pass(inputs: &[&Buffer], out: &mut Buffer) {
 pub fn db_to_value(db: f64) -> f64 {
     ffi::exp(db * core::f64::consts::LN_10 / 20.0)
 }
+
+/// Per-sample transform of input 0 into `out`. Covers every 1-in effect node.
+#[inline]
+pub fn map1(inputs: &[&Buffer], out: &mut Buffer, f: impl Fn(f32) -> f32) {
+    let src = input(inputs, 0);
+    for i in 0..BUFFER_LEN {
+        out[i] = f(src[i]);
+    }
+}
+
+/// Per-sample transform of inputs 0 and 1 into `out`. Covers every 2-in combine node.
+#[inline]
+pub fn map2(inputs: &[&Buffer], out: &mut Buffer, f: impl Fn(f32, f32) -> f32) {
+    let a = input(inputs, 0);
+    let b = input(inputs, 1);
+    for i in 0..BUFFER_LEN {
+        out[i] = f(a[i], b[i]);
+    }
+}
+
+/// Builds a `[Option<Param>; MAX_PARAMS]`, skipping the `[None; N]; p[i] = Some(..); p` dance.
+/// `params![a, b, c]` -> slots 0, 1, 2 filled, rest `None`.
+#[macro_export]
+macro_rules! params {
+    ($($p:expr),* $(,)?) => {{
+        let mut p = [None; $crate::graph::consts::MAX_PARAMS];
+        let set: [Option<$crate::graph::Param>; _] = [$(Some($p)),*];
+        p[..set.len()].copy_from_slice(&set);
+        p
+    }};
+}

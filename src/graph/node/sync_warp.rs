@@ -1,7 +1,7 @@
 use super::NodeLogic;
 use super::helpers;
 use crate::ffi;
-use crate::graph::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeState, Param, node_colors};
+use crate::graph::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeState, Param};
 
 pub struct SyncWarpNode;
 
@@ -14,10 +14,6 @@ impl NodeLogic for SyncWarpNode {
         super::NodeCategory::Effect
     }
 
-    fn header_color(&self) -> [u8; 3] {
-        node_colors::EFFECT
-    }
-
     fn input_count(&self) -> usize {
         1
     }
@@ -27,14 +23,11 @@ impl NodeLogic for SyncWarpNode {
     }
 
     fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
-        let mut p = [None; MAX_PARAMS];
-
-        p[0] = Some(
+        crate::params![
             Param::new_linear("Multiply", 0.0, 50.0)
                 .with_unit("x")
-                .with_default_denormf(1.0),
-        );
-        p
+                .with_default_denormf(1.0)
+        ]
     }
 
     fn process(

@@ -1,12 +1,12 @@
 import { camera, toWorld } from "./camera";
 import { loadFile, saveFile } from "./file-io";
 import {
+  HitType,
   makeBufReader,
   makeStrReader,
   unpackBuffer,
   unpackFloats,
   type f32,
-  type i32,
   type RawStr,
   type usize,
   type WasmExports,
@@ -83,12 +83,12 @@ export function registerContextMenu(
     el.append(sub);
   }
 
-  return (x: f32, y: f32, id: i32) => {
+  return (x: f32, y: f32, hit: HitType) => {
     while (menu.firstChild) {
       menu.firstChild.remove();
     }
 
-    if (id === -1) {
+    if (hit.kind === 0) {
       addSubmenu("New node", nodeNames, "highlight", menu, x, y);
       addItem("Auto arrange", "_+_");
       addItem("Zoom to content", "_+_").onclick = () => {
@@ -130,13 +130,13 @@ export function registerContextMenu(
       addDivider();
       addItem("Delete all", "⌫", "danger").onclick = () =>
         exports.remove_all_nodes();
-    } else {
+    } else if (hit.kind === 1) {
       addItem("Duplicate");
       addDivider();
 
       addItem("Remove", "⌫", "danger").onclick = () => {
-        if (id < 0) return;
-        exports.remove_node(id as number as usize);
+        if (hit.id < 0) return;
+        exports.remove_node(hit.id as number as usize);
       };
     }
 

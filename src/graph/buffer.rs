@@ -4,6 +4,9 @@ use alloc::vec::Vec;
 use super::{GraphState, MAX_NODE_INPUTS, MAX_NODES, NodeLogic};
 
 pub const BUFFER_LEN: usize = 2048;
+pub const BUFFER_LEN_F32: f32 = BUFFER_LEN as f32;
+pub const BUFFER_LEN_F64: f64 = BUFFER_LEN as f64;
+
 pub type Buffer = [f32; BUFFER_LEN];
 pub const ZERO_BUFFER: Buffer = [0.0; BUFFER_LEN];
 

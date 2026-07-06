@@ -1,4 +1,4 @@
-use crate::graph::{BUFFER_LEN, MAX_PARAMS, NodeLogic, Param, node::helpers};
+use crate::graph::{MAX_PARAMS, NodeLogic, Param, node::helpers};
 
 pub struct AmNode;
 
@@ -20,11 +20,7 @@ impl NodeLogic for AmNode {
     }
 
     fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
-        let mut p = [None; MAX_PARAMS];
-
-        p[0] = Some(Param::new_linear("Depth", 0.0, 1.0));
-
-        p
+        crate::params![Param::new_linear("Depth", 0.0, 1.0)]
     }
 
     fn process(
@@ -34,13 +30,9 @@ impl NodeLogic for AmNode {
         _state: &mut super::NodeState,
         out: &mut crate::graph::Buffer,
     ) {
-        let carrier = helpers::input(inputs, 0);
-        let modulator = helpers::input(inputs, 1);
         let depth = helpers::param(params, 0, 1.0) as f32;
-
-        for i in 0..BUFFER_LEN {
-            let m = modulator[i] * depth;
-            out[i] = carrier[i] * (1.0 + m);
-        }
+        helpers::map2(inputs, out, |carrier, modulator| {
+            carrier * (1.0 + modulator * depth)
+        });
     }
 }

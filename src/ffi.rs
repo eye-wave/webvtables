@@ -48,6 +48,5 @@ wasm_imports! {
     fn log10f(x: f32) -> f32;
 
     fn push_node_name(title: *const u8, len: usize, category: *const u8, len2: usize);
-    fn open_context_menu(x:f32,y:f32,id:i32);
     fn draw_flush(ptr: *const u8, len: usize);
 }

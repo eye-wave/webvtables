@@ -1,10 +1,11 @@
 import {
+  HitType,
   loadWasm,
   makeBuf32Reader,
   makeStrReader,
-  MouseDownResult,
   u8,
   unpackBuffer,
+  unpackHitResult,
   type const_u8,
   type f32,
   type f64,
@@ -60,7 +61,7 @@ async function init() {
 
   const nodeNames: Record<string, RawStr[]> = {};
 
-  let openMenu: (x: f32, y: f32, id: i32) => void;
+  let openMenu: (x: f32, y: f32, hit: HitType) => void;
   let openPicker: (x: f32, y: f32, id: i32) => void;
 
   const wasm_ffi = {
@@ -89,8 +90,6 @@ async function init() {
       if (!nodeNames[category]) nodeNames[category] = [];
       nodeNames[category].push({ ptr, len });
     },
-    open_context_menu: (_x: f32, _y: f32, id: i32) =>
-      openMenu(...lastMenuScreenPos, id),
     draw_flush(ptr: const_u8, len: usize) {
       const fatptr = exports.get_generated_frame();
       const addr = unpackBuffer(fatptr);
@@ -146,17 +145,6 @@ async function init() {
     (e: MouseEvent) =>
       cb(...posFromEvent(e), e.button as u8, e.altKey);
 
-  // Context menus are placed by wasm at the world (x, y) it was told about,
-  // which is camera-dependent. Remember where the triggering click actually
-  // landed on screen and use that for menu placement instead.
-  let lastMenuScreenPos: [f32, f32] = [0 as f32, 0 as f32];
-  const rememberMenuPos = (e: MouseEvent) => {
-    lastMenuScreenPos = [
-      (e.clientX - viewport.offsetLeft) as f32,
-      (e.clientY - viewport.offsetTop) as f32,
-    ];
-  };
-
   // Empty-canvas mousedown pans the viewport instead of doing nothing;
   // on_mouse_down's return tells us whether it actually grabbed a node,
   // param, socket, or link, so we don't fight over the same drag.
@@ -169,17 +157,17 @@ async function init() {
   };
   canvas_graph.onmousedown = (e) => {
     const pos = posFromEvent(e);
-    const hit = exports.on_mouse_down(...pos, e.button as u8, e.altKey);
-    if (hit === MouseDownResult.Empty && e.button === 0) {
+    const hit = unpackHitResult(exports.on_mouse_down(...pos));
+    if (hit.kind === 0 && e.button === 0) {
       isPanning = true;
       lastScreen = [e.clientX, e.clientY];
     }
   };
   canvas_graph.ondblclick = (e) => {
     const pos = posFromEvent(e);
-    const hit = exports.on_mouse_down(...pos, e.button as u8, e.altKey);
+    const hit = unpackHitResult(exports.on_dbl_click(...pos));
 
-    if (hit === MouseDownResult.Empty && e.button === 0) {
+    if (hit.kind === 0 && e.button === 0) {
       openPicker(
         (e.clientX - viewport.offsetLeft) as f32,
         (e.clientY - viewport.offsetTop) as f32,
@@ -189,8 +177,11 @@ async function init() {
   };
   canvas_graph.oncontextmenu = (e) => {
     e.preventDefault();
-    rememberMenuPos(e);
-    exports.on_context_menu(...posFromEvent(e), e.button as u8, e.altKey);
+
+    const pos = posFromEvent(e);
+    const hit = unpackHitResult(exports.on_mouse_down(...pos));
+
+    openMenu(...pos, hit);
   };
 
   canvas_graph.addEventListener(

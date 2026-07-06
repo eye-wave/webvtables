@@ -44,35 +44,47 @@ class WaveformPlayerProcessor extends AudioWorkletProcessor {
     parameters: Record<string, Float32Array>,
   ): boolean {
     const output = outputs[0];
-    const waveLength = this.currentWaveform.length;
+    const wave = this.currentWaveform;
+    const waveLength = wave.length;
+    const numChannels = output ? output.length : 0;
 
-    if (!output || output.length === 0 || waveLength === 0) {
+    if (!numChannels || waveLength === 0) {
       return true;
     }
 
-    const blockSize = output[0].length;
+    const channel0 = output[0];
+    const blockSize = channel0.length;
     const frequencies = parameters["frequency"];
     const isFreqConstant = frequencies.length === 1;
 
+    const phaseScale = waveLength / sampleRate;
+    let phase = this.phase;
+
+    const constIncrement = isFreqConstant ? frequencies[0] * phaseScale : 0;
+
     for (let i = 0; i < blockSize; i++) {
-      const freq = isFreqConstant ? frequencies[0] : frequencies[i];
-      const phaseIncrement = (freq * waveLength) / sampleRate;
+      const index = phase | 0;
+      let nextIndex = index + 1;
+      if (nextIndex === waveLength) nextIndex = 0;
 
-      const index = Math.floor(this.phase);
-      const nextIndex = (index + 1) % waveLength;
-      const t = this.phase - index;
+      const t = phase - index;
+      const s0 = wave[index];
+      const s1 = wave[nextIndex];
+      const sample = s0 + t * (s1 - s0);
 
-      const s0 = this.currentWaveform[index];
-      const s1 = this.currentWaveform[nextIndex];
-      const interpolatedSample = s0 + t * (s1 - s0);
-
-      for (let channel = 0; channel < output.length; channel++) {
-        output[channel][i] = interpolatedSample;
+      channel0[i] = sample;
+      for (let channel = 1; channel < numChannels; channel++) {
+        output[channel][i] = sample;
       }
 
-      this.phase = (this.phase + phaseIncrement) % waveLength;
+      const increment = isFreqConstant
+        ? constIncrement
+        : frequencies[i] * phaseScale;
+      phase += increment;
+      if (phase >= waveLength) phase -= waveLength;
     }
 
+    this.phase = phase;
     return true;
   }
 }

@@ -22,11 +22,7 @@ impl NodeLogic for AddNode {
     }
 
     fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
-        let mut p = [None; MAX_PARAMS];
-
-        p[0] = Some(Param::new_bool("Normalize", false, None));
-
-        p
+        crate::params![Param::new_bool("Normalize", false, None)]
     }
 
     fn process(

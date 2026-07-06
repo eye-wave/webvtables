@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::FixedStr;
-use crate::draw::{Draw, DrawBuf};
+use crate::draw::{Color, Draw, DrawBuf};
 use crate::graph::output_pos;
 
 use super::consts::*;
@@ -53,6 +53,7 @@ define_nodes!(
     Invert,
     Output,
     PhaseShift,
+    PulseWave,
     RingMod,
     Saturation,
     SyncWarp,
@@ -112,8 +113,14 @@ pub trait NodeLogic {
     fn category(&self) -> NodeCategory {
         NodeCategory::Unknown
     }
-    fn header_color(&self) -> [u8; 3] {
-        node_colors::DEFAULT
+
+    fn header_color(&self) -> Color {
+        match self.category() {
+            NodeCategory::Effect | NodeCategory::Distortion => node_colors::EFFECT,
+            NodeCategory::Inputs => node_colors::INPUT,
+            NodeCategory::Outputs => node_colors::OUTPUT,
+            _ => node_colors::DEFAULT,
+        }
     }
 
     fn input_count(&self) -> usize;

@@ -10,19 +10,20 @@ export type RawStr = {
   len: usize;
 };
 
+type bool = boolean;
+export type i8 = number & { __brand: "i8" };
 export type u8 = number & { __brand: "u8" };
 export type mut_u8 = number & { __brand: "mut_u8" };
 export type const_u8 = number & { __brand: "const_u8" };
 export type usize = number & { __brand: "usize" };
 export type isize = number & { __brand: "isize" };
 export type i32 = number & { __brand: "i32" };
+export type u16 = number & { __brand: "u16" };
 export type u32 = number & { __brand: "u32" };
 export type u64 = bigint & { __brand: "u64" };
 export type f32 = number & { __brand: "f32" };
 export type f64 = number & { __brand: "f64" };
 export type CursorKind = number & { __brand: "CursorKind" };
-export type MouseDownResult = number & { __brand: "MouseDownResult" };
-export const MouseDownResult = { Empty: 0, Interactive: 1 } as const;
 
 export function unpackBuffer(packed: u64): RawBuffer {
   const ptr = Number(packed >> 32n) as mut_u8;
@@ -49,12 +50,12 @@ export function unpackFloats(value: u64): [f32, f32] {
 
 export type WasmExports = {
   init: () => void;
+  on_mouse_down: (x: f32, y: f32) => u32;
   get_cursor_kind: (x: f32, y: f32) => CursorKind;
   iter_all_nodes: () => void;
-  on_mouse_down: (x: f32, y: f32, btn: u8, altKey: boolean) => MouseDownResult;
-  on_mouse_move: (x: f32, y: f32, btn: u8, altKey: boolean) => void;
-  on_context_menu: (x: f32, y: f32, btn: u8, altKey: boolean) => void;
-  on_mouse_up: (x: f32, y: f32, btn: u8, altKey: boolean) => void;
+  on_mouse_move: (x: f32, y: f32, _btn: u8, alt_key: bool) => void;
+  on_dbl_click: (x: f32, y: f32) => u32;
+  on_mouse_up: (x: f32, y: f32) => void;
   node_count: () => usize;
   node_kind: (i: usize) => u8;
   node_param_count: (i: usize) => usize;
@@ -68,8 +69,8 @@ export type WasmExports = {
   add_node: (x: f32, y: f32, name_ptr: const_u8, name_len: usize) => isize;
   serialize_graph: () => u64;
   free_buffer: (ptr: mut_u8, len: usize) => void;
-  patch_graph: (buf_ptr: mut_u8, buf_len: usize) => i32;
   allocate_patch_buffer: (len: usize) => mut_u8;
+  patch_graph: (buf_ptr: mut_u8, buf_len: usize) => i32;
   node_average_pos: () => u64;
   get_generated_frame: () => u64;
 
@@ -83,6 +84,26 @@ export function unpackLink(
 ): { from: number; to: number } | null {
   if ((packed & 0x8000_0000) === 0) return null;
   return { from: (packed >> 16) & 0x7fff, to: packed & 0xffff };
+}
+
+export type HitType = {
+  kind: u8;
+  id: u16;
+  subId: i8;
+};
+
+export function unpackHitResult(packedHit: u32): HitType {
+  const kind = (packedHit & 0xff) as u8;
+  const id = ((packedHit >>> 8) & 0xffff) as u16;
+  const subIdRaw = (packedHit >>> 24) & 0xff;
+
+  const subId = (subIdRaw >= 128 ? subIdRaw - 256 : subIdRaw) as i8;
+
+  return {
+    kind,
+    id,
+    subId,
+  };
 }
 
 export function makeStrReader(exports: WasmExports) {
