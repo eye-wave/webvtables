@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@types/audioworklet": "^0.0.100",
     "@types/node": "^26.1.0",
     "concurrently": "^10.0.3",
     "typescript": "~6.0.3",

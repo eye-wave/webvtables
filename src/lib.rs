@@ -482,15 +482,26 @@ pub unsafe extern "C" fn add_node(x: f32, y: f32, name_ptr: *const u8, name_len:
     new_idx as isize
 }
 
+trait PackPtr {
+    fn ptr_64(&self) -> u64;
+    fn len_64(&self) -> u64;
+    fn pack(&self) -> u64 {
+        ((self.ptr_64()) << 32) | (self.len_64())
+    }
+}
+
 #[repr(C)]
 pub struct SerializationResult {
     ptr: *mut u8,
     len: usize,
 }
 
-impl SerializationResult {
-    fn pack(&self) -> u64 {
-        ((self.ptr as u64) << 32) | (self.len as u64)
+impl PackPtr for SerializationResult {
+    fn ptr_64(&self) -> u64 {
+        self.ptr as u64
+    }
+    fn len_64(&self) -> u64 {
+        self.len as u64
     }
 }
 
@@ -587,4 +598,48 @@ pub extern "C" fn node_average_pos() -> u64 {
     let avg = (sx / n as f32, sy / n as f32);
 
     pack(avg.0, avg.1)
+}
+
+#[repr(C)]
+pub struct BufferFrame {
+    ptr: *const u8,
+    len: usize,
+}
+
+impl PackPtr for BufferFrame {
+    fn ptr_64(&self) -> u64 {
+        self.ptr as u64
+    }
+    fn len_64(&self) -> u64 {
+        self.len as u64
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn get_generated_frame() -> u64 {
+    let s = state();
+
+    for i in 0..s.node_count {
+        if let NodeKind::Output = s.nodes[i].kind {
+            if let Some(ref bufs) = s.buffers
+                && i < bufs.len()
+            {
+                let buffer_slice = bufs[i].as_slice();
+
+                let frame = BufferFrame {
+                    ptr: buffer_slice.as_ptr() as *const u8,
+                    len: core::mem::size_of_val(buffer_slice),
+                };
+
+                return frame.pack();
+            }
+            break;
+        }
+    }
+
+    BufferFrame {
+        ptr: core::ptr::null(),
+        len: 0,
+    }
+    .pack()
 }

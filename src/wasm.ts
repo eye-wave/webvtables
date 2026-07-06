@@ -71,6 +71,7 @@ export type WasmExports = {
   patch_graph: (buf_ptr: mut_u8, buf_len: usize) => i32;
   allocate_patch_buffer: (len: usize) => mut_u8;
   node_average_pos: () => u64;
+  get_generated_frame: () => u64;
 
   memory: WebAssembly.Memory;
 };
@@ -92,6 +93,15 @@ export function makeStrReader(exports: WasmExports) {
 export function makeBufReader(exports: WasmExports) {
   return (ptr: number, len: number) =>
     new Uint8Array(exports.memory.buffer, ptr, len);
+}
+
+export function makeBuf32Reader(exports: WasmExports) {
+  return (ptr: number, len: number) =>
+    new Float32Array(
+      exports.memory.buffer,
+      ptr,
+      len / Float32Array.BYTES_PER_ELEMENT,
+    );
 }
 
 export async function loadWasm(

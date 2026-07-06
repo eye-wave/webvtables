@@ -1,8 +1,10 @@
 import {
   loadWasm,
+  makeBuf32Reader,
   makeStrReader,
   MouseDownResult,
   u8,
+  unpackBuffer,
   type const_u8,
   type f32,
   type f64,
@@ -18,6 +20,7 @@ import { createKnobs } from "./audio/knobs";
 import { registerContextMenu } from "./context-menu";
 import { toWorld, zoomAt, pan, panByDrag } from "./camera";
 import { registerNodePicker } from "./node-picker";
+import { player } from "./audio/engine";
 
 createKnobs();
 
@@ -53,8 +56,10 @@ async function init() {
 
   let logBuffer = "";
   let readStr: (ptr: number, len: number) => string;
+  let readBuf32: (ptr: number, len: number) => Float32Array;
 
   const nodeNames: Record<string, RawStr[]> = {};
+
   let openMenu: (x: f32, y: f32, id: i32) => void;
   let openPicker: (x: f32, y: f32, id: i32) => void;
 
@@ -87,6 +92,12 @@ async function init() {
     open_context_menu: (_x: f32, _y: f32, id: i32) =>
       openMenu(...lastMenuScreenPos, id),
     draw_flush(ptr: const_u8, len: usize) {
+      const fatptr = exports.get_generated_frame();
+      const addr = unpackBuffer(fatptr);
+      const buf = readBuf32(addr.ptr, addr.len);
+
+      player.setWaveform(buf);
+
       executeDrawBuffer(
         new Uint8Array(exports.memory.buffer, ptr, len),
         renderer,
@@ -115,6 +126,7 @@ async function init() {
   const exports: WasmExports = await loadWasm({ ...wasm_ffi, ...math_ffi });
 
   readStr = makeStrReader(exports);
+  readBuf32 = makeBuf32Reader(exports);
 
   exports.iter_all_nodes();
 
@@ -168,7 +180,11 @@ async function init() {
     const hit = exports.on_mouse_down(...pos, e.button as u8, e.altKey);
 
     if (hit === MouseDownResult.Empty && e.button === 0) {
-      openPicker(...pos, e.button as i32);
+      openPicker(
+        (e.clientX - viewport.offsetLeft) as f32,
+        (e.clientY - viewport.offsetTop) as f32,
+        e.button as i32,
+      );
     }
   };
   canvas_graph.oncontextmenu = (e) => {
@@ -207,6 +223,8 @@ async function init() {
     exports.on_mouse_move(...pos, e.button as u8, e.altKey);
     canvas_graph.style.cursor = CURSORS[exports.get_cursor_kind(...pos)];
   };
+
+  window.addEventListener("pointerdown", async () => await player.initialize());
 
   exports.init();
 

@@ -1,9 +1,7 @@
-import {
-  createDraggable,
-  DEFAULT_KNOB_VALUE,
-} from "@eyewave/web-knobs/core/draggable";
+import { createDraggable } from "@eyewave/web-knobs/core/draggable";
 import { describeArc } from "@eyewave/web-knobs/core/helpers";
 import { LogParam } from "@eyewave/web-knobs/core/params";
+import { player } from "./engine";
 
 const ns = "http://www.w3.org/2000/svg";
 
@@ -19,7 +17,9 @@ const makeDraw =
 
 const bindKnob = (
   container: HTMLElement,
+  defaultVal: number,
   color: string,
+  onChange: (v: number) => void,
   fmt: (v: number) => string,
 ) => {
   const path = document.createElementNS(ns, "path");
@@ -38,20 +38,38 @@ const bindKnob = (
   container.append(path);
   container.append(text);
 
-  createDraggable(container, { onValueChange: draw });
+  createDraggable(container, {
+    onValueChange: (v) => {
+      onChange(v);
+      draw(v);
+    },
+    value: defaultVal,
+  });
 
-  draw(DEFAULT_KNOB_VALUE);
+  draw(defaultVal);
 };
 export function createKnobs() {
   const param = new LogParam(10, 12000);
 
-  bindKnob(header_freq, "red", (v) => v.toFixed(1));
-  bindKnob(header_volume, "cyan", (v) => {
-    const denorm = param.denormalize(v);
+  bindKnob(
+    header_freq,
+    0.1,
+    "red",
+    (v) => player.volume.setValueAtTime(v, 0.1),
+    (v) => v.toFixed(1),
+  );
+  bindKnob(
+    header_volume,
+    0.2,
+    "cyan",
+    (v) => player.frequency.setValueAtTime(param.denormalize(v), 0.1),
+    (v) => {
+      const denorm = param.denormalize(v);
 
-    if (denorm > 1000) {
-      return (denorm / 1000).toFixed(0) + "kHz";
-    }
-    return denorm.toFixed(0) + "Hz";
-  });
+      if (denorm > 1000) {
+        return (denorm / 1000).toFixed(0) + "kHz";
+      }
+      return denorm.toFixed(0) + "Hz";
+    },
+  );
 }
