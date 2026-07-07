@@ -87,10 +87,10 @@ impl SerializeGraph for GraphState {
 
         buf.extend_from_slice(&(links_size as u32).to_le_bytes());
         for link in self.links.iter().flatten() {
-            buf.extend_from_slice(&(link.from as u32).to_le_bytes());
-            buf.extend_from_slice(&(link.from_socket as u32).to_le_bytes());
-            buf.extend_from_slice(&(link.to as u32).to_le_bytes());
-            buf.extend_from_slice(&(link.to_socket as u32).to_le_bytes());
+            buf.extend_from_slice(&(link.from as u16).to_le_bytes());
+            buf.extend_from_slice(&(link.from_socket as u16).to_le_bytes());
+            buf.extend_from_slice(&(link.to as u16).to_le_bytes());
+            buf.extend_from_slice(&(link.to_socket as u16).to_le_bytes());
         }
 
         buf
@@ -98,6 +98,8 @@ impl SerializeGraph for GraphState {
 
     fn patch_from_bytes(&mut self, bytes: &[u8]) -> i8 {
         let rd_u32 = |p: usize| u32::from_le_bytes(bytes[p..p + 4].try_into().unwrap());
+        let rd_u16 = |p: usize| u16::from_le_bytes(bytes[p..p + 2].try_into().unwrap());
+
         let mut pos = 0;
 
         if bytes[0..4] != *FILE_SIGNATURE {
@@ -180,11 +182,11 @@ impl SerializeGraph for GraphState {
 
         let mut link_idx = 0;
         while pos < links_end {
-            let from = rd_u32(pos) as usize;
-            let from_socket = rd_u32(pos + 4) as usize;
-            let to = rd_u32(pos + 8) as usize;
-            let to_socket = rd_u32(pos + 12) as usize;
-            pos += 16;
+            let from = rd_u16(pos) as usize;
+            let from_socket = rd_u16(pos + 2) as usize;
+            let to = rd_u16(pos + 4) as usize;
+            let to_socket = rd_u16(pos + 6) as usize;
+            pos += 8;
 
             self.links[link_idx] = Some(Link {
                 from,
