@@ -13,8 +13,8 @@ impl NodeLogic for OutputNode {
         "Output"
     }
 
-    fn category(&self) -> super::NodeCategory {
-        super::NodeCategory::Outputs
+    fn category(&self) -> &'static [super::NodeCategory] {
+        &[super::NodeCategory::Outputs]
     }
 
     fn input_count(&self) -> usize {

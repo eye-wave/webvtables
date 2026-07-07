@@ -29,6 +29,7 @@ macro_rules! wasm_imports {
 
 wasm_imports! {
     fn log_str(ptr: *const u8, len: usize);
+    fn log_bool(val: bool);
     fn log_i32(val: i32);
     fn log_f64(val: f64);
     fn log_flush();

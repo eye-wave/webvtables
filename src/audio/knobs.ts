@@ -52,17 +52,30 @@ export function createKnobs() {
   const param = new LogParam(10, 12000);
 
   bindKnob(
-    header_freq,
+    header_volume,
     0.1,
     "red",
-    (v) => player.volume.setValueAtTime(v, 0.1),
-    (v) => v.toFixed(1),
+    (v) => {
+      try {
+        player.volume.setValueAtTime(v, 0.1);
+      } catch {
+        player._cached_vol = v;
+      }
+    },
+    (v) => v.toFixed(2),
   );
   bindKnob(
-    header_volume,
+    header_freq,
     0.2,
     "cyan",
-    (v) => player.frequency.setValueAtTime(param.denormalize(v), 0.1),
+    (v) => {
+      const denorm = param.denormalize(v);
+      try {
+        player.frequency.setValueAtTime(denorm, 0.1);
+      } catch {
+        player._cached_freq = denorm;
+      }
+    },
     (v) => {
       const denorm = param.denormalize(v);
 

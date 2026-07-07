@@ -1,5 +1,5 @@
 use crate::ffi;
-use crate::graph::{BUFFER_LEN, Buffer, Param, consts::*};
+use crate::graph::{BUFFER_LEN, Buffer, NodeCategory, Param, consts::*};
 
 use super::helpers;
 use super::{NodeLogic, NodeState};
@@ -11,8 +11,8 @@ impl NodeLogic for SpectralGateNode {
         "Spectral Gate"
     }
 
-    fn category(&self) -> super::NodeCategory {
-        super::NodeCategory::Fft
+    fn category(&self) -> &'static [super::NodeCategory] {
+        &[NodeCategory::Effect, NodeCategory::Fft]
     }
 
     fn input_count(&self) -> usize {

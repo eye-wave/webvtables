@@ -10,8 +10,8 @@ impl NodeLogic for PulseWaveNode {
         "Pulse wave"
     }
 
-    fn category(&self) -> super::NodeCategory {
-        super::NodeCategory::Inputs
+    fn category(&self) -> &'static [super::NodeCategory] {
+        &[super::NodeCategory::Inputs]
     }
 
     fn input_count(&self) -> usize {

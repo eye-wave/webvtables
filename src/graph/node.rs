@@ -1,5 +1,3 @@
-use serde::{Deserialize, Serialize};
-
 use crate::FixedStr;
 use crate::draw::{Color, Draw, DrawBuf};
 use crate::graph::output_pos;
@@ -81,19 +79,21 @@ pub enum NodeCategory {
     Distortion,
     Combine,
     Effect,
+    Warp,
     Unknown,
 }
 
 impl NodeCategory {
     pub fn as_str(&self) -> &'static str {
         match self {
-            NodeCategory::Fft => "FFT",
-            NodeCategory::Inputs => "Inputs",
-            NodeCategory::Outputs => "Outputs",
-            NodeCategory::Distortion => "Distortion",
-            NodeCategory::Combine => "Combine",
-            NodeCategory::Effect => "Effect",
-            NodeCategory::Unknown => "Other",
+            Self::Fft => "FFT",
+            Self::Inputs => "Inputs",
+            Self::Outputs => "Outputs",
+            Self::Distortion => "Distortion",
+            Self::Combine => "Combine",
+            Self::Effect => "Effect",
+            Self::Warp => "Warp",
+            Self::Unknown => "Other",
         }
     }
 }
@@ -114,19 +114,21 @@ impl NodeKind {
 
 pub trait NodeLogic {
     fn title(&self) -> &'static str;
-    fn category(&self) -> NodeCategory {
-        NodeCategory::Unknown
+    fn category(&self) -> &'static [NodeCategory] {
+        &[NodeCategory::Unknown]
     }
 
     fn header_color(&self) -> Color {
-        match self.category() {
-            NodeCategory::Effect | NodeCategory::Distortion | NodeCategory::Fft => {
-                node_colors::EFFECT
+        for cat in self.category() {
+            match cat {
+                NodeCategory::Effect => return node_colors::EFFECT,
+                NodeCategory::Inputs => return node_colors::INPUT,
+                NodeCategory::Outputs => return node_colors::OUTPUT,
+                _ => continue,
             }
-            NodeCategory::Inputs => node_colors::INPUT,
-            NodeCategory::Outputs => node_colors::OUTPUT,
-            _ => node_colors::DEFAULT,
         }
+
+        node_colors::DEFAULT
     }
 
     fn input_count(&self) -> usize;
@@ -213,15 +215,6 @@ impl NodeLogic for NodeKind {
     ) -> bool {
         self.as_node().draw_widget(node, i, s, ctx, rect)
     }
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct NodeSnapshot {
-    pub x: f32,
-    pub y: f32,
-    pub title: heapless::String<64>,
-    pub params: heapless::Vec<f64, MAX_PARAMS>,
-    pub state: NodeState,
 }
 
 #[derive(Clone, Copy)]
@@ -406,42 +399,5 @@ impl Draw for Node {
                 },
             );
         }
-    }
-}
-
-impl From<Node> for NodeSnapshot {
-    fn from(node: Node) -> Self {
-        let mut title = heapless::String::new();
-        let _ = title.push_str(node.kind.title());
-
-        let mut params = heapless::Vec::new();
-        for param in node.params.iter().flatten() {
-            let _ = params.push(param.value());
-        }
-
-        NodeSnapshot {
-            x: node.x,
-            y: node.y,
-            title,
-            params,
-            state: node.state,
-        }
-    }
-}
-
-impl From<NodeSnapshot> for Node {
-    fn from(snapshot: NodeSnapshot) -> Self {
-        let matched_kind =
-            NodeKind::from_title(snapshot.title.as_str()).unwrap_or(NodeKind::BasicShapes);
-
-        let mut node = Node::new(matched_kind, snapshot.x, snapshot.y);
-        node.state = snapshot.state;
-
-        for (snap, param) in snapshot.params.iter().zip(node.params.iter_mut()) {
-            let Some(param) = param else { continue };
-            param.set_value_norm(*snap);
-        }
-
-        node
     }
 }

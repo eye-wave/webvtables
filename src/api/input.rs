@@ -213,6 +213,7 @@ pub extern "C" fn on_dbl_click(x: f32, y: f32) -> u32 {
             console_print!("Double clicked parameter ", p, " on node ", i);
 
             param.reset_to_default();
+            s.dragging_param = None;
 
             s.version += 1;
             render();

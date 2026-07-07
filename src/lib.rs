@@ -56,9 +56,12 @@ pub extern "C" fn init() {
 pub extern "C" fn iter_all_nodes() {
     for node in NodeKind::iter() {
         let title = node.title();
-        let categ = node.as_node().category().as_str();
 
-        ffi::push_node_name(title.as_ptr(), title.len(), categ.as_ptr(), categ.len());
+        for cat in node.as_node().category() {
+            let cat = cat.as_str();
+
+            ffi::push_node_name(title.as_ptr(), title.len(), cat.as_ptr(), cat.len());
+        }
     }
 }
 

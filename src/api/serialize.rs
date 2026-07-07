@@ -1,4 +1,4 @@
-use crate::{console_print, graph::*};
+use crate::graph::*;
 
 // Was: a `PackPtr` trait + `SerializationResult`/`BufferFrame` structs, both
 // implementing it identically. Both call sites just want (ptr, len) packed
@@ -11,20 +11,13 @@ fn pack_ptr_len(ptr_addr: u64, len: usize) -> u64 {
 pub extern "C" fn serialize_graph() -> u64 {
     let s = state();
 
-    match s.serialize() {
-        Ok(buf) => {
-            let mut boxed_slice = buf.into_boxed_slice();
-            let ptr = boxed_slice.as_mut_ptr();
-            let len = boxed_slice.len();
+    let buf = s.serialize();
+    let mut boxed_slice = buf.into_boxed_slice();
+    let ptr = boxed_slice.as_mut_ptr();
+    let len = boxed_slice.len();
 
-            core::mem::forget(boxed_slice);
-            pack_ptr_len(ptr as u64, len)
-        }
-        Err(_) => {
-            console_print!("Error: Failed to serialize graph state.");
-            pack_ptr_len(0, 0)
-        }
-    }
+    core::mem::forget(boxed_slice);
+    pack_ptr_len(ptr as u64, len)
 }
 
 #[unsafe(no_mangle)]
@@ -54,9 +47,9 @@ pub unsafe extern "C" fn allocate_patch_buffer(len: usize) -> *mut u8 {
 ///
 /// This function is unsafe because it dereferences the raw pointer `buf_ptr`.
 /// The caller must guarantee that `buf_ptr` points to `buf_len` contiguous bytes of
-/// valid, initialized memory containing valid Postcard-serialized data.
+/// valid, initialized memory containing valid serialized data.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn patch_graph(buf_ptr: *mut u8, buf_len: usize) -> i32 {
+pub unsafe extern "C" fn patch_graph(buf_ptr: *mut u8, buf_len: usize) -> i8 {
     if buf_ptr.is_null() || buf_len == 0 {
         return -1;
     }
@@ -65,16 +58,7 @@ pub unsafe extern "C" fn patch_graph(buf_ptr: *mut u8, buf_len: usize) -> i32 {
     let _boxed_buffer = unsafe { alloc::boxed::Box::from_raw(bytes_slice) };
 
     let s = state();
-    match postcard::from_bytes::<GraphSnapshot>(bytes_slice) {
-        Ok(snapshot) => {
-            s.patch(snapshot);
-            0
-        }
-        Err(_) => {
-            console_print!("Error: Failed to deserialize snapshot payload.");
-            -1
-        }
-    }
+    s.patch_from_bytes(bytes_slice)
 }
 
 #[unsafe(no_mangle)]

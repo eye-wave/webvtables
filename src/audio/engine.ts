@@ -24,6 +24,9 @@ export class WaveformPlayer {
   private sender: ((buf: Float32Array) => void) | null = null;
   private isPlaying: boolean = false;
 
+  public _cached_vol = 0.1;
+  public _cached_freq = 44;
+
   public onInit?: () => void;
 
   constructor() {}
@@ -45,8 +48,10 @@ export class WaveformPlayer {
         outputChannelCount: [2],
       },
     );
+    this.frequency.setValueAtTime(this._cached_freq, 0);
+
     this.gainNode = this.audioCtx.createGain();
-    this.gainNode.gain.setValueAtTime(0.1, 0);
+    this.gainNode.gain.setValueAtTime(this._cached_vol, 0);
 
     this.workletNode.connect(this.gainNode);
     this.gainNode.connect(this.audioCtx.destination);

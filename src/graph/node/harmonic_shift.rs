@@ -1,4 +1,6 @@
-use crate::graph::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeLogic, NodeState, Param, node::helpers};
+use crate::graph::{
+    BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeState, Param, node::helpers,
+};
 
 pub struct HarmonicShiftNode;
 
@@ -7,8 +9,8 @@ impl NodeLogic for HarmonicShiftNode {
         "Harmonic shift"
     }
 
-    fn category(&self) -> super::NodeCategory {
-        super::NodeCategory::Fft
+    fn category(&self) -> &'static [super::NodeCategory] {
+        &[NodeCategory::Effect, NodeCategory::Fft]
     }
 
     fn input_count(&self) -> usize {

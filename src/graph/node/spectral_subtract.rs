@@ -1,5 +1,5 @@
 use crate::graph::node::helpers::magnitude;
-use crate::graph::{BUFFER_LEN, Buffer, Param, consts::*};
+use crate::graph::{BUFFER_LEN, Buffer, NodeCategory, Param, consts::*};
 use microfft::Complex32;
 
 use super::helpers;
@@ -12,8 +12,8 @@ impl NodeLogic for SpectralSubtractNode {
         "Spectral Subtract"
     }
 
-    fn category(&self) -> super::NodeCategory {
-        super::NodeCategory::Fft
+    fn category(&self) -> &'static [super::NodeCategory] {
+        &[NodeCategory::Combine, NodeCategory::Fft]
     }
 
     fn input_count(&self) -> usize {

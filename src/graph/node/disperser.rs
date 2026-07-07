@@ -1,4 +1,5 @@
 use crate::ffi;
+use crate::graph::NodeCategory;
 use crate::graph::{
     BUFFER_LEN, BUFFER_LEN_F32, Param,
     node::helpers::{self, TAU32},
@@ -13,8 +14,8 @@ impl NodeLogic for DisperserNode {
         "Disperser"
     }
 
-    fn category(&self) -> super::NodeCategory {
-        super::NodeCategory::Fft
+    fn category(&self) -> &'static [super::NodeCategory] {
+        &[NodeCategory::Effect, NodeCategory::Fft]
     }
 
     fn input_count(&self) -> usize {

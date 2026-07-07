@@ -7,8 +7,8 @@ impl NodeLogic for RingModNode {
         "Ring Modulation"
     }
 
-    fn category(&self) -> super::NodeCategory {
-        super::NodeCategory::Combine
+    fn category(&self) -> &'static [super::NodeCategory] {
+        &[super::NodeCategory::Combine]
     }
 
     fn input_count(&self) -> usize {

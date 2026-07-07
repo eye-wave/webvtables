@@ -1,6 +1,6 @@
 use crate::ffi;
 use crate::graph::node::helpers::PI32;
-use crate::graph::{BUFFER_LEN, Buffer, Param, consts::*};
+use crate::graph::{BUFFER_LEN, Buffer, NodeCategory, Param, consts::*};
 
 use super::helpers;
 use super::{NodeLogic, NodeState};
@@ -12,8 +12,8 @@ impl NodeLogic for SaturationNode {
         "Saturation"
     }
 
-    fn category(&self) -> super::NodeCategory {
-        super::NodeCategory::Distortion
+    fn category(&self) -> &'static [super::NodeCategory] {
+        &[NodeCategory::Effect, NodeCategory::Distortion]
     }
 
     fn input_count(&self) -> usize {

@@ -11,6 +11,12 @@ impl LogArg for &str {
     }
 }
 
+impl LogArg for bool {
+    fn log(&self) {
+        ffi::log_bool(*self)
+    }
+}
+
 macro_rules! impl_int_log {
     ($($t:ty),*) => {
         $(impl LogArg for $t {

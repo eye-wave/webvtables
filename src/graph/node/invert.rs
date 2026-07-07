@@ -10,8 +10,8 @@ impl NodeLogic for InvertNode {
         "Invert polarity"
     }
 
-    fn category(&self) -> super::NodeCategory {
-        super::NodeCategory::Effect
+    fn category(&self) -> &'static [super::NodeCategory] {
+        &[super::NodeCategory::Effect]
     }
 
     fn input_count(&self) -> usize {

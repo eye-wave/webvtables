@@ -1,4 +1,5 @@
 use crate::ffi;
+use crate::graph::NodeCategory;
 use crate::graph::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeLogic, NodeState, Param, node::helpers};
 
 pub struct InharmonicShiftNode;
@@ -8,8 +9,8 @@ impl NodeLogic for InharmonicShiftNode {
         "Inharmonic shift"
     }
 
-    fn category(&self) -> super::NodeCategory {
-        super::NodeCategory::Fft
+    fn category(&self) -> &'static [super::NodeCategory] {
+        &[NodeCategory::Effect, NodeCategory::Fft]
     }
 
     fn input_count(&self) -> usize {

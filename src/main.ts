@@ -66,6 +66,9 @@ async function init() {
     log_str(ptr: const_u8, len: usize) {
       logBuffer += readStr(ptr, len);
     },
+    log_bool(n: bool) {
+      logBuffer += n ? "true" : "false";
+    },
     log_i32(n: i32) {
       logBuffer += `${n}`;
     },

@@ -2,6 +2,7 @@ use super::NodeLogic;
 use super::helpers;
 use crate::ffi;
 use crate::graph::BUFFER_LEN_F32;
+use crate::graph::NodeCategory;
 use crate::graph::node::helpers::PI32;
 use crate::graph::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeState, Param};
 
@@ -12,8 +13,8 @@ impl NodeLogic for WindowNode {
         "Window"
     }
 
-    fn category(&self) -> super::NodeCategory {
-        super::NodeCategory::Effect
+    fn category(&self) -> &'static [super::NodeCategory] {
+        &[NodeCategory::Effect, NodeCategory::Warp]
     }
 
     fn input_count(&self) -> usize {

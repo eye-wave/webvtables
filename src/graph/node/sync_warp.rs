@@ -1,6 +1,7 @@
 use super::NodeLogic;
 use super::helpers;
 use crate::ffi;
+use crate::graph::NodeCategory;
 use crate::graph::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeState, Param};
 
 pub struct SyncWarpNode;
@@ -10,8 +11,8 @@ impl NodeLogic for SyncWarpNode {
         "Sync warp"
     }
 
-    fn category(&self) -> super::NodeCategory {
-        super::NodeCategory::Effect
+    fn category(&self) -> &'static [super::NodeCategory] {
+        &[NodeCategory::Effect, NodeCategory::Warp]
     }
 
     fn input_count(&self) -> usize {

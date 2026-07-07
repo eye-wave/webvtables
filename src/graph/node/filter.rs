@@ -1,6 +1,8 @@
 use crate::draw::DrawBuf;
 use crate::ffi;
-use crate::graph::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, GraphState, Node, Param, consts::*};
+use crate::graph::{
+    BUFFER_LEN, BUFFER_LEN_F64, Buffer, GraphState, Node, NodeCategory, Param, consts::*,
+};
 
 use super::helpers;
 use super::{NodeLogic, NodeState};
@@ -48,8 +50,8 @@ impl NodeLogic for FilterNode {
         "FFT Filter"
     }
 
-    fn category(&self) -> super::NodeCategory {
-        super::NodeCategory::Fft
+    fn category(&self) -> &'static [super::NodeCategory] {
+        &[NodeCategory::Effect, NodeCategory::Fft]
     }
 
     fn input_count(&self) -> usize {

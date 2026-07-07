@@ -13,8 +13,8 @@ impl NodeLogic for FmNode {
         "Frequency Modulation"
     }
 
-    fn category(&self) -> super::NodeCategory {
-        super::NodeCategory::Combine
+    fn category(&self) -> &'static [super::NodeCategory] {
+        &[super::NodeCategory::Combine]
     }
 
     fn input_count(&self) -> usize {

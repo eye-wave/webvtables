@@ -8,13 +8,26 @@ export function registerNodePicker(
   nodeNames: Record<string, RawStr[]>,
 ) {
   const readStr = makeStrReader(exports);
-  const entries = Object.entries(nodeNames).flatMap(([category, list]) =>
-    list.map((raw) => ({
-      raw,
-      label: readStr(raw.ptr, raw.len),
-      category,
-    })),
+  const flattened = Object.entries(nodeNames).flatMap(([category, list]) =>
+    list.map((raw) => ({ raw, category })),
   );
+  const groupedMap = flattened.reduce((acc, { raw, category }) => {
+    const key = raw.ptr;
+
+    if (!acc.has(key)) {
+      acc.set(key, {
+        raw,
+        label: readStr(raw.ptr, raw.len),
+        categories: [category],
+      });
+    } else {
+      acc.get(key).categories.push(category);
+    }
+
+    return acc;
+  }, new Map());
+  const entries: { raw: RawStr; label: string; categories: string[] }[] =
+    Array.from(groupedMap.values());
 
   const input = document.createElement("input");
   input.placeholder = "Search nodes...";
@@ -40,7 +53,7 @@ export function registerNodePicker(
 
       const cat = document.createElement("span");
       cat.className = "shortcut";
-      cat.textContent = e.category;
+      cat.textContent = e.categories.join(", ");
 
       el.append(cat);
 

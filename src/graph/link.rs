@@ -1,5 +1,3 @@
-use serde::{Deserialize, Serialize};
-
 use crate::{
     draw::{Draw, DrawBuf},
     geom::point_segment_dist2,
@@ -9,7 +7,7 @@ use crate::{
 use super::GraphState;
 use super::consts::*;
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone, Copy)]
 pub struct Link {
     pub from: usize,
     pub from_socket: usize,
