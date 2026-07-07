@@ -45,6 +45,7 @@ define_nodes!(
     BasicShapes,
     BitCrush,
     Comb,
+    Disperser,
     Filter,
     Fm,
     Gain,
@@ -53,7 +54,6 @@ define_nodes!(
     Invert,
     Output,
     Partials,
-    PhaseDisplace,
     PhaseShift,
     PulseWave,
     RingMod,
@@ -120,7 +120,9 @@ pub trait NodeLogic {
 
     fn header_color(&self) -> Color {
         match self.category() {
-            NodeCategory::Effect | NodeCategory::Distortion => node_colors::EFFECT,
+            NodeCategory::Effect | NodeCategory::Distortion | NodeCategory::Fft => {
+                node_colors::EFFECT
+            }
             NodeCategory::Inputs => node_colors::INPUT,
             NodeCategory::Outputs => node_colors::OUTPUT,
             _ => node_colors::DEFAULT,

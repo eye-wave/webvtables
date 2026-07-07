@@ -6,11 +6,11 @@ use crate::graph::{
 
 use super::NodeLogic;
 
-pub struct PhaseDisplaceNode;
+pub struct DisperserNode;
 
-impl NodeLogic for PhaseDisplaceNode {
+impl NodeLogic for DisperserNode {
     fn title(&self) -> &'static str {
-        "Phase displace"
+        "Disperser"
     }
 
     fn category(&self) -> super::NodeCategory {
@@ -26,7 +26,7 @@ impl NodeLogic for PhaseDisplaceNode {
     }
 
     fn default_params(&self) -> [Option<Param>; crate::graph::MAX_PARAMS] {
-        crate::params![Param::new_linear("Exponent", 0.0, 10.0)]
+        crate::params![Param::new_linear("Exponent", -10.0, 10.0)]
     }
 
     fn process(
@@ -39,6 +39,9 @@ impl NodeLogic for PhaseDisplaceNode {
         let exp = helpers::param(params, 0, 0.0) as f32;
         let src = helpers::input(inputs, 0);
 
+        let direction = if exp >= 0.0 { 1.0 } else { -1.0 };
+        let abs_exp = exp.abs();
+
         let mut samples: [f32; BUFFER_LEN] = *src;
         let spectrum = microfft::real::rfft_2048(&mut samples);
 
@@ -47,7 +50,7 @@ impl NodeLogic for PhaseDisplaceNode {
         for (i, bin) in spectrum.iter_mut().enumerate() {
             let (mag, mut phase) = helpers::mag_phase(bin);
 
-            phase += ffi::powf(i as f32, exp) * step;
+            phase += ffi::powf(i as f32, abs_exp) * step * direction;
             *bin = helpers::from_mag_phase(mag, phase);
         }
 
