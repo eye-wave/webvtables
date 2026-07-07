@@ -39,12 +39,14 @@ wasm_imports! {
     fn sin(x: f64) -> f64;
     fn floor(x: f64) -> f64;
 
+    fn atan2f(x: f32,y:f32) -> f32;
     fn powf(x: f32,y:f32) -> f32;
     fn roundf(x: f32) -> f32;
     fn sinf(x: f32) -> f32;
     fn cosf(x: f32) -> f32;
     fn tanhf(x: f32) -> f32;
     fn sqrtf(x: f32) -> f32;
+    fn log2f(x: f32) -> f32;
     fn log10f(x: f32) -> f32;
 
     fn push_node_name(title: *const u8, len: usize, category: *const u8, len2: usize);

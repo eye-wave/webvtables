@@ -1,5 +1,3 @@
-import { f32 } from "./wasm";
-
 declare const cam_x: HTMLSpanElement;
 declare const cam_y: HTMLSpanElement;
 declare const cam_z: HTMLSpanElement;

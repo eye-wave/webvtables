@@ -59,12 +59,7 @@ export class WaveformPlayer {
    * Pushes a new waveform buffer down to the audio thread.
    */
   setWaveform(buf: Float32Array): void {
-    if (!this.sender) {
-      console.warn(
-        "WaveformPlayer: Cannot set waveform before calling initialize().",
-      );
-      return;
-    }
+    if (!this.sender) return;
     this.sender(buf);
   }
 

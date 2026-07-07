@@ -10,21 +10,6 @@ export type RawStr = {
   len: usize;
 };
 
-type bool = boolean;
-export type i8 = number & { __brand: "i8" };
-export type u8 = number & { __brand: "u8" };
-export type mut_u8 = number & { __brand: "mut_u8" };
-export type const_u8 = number & { __brand: "const_u8" };
-export type usize = number & { __brand: "usize" };
-export type isize = number & { __brand: "isize" };
-export type i32 = number & { __brand: "i32" };
-export type u16 = number & { __brand: "u16" };
-export type u32 = number & { __brand: "u32" };
-export type u64 = bigint & { __brand: "u64" };
-export type f32 = number & { __brand: "f32" };
-export type f64 = number & { __brand: "f64" };
-export type CursorKind = number & { __brand: "CursorKind" };
-
 export function unpackBuffer(packed: u64): RawBuffer {
   const ptr = Number(packed >> 32n) as mut_u8;
   const len = Number(packed & 0xffffffffn) as usize;
@@ -51,7 +36,7 @@ export function unpackFloats(value: u64): [f32, f32] {
 export type WasmExports = {
   init: () => void;
   on_mouse_down: (x: f32, y: f32) => u32;
-  get_cursor_kind: (x: f32, y: f32) => CursorKind;
+  get_cursor_kind: (x: f32, y: f32) => u8;
   iter_all_nodes: () => void;
   on_mouse_move: (x: f32, y: f32, _btn: u8, alt_key: bool) => void;
   on_dbl_click: (x: f32, y: f32) => u32;

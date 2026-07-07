@@ -1,5 +1,5 @@
 import { toWorld } from "./camera";
-import { makeStrReader, type f32, type RawStr, type WasmExports } from "./wasm";
+import { makeStrReader, type RawStr, type WasmExports } from "./wasm";
 
 declare const search_menu: HTMLDivElement;
 
@@ -8,9 +8,13 @@ export function registerNodePicker(
   nodeNames: Record<string, RawStr[]>,
 ) {
   const readStr = makeStrReader(exports);
-  const entries = Object.values(nodeNames)
-    .flat()
-    .map((raw) => ({ raw, label: readStr(raw.ptr, raw.len) }));
+  const entries = Object.entries(nodeNames).flatMap(([category, list]) =>
+    list.map((raw) => ({
+      raw,
+      label: readStr(raw.ptr, raw.len),
+      category,
+    })),
+  );
 
   const input = document.createElement("input");
   input.placeholder = "Search nodes...";
@@ -33,6 +37,13 @@ export function registerNodePicker(
       const el = document.createElement("div");
       el.className = "item";
       el.textContent = e.label;
+
+      const cat = document.createElement("span");
+      cat.className = "shortcut";
+      cat.textContent = e.category;
+
+      el.append(cat);
+
       el.onclick = () => confirm(e.raw);
       results.append(el);
     });

@@ -6,10 +6,11 @@
 //!   5  FillCircle   f32 x, y, r
 //!   6  StrokeLine   f32 x1, y1, x2, y2
 //!   7  FillText     f32 x, y, u16 len, [u8; len] utf8
+//!   8  FillWave     f32 x, y, w, h, *const u8 ptr
 
 use alloc::vec::Vec;
 
-use crate::graph::GraphState;
+use crate::graph::{BUFFER_LEN, GraphState};
 
 pub type Color = [u8; 3];
 
@@ -22,6 +23,7 @@ enum Op {
     FillCircle = 5,
     StrokeLine = 6,
     FillText = 7,
+    FillWave = 8,
 }
 
 pub trait Draw {
@@ -43,6 +45,10 @@ impl DrawBuf {
     }
 
     fn push_u16(&mut self, v: u16) {
+        self.buf.extend_from_slice(&v.to_le_bytes());
+    }
+
+    fn push_u32(&mut self, v: u32) {
         self.buf.extend_from_slice(&v.to_le_bytes());
     }
 
@@ -104,6 +110,15 @@ impl DrawBuf {
         self.push_f32(y);
         self.push_u16(len);
         self.buf.extend_from_slice(&bytes[..len as usize]);
+    }
+
+    pub fn fill_wave(&mut self, x: f32, y: f32, w: f32, h: f32, buf: &[f32; BUFFER_LEN]) {
+        self.push_u8(Op::FillWave as u8);
+        self.push_f32(x);
+        self.push_f32(y);
+        self.push_f32(w);
+        self.push_f32(h);
+        self.push_u32(buf.as_ptr() as u32);
     }
 
     pub fn as_ptr_len(&self) -> (*const u8, usize) {

@@ -116,12 +116,12 @@ impl Param {
         }
     }
 
-    pub fn new_int(name: &'static str, value: f64, r_min: i32, r_max: i32) -> Self {
+    pub fn new_int(name: &'static str, r_min: i32, r_max: i32) -> Self {
         Self {
             default: 0.0,
             inner: ParamTypes::Int(IntParam {
                 name,
-                value,
+                value: 0.0,
                 r_min,
                 r_max,
             }),
@@ -161,6 +161,11 @@ impl Param {
 
     pub fn with_unit(mut self, unit: &'static str) -> Self {
         self.unit = Some(unit);
+        self
+    }
+
+    pub fn with_value(mut self, value: f64) -> Self {
+        self.inner.as_param_mut().set_value(value);
         self
     }
 

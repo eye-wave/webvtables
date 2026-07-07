@@ -3,15 +3,9 @@ import {
   loadWasm,
   makeBuf32Reader,
   makeStrReader,
-  u8,
   unpackBuffer,
   unpackHitResult,
-  type const_u8,
-  type f32,
-  type f64,
-  type i32,
   type RawStr,
-  type usize,
   type WasmExports,
 } from "./wasm";
 import { executeDrawBuffer, type Renderer } from "./renderer/renderer";
@@ -22,6 +16,7 @@ import { registerContextMenu } from "./context-menu";
 import { toWorld, zoomAt, pan, panByDrag } from "./camera";
 import { registerNodePicker } from "./node-picker";
 import { player } from "./audio/engine";
+import { math_ffi } from "./wasm/math";
 
 createKnobs();
 
@@ -59,6 +54,8 @@ async function init() {
   let logBuffer = "";
   let readStr: (ptr: number, len: number) => string;
   let readBuf32: (ptr: number, len: number) => Float32Array;
+
+  let exports: WasmExports;
 
   const nodeNames: Record<string, RawStr[]> = {};
 
@@ -101,29 +98,12 @@ async function init() {
       executeDrawBuffer(
         new Uint8Array(exports.memory.buffer, ptr, len),
         renderer,
+        exports.memory,
       );
     },
   };
 
-  const math_ffi: Record<string, Math[keyof Math]> = {
-    pow: Math.pow,
-    exp: Math.exp,
-    ln: Math.log,
-    floor: Math.floor,
-    round: Math.round,
-    sin: Math.sin,
-    cos: Math.cos,
-    tanh: Math.tanh,
-    sqrt: Math.sqrt,
-    log10: Math.log10,
-    max: Math.max,
-  };
-
-  for (const [name, fn] of Object.entries(math_ffi)) {
-    math_ffi[name + "f"] = fn;
-  }
-
-  const exports: WasmExports = await loadWasm({ ...wasm_ffi, ...math_ffi });
+  exports = await loadWasm({ ...wasm_ffi, ...math_ffi });
 
   readStr = makeStrReader(exports);
   readBuf32 = makeBuf32Reader(exports);
@@ -135,16 +115,22 @@ async function init() {
 
   // Screen -> world through the camera. Rendering (both renderer impls)
   // applies the same camera to draw commands, so this stays in sync.
-  const posFromEvent = (e: MouseEvent): [f32, f32] =>
+  const worldPosFromEvent = (e: MouseEvent): [f32, f32] =>
     toWorld(
       e.clientX - viewport.offsetLeft,
       e.clientY - viewport.offsetTop,
     ) as [f32, f32];
 
+  const posFromEvent = (e: MouseEvent): [f32, f32] =>
+    [e.clientX - viewport.offsetLeft, e.clientY - viewport.offsetTop] as [
+      f32,
+      f32,
+    ];
+
   const mouseWrapper =
     (cb: (x: f32, y: f32, btn: u8, altKey: boolean) => void) =>
     (e: MouseEvent) =>
-      cb(...posFromEvent(e), e.button as u8, e.altKey);
+      cb(...worldPosFromEvent(e), e.button as u8, e.altKey);
 
   // Empty-canvas mousedown pans the viewport instead of doing nothing;
   // on_mouse_down's return tells us whether it actually grabbed a node,
@@ -157,7 +143,7 @@ async function init() {
     mouseWrapper(exports.on_mouse_up)(e);
   };
   canvas_graph.onmousedown = (e) => {
-    const pos = posFromEvent(e);
+    const pos = worldPosFromEvent(e);
     const hit = unpackHitResult(exports.on_mouse_down(...pos));
     if (hit.kind === 0 && e.button === 0) {
       isPanning = true;
@@ -165,24 +151,20 @@ async function init() {
     }
   };
   canvas_graph.ondblclick = (e) => {
-    const pos = posFromEvent(e);
+    const pos = worldPosFromEvent(e);
     const hit = unpackHitResult(exports.on_dbl_click(...pos));
 
     if (hit.kind === 0 && e.button === 0) {
-      openPicker(
-        (e.clientX - viewport.offsetLeft) as f32,
-        (e.clientY - viewport.offsetTop) as f32,
-        e.button as i32,
-      );
+      openPicker(...posFromEvent(e), e.button as i32);
     }
   };
   canvas_graph.oncontextmenu = (e) => {
     e.preventDefault();
 
-    const pos = posFromEvent(e);
+    const pos = worldPosFromEvent(e);
     const hit = unpackHitResult(exports.on_mouse_down(...pos));
 
-    openMenu(...pos, hit);
+    openMenu(...posFromEvent(e), hit);
   };
 
   canvas_graph.addEventListener(
@@ -211,7 +193,7 @@ async function init() {
       return;
     }
 
-    const pos = posFromEvent(e);
+    const pos = worldPosFromEvent(e);
     exports.on_mouse_move(...pos, e.button as u8, e.altKey);
     canvas_graph.style.cursor = CURSORS[exports.get_cursor_kind(...pos)];
   };

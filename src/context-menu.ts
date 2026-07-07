@@ -6,9 +6,7 @@ import {
   makeStrReader,
   unpackBuffer,
   unpackFloats,
-  type f32,
   type RawStr,
-  type usize,
   type WasmExports,
 } from "./wasm";
 

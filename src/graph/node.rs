@@ -5,9 +5,7 @@ use crate::draw::{Color, Draw, DrawBuf};
 use crate::graph::output_pos;
 
 use super::consts::*;
-use super::{
-    BUFFER_LEN, Buffer, GraphState, Param, SocketKind, ZERO_BUFFER, input_pos, is_valid_target,
-};
+use super::{Buffer, GraphState, Param, SocketKind, ZERO_BUFFER, input_pos, is_valid_target};
 
 pub type NodeState = [f32; MAX_NODE_STATE];
 
@@ -18,7 +16,6 @@ macro_rules! define_nodes {
         paste::paste! {
             $(mod [<$variant:snake>];)+
 
-            #[allow(unused)]
             #[derive(Clone, Copy, PartialEq)]
             #[repr(u8)]
             pub enum NodeKind {
@@ -47,16 +44,22 @@ define_nodes!(
     Am,
     BasicShapes,
     BitCrush,
+    Comb,
     Filter,
     Fm,
     Gain,
+    HarmonicShift,
+    InharmonicShift,
     Invert,
     Output,
     Partials,
+    PhaseDisplace,
     PhaseShift,
     PulseWave,
     RingMod,
     Saturation,
+    SpectralGate,
+    SpectralSubtract,
     SyncWarp,
     Window,
 );
@@ -239,8 +242,6 @@ impl Node {
     pub const WAVE_H: f32 = 34.0;
     pub const WIDGET_H: f32 = 40.0;
 
-    const WAVE_POINTS: usize = 400;
-
     pub const W: f32 = 180.0;
 
     /// Computes total dynamic height based on active elements
@@ -278,43 +279,6 @@ impl Node {
     fn wave_y(&self) -> f32 {
         let param_count = self.params.iter().flatten().count();
         self.y + Self::HEADER_H + (param_count as f32 * Self::PARAM_H) + 6.0
-    }
-
-    fn draw_waveform(&self, i: usize, s: &GraphState, buf: &mut DrawBuf) {
-        let x = self.x + 4.0;
-        let y = self.wave_y();
-        let w = Self::W - 8.0;
-        let h = Self::WAVE_H - 6.0;
-
-        buf.fill_style([20, 20, 24]);
-        buf.fill_rect(x, y, w, h);
-
-        buf.line_width(1.5);
-
-        let samples = &s.buffers.as_ref().unwrap()[i];
-        let half_h = h / 2.0 - 2.0;
-        let mut prev: Option<(f32, f32, bool)> = None;
-
-        for p in 0..Self::WAVE_POINTS {
-            let sample_idx = p * BUFFER_LEN / Self::WAVE_POINTS;
-            let raw_sample = samples[sample_idx];
-
-            let is_clipping = raw_sample > 1.0 || raw_sample < -1.0;
-
-            let v = raw_sample.clamp(-1.0, 1.0);
-            let px = x + w * p as f32 / (Self::WAVE_POINTS - 1) as f32;
-            let py = y + h / 2.0 - v * half_h;
-
-            if let Some((ppx, ppy, prev_clipping)) = prev {
-                if is_clipping || prev_clipping {
-                    buf.stroke_style([255, 60, 60]);
-                } else {
-                    buf.stroke_style([120, 200, 255]);
-                }
-                buf.stroke_line(ppx, ppy, px, py);
-            }
-            prev = Some((px, py, is_clipping));
-        }
     }
 }
 
@@ -362,7 +326,18 @@ impl Draw for Node {
         }
 
         // Waveform preview
-        self.draw_waveform(i, s, ctx);
+        {
+            let x = self.x + 4.0;
+            let y = self.wave_y();
+            let w = Self::W - 8.0;
+            let h = Self::WAVE_H - 6.0;
+
+            ctx.fill_style([20, 20, 24]);
+            ctx.fill_rect(x, y, w, h);
+
+            let samples = &s.buffers.as_ref().unwrap()[i];
+            ctx.fill_wave(x, y, w, h, samples);
+        }
 
         // Widget
         if self.kind.has_widget() {

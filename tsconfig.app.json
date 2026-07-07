@@ -12,5 +12,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
   },
+  "files": ["src/wasm/types.d.ts"],
   "include": ["src/**/*.ts", "src/**/*.tsx"],
 }
