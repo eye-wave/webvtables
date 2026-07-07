@@ -25,7 +25,7 @@ impl NodeLogic for PulseWaveNode {
     fn default_params(&self) -> [Option<crate::graph::Param>; crate::graph::MAX_PARAMS] {
         crate::params![
             Param::new_linear("PWM", 0.0, 0.5).with_default_norm(0.5),
-            Param::new_int("Repeats", 0.0, 1, 100).with_unit("x"),
+            Param::new_int("Repeats", 1, 100).with_unit("x"),
         ]
     }
 

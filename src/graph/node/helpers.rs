@@ -1,3 +1,5 @@
+use microfft::Complex32;
+
 use crate::ffi;
 use crate::graph::{BUFFER_LEN, Buffer, Param, ZERO_BUFFER, consts::MAX_PARAMS};
 
@@ -70,4 +72,40 @@ macro_rules! params {
         p[..set.len()].copy_from_slice(&set);
         p
     }};
+}
+
+#[inline(always)]
+pub fn magnitude(c: &Complex32) -> f32 {
+    ffi::sqrtf(c.re * c.re + c.im * c.im)
+}
+
+#[inline(always)]
+pub fn mag_phase(c: &Complex32) -> (f32, f32) {
+    let mag2 = c.re * c.re + c.im * c.im;
+    let mag = ffi::sqrtf(mag2);
+    let phase = ffi::atan2f(c.im, c.re);
+    (mag, phase)
+}
+
+#[inline(always)]
+pub fn from_mag_phase(mag: f32, phase: f32) -> Complex32 {
+    Complex32 {
+        re: mag * ffi::cosf(phase),
+        im: mag * ffi::sinf(phase),
+    }
+}
+
+#[inline(always)]
+pub fn unpack_real_fft(spectrum: &[Complex32; BUFFER_LEN / 2]) -> [Complex32; BUFFER_LEN] {
+    let mut full = [Complex32::new(0.0, 0.0); BUFFER_LEN];
+
+    full[0] = Complex32::new(spectrum[0].re, 0.0);
+    full[BUFFER_LEN / 2] = Complex32::new(spectrum[0].im, 0.0);
+
+    for k in 1..BUFFER_LEN / 2 {
+        full[k] = spectrum[k];
+        full[BUFFER_LEN - k] = spectrum[k].conj();
+    }
+
+    full
 }

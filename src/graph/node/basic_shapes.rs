@@ -27,7 +27,7 @@ impl NodeLogic for BasicShapesNode {
     fn default_params(&self) -> [Option<crate::graph::Param>; crate::graph::MAX_PARAMS] {
         crate::params![
             Param::new_enum("Shape", &["Sine", "Triangle", "Square", "Sawtooth"]),
-            Param::new_int("Repeats", 0.0, 1, 100).with_unit("x"),
+            Param::new_int("Repeats", 1, 100).with_unit("x"),
         ]
     }
 

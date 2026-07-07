@@ -25,10 +25,7 @@ impl NodeLogic for PartialsNode {
     }
 
     fn default_params(&self) -> [Option<crate::graph::Param>; crate::graph::MAX_PARAMS] {
-        crate::params![
-            Param::new_int("Count", 0.0, 1, 48),
-            Param::new_int("Gap", 0.0, 0, 48),
-        ]
+        crate::params![Param::new_int("Count", 1, 48), Param::new_int("Gap", 0, 48),]
     }
 
     fn process(

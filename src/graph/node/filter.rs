@@ -1,7 +1,6 @@
 use crate::draw::DrawBuf;
 use crate::ffi;
 use crate::graph::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, GraphState, Node, Param, consts::*};
-use microfft::Complex32;
 
 use super::helpers;
 use super::{NodeLogic, NodeState};
@@ -106,21 +105,13 @@ impl NodeLogic for FilterNode {
         let spectrum = microfft::real::rfft_2048(&mut samples);
         let bins = BUFFER_LEN / 2;
 
-        let dc = spectrum[0].re * Self::mask(shape, freq, q, gain_db, 0);
-        let nyq = spectrum[0].im * Self::mask(shape, freq, q, gain_db, bins);
         for (k, spec) in spectrum.iter_mut().enumerate().take(bins).skip(1) {
             *spec *= Self::mask(shape, freq, q, gain_db, k);
         }
 
-        let mut full = [Complex32::new(0.0, 0.0); BUFFER_LEN];
-        full[0] = Complex32::new(dc, 0.0);
-        full[bins] = Complex32::new(nyq, 0.0);
-        for (k, spec) in spectrum.iter_mut().enumerate().take(bins).skip(1) {
-            full[k] = *spec;
-            full[BUFFER_LEN - k] = spec.conj();
-        }
-
+        let mut full = helpers::unpack_real_fft(spectrum);
         let time = microfft::inverse::ifft_2048(&mut full);
+
         for i in 0..BUFFER_LEN {
             let dry = src[i];
             let wet = time[i].re;
