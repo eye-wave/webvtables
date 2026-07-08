@@ -12,7 +12,7 @@ pub const ZERO_BUFFER: Buffer = [0.0; BUFFER_LEN];
 
 pub fn process_graph(s: &mut GraphState) {
     let mut done = [false; MAX_NODES];
-    for i in 0..s.node_count {
+    for i in 0..s.nodes.len() {
         eval_node(s, i, &mut done);
     }
 }

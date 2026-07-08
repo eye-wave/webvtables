@@ -36,7 +36,10 @@ export function unpackFloats(value: u64): [f32, f32] {
 export type WasmExports = {
   add_node: (x: f32, y: f32, name_ptr: const_u8, name_len: usize) => isize;
   allocate_patch_buffer: (len: usize) => mut_u8;
+  auto_align_nodes: () => void;
+  average_node_pos: () => void;
   free_buffer: (ptr: mut_u8, len: usize) => void;
+  get_btn_text_buffer: () => mut_u8;
   get_cursor_kind: (x: f32, y: f32) => u8;
   get_generated_frame: () => u64;
   get_world_pos: (sx: f32, sy: f32) => u64;
@@ -44,14 +47,13 @@ export type WasmExports = {
   init: () => void;
   iter_all_nodes: () => void;
   max_links: () => usize;
-  node_average_pos: () => u64;
   node_count: () => usize;
   node_kind: (i: usize) => u8;
   node_param_count: (i: usize) => usize;
   node_param_value: (i: usize, p: usize) => f64;
   on_context_menu: (x: f32, y: f32) => void;
   on_dbl_click: (x: f32, y: f32, btn: i8) => u32;
-  on_mouse_down: (x: f32, y: f32, btn: i8) => u32;
+  on_mouse_down: (x: f32, y: f32, btn: i8, ctrl_key: bool) => u32;
   on_mouse_move: (x: f32, y: f32, alt_key: bool) => void;
   on_mouse_up: (x: f32, y: f32) => void;
   on_resize: (w: number, h: number) => void;
@@ -62,7 +64,7 @@ export type WasmExports = {
   render: () => void;
   serialize_graph: () => u64;
   set_camera: (x: f32, y: f32, zoom: number) => void;
-  get_btn_text_buffer: () => mut_u8;
+  set_node_value: (node_id: usize, param_id: usize, val_denorm: number) => void;
   write_btn_text: (idx: usize, text_len: usize) => void;
 
   memory: WebAssembly.Memory;

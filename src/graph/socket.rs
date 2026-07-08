@@ -14,8 +14,8 @@ pub enum SocketKind {
 pub type SocketRef = (usize, SocketKind, usize);
 
 pub fn find_hovered_socket(s: &GraphState, x: f32, y: f32) -> Option<SocketRef> {
-    for i in 0..s.node_count {
-        let n = &s.nodes[i];
+    for (i, node) in s.nodes.iter().enumerate() {
+        let n = &node;
         for o in 0..n.kind.output_count() {
             let (ox, oy) = output_pos(n, o);
             if dist2(x, y, ox, oy) <= SOCKET_HIT_R2 {

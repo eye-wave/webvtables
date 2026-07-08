@@ -11,6 +11,23 @@
     <div id="viewport">
       <canvas id="canvas_graph"></canvas>
     </div>
+    <div id="webgl_warning" style="display: none">
+      <strong>⚠ Degraded performance mode</strong><br />
+      <span>
+        WebGL is disabled. App remains fully functional, but rendering will be
+        significantly slower.
+      </span>
+    </div>
+    <input
+      class="param"
+      id="param_n_input"
+      type="number"
+      style="display: none"
+    />
+    <select class="param" id="param_e_input" style="display: none">
+      <option value=""></option>
+    </select>
+
     <div class="menu" id="menu" style="display: none"></div>
     <div class="search-menu menu" id="search_menu" style="display: none"></div>
   </body>

@@ -4,18 +4,22 @@
   padding: 0;
 }
 
-html,
-body {
-  background: #1e1e1e;
+body,
+#viewport {
+  background: #181818;
   color: #ddd;
   font-family: system-ui, sans-serif;
   overflow: hidden;
+  height: 100vh;
+  position: relative;
 }
 
-#viewport {
-  background: #181818;
-  position: relative;
-  height: 100vh;
+.menu,
+.submenu,
+.search-menu,
+.search-menu .results {
+  display: flex;
+  flex-direction: column;
 }
 
 .menu {
@@ -23,25 +27,22 @@ body {
   min-width: 180px;
   background: #222;
   border: 1px solid #333;
-  flex-direction: column;
   font-size: 13px;
-  display: flex;
 }
 
 .item {
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 6px 10px;
   cursor: pointer;
-  color: #ddd;
   white-space: nowrap;
 }
 
 .item:hover,
-.item:focus-visible {
+.item:focus-visible,
+.search-menu .item.active {
   background: #333;
   outline: none;
 }
@@ -51,8 +52,8 @@ body {
 }
 
 .item.highlight {
-  color: #ddf;
   background: #282828;
+  color: #ddf;
 }
 
 .item .shortcut {
@@ -78,24 +79,53 @@ body {
 }
 
 .search-menu {
-  flex-direction: column;
   padding: 4px;
   gap: 4px;
 }
 .search-menu input {
   background: #1a1a1a;
   border: 1px solid #333;
-  color: #ddd;
+  color: inherit;
   padding: 6px 8px;
   font-size: 13px;
   outline: none;
 }
 .search-menu .results {
-  display: flex;
-  flex-direction: column;
   max-height: 240px;
   overflow-y: auto;
 }
-.search-menu .item.active {
-  background: #333;
+
+#webgl_warning {
+  position: fixed;
+  max-width: 300px;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ffc;
+  border: 2px solid #eb0;
+  border-left-width: 8px;
+  padding: 10px 14px;
+  color: #554;
+  font-size: 13px;
+}
+
+#webgl_warning strong {
+  color: #750;
+  margin-right: 6px;
+  font-size: 14px;
+}
+
+.param {
+  inset: 0;
+  position: absolute;
+  background: #191a20;
+  color: #8cc88c;
+  outline-color: currentColor;
+  -moz-appearance: textfield;
+}
+
+.param::-webkit-outer-spin-button,
+.param::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }

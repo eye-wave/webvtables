@@ -209,7 +209,6 @@ impl SerializeGraph for GraphState {
                 return -1;
             }
         }
-        self.node_count = self.nodes.len();
 
         pos = nodes_end;
 

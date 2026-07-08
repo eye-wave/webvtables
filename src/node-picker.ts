@@ -1,3 +1,4 @@
+import { createMenuItem, showAt } from "./menu-utils";
 import {
   makeStrReader,
   unpackFloats,
@@ -51,16 +52,7 @@ export function registerNodePicker(
     );
     results.replaceChildren();
     filtered.forEach((e) => {
-      const el = document.createElement("div");
-      el.className = "item";
-      el.textContent = e.label;
-
-      const cat = document.createElement("span");
-      cat.className = "shortcut";
-      cat.textContent = e.categories.join(", ");
-
-      el.append(cat);
-
+      const el = createMenuItem(e.label, e.categories.join(", "));
       el.onclick = () => confirm(e.raw);
       results.append(el);
     });
@@ -108,9 +100,7 @@ export function registerNodePicker(
     pos = [x, y];
     input.value = "";
     render("");
-    search_menu.style.left = x + "px";
-    search_menu.style.top = y + "px";
-    search_menu.style.display = "flex";
+    showAt(search_menu, x, y);
     input.focus();
   };
 }

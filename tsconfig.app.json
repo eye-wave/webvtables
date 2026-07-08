@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
-    "types": ["audioworklet", "vite/client", "vite-plugin-glsl/ext"],
+    "types": ["audioworklet", "vite/client"],
     "allowArbitraryExtensions": true,
 
     "paths": {
@@ -12,6 +12,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
   },
-  "files": ["src/wasm/types.d.ts"],
+  "files": ["src/wasm/types.d.ts", "src/renderer/glsl.d.ts"],
   "include": ["src/**/*.ts", "src/**/*.tsx"],
 }

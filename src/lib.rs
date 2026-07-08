@@ -41,8 +41,6 @@ pub extern "C" fn init() {
     let _ = s.nodes.push(Node::new(NodeKind::BasicShapes, 240.0, 240.0));
     let _ = s.nodes.push(Node::new(NodeKind::Output, 500.0, 240.0));
 
-    s.node_count = 2;
-
     let _ = s.links.push(Link::new(0, 0, 1, 0));
 
     let mut text = FixedStr::new();
@@ -106,7 +104,7 @@ pub extern "C" fn render() {
         ctx.stroke_line(fx, fy, s.mouse.0, s.mouse.1, true);
     }
 
-    for (i, node) in s.nodes.iter().take(s.node_count).enumerate() {
+    for (i, node) in s.nodes.iter().enumerate() {
         if geom::is_out_of_bounds(node.x, node.y, node.x + Node::W, node.y + node.height()) {
             continue;
         }

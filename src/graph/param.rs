@@ -159,6 +159,64 @@ impl Param {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn open_param_widget(
+        &self,
+        node_id: usize,
+        param_id: usize,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        zoom: f32,
+    ) {
+        match self.inner {
+            ParamTypes::Int(p) => {
+                ffi::open_float_param(
+                    node_id,
+                    param_id,
+                    x,
+                    y,
+                    w,
+                    h,
+                    zoom,
+                    self.denorm(),
+                    p.r_min as f64,
+                    p.r_max as f64,
+                );
+            }
+            ParamTypes::Linear(p) => {
+                ffi::open_float_param(
+                    node_id,
+                    param_id,
+                    x,
+                    y,
+                    w,
+                    h,
+                    zoom,
+                    self.denorm(),
+                    p.r_min,
+                    p.r_max,
+                );
+            }
+            ParamTypes::Log(p) => {
+                ffi::open_float_param(
+                    node_id,
+                    param_id,
+                    x,
+                    y,
+                    w,
+                    h,
+                    zoom,
+                    self.denorm(),
+                    p.denormalize(0.0),
+                    p.denormalize(1.0),
+                );
+            }
+            ParamTypes::Enum(_) => {}
+        }
+    }
+
     pub fn with_unit(mut self, unit: &'static str) -> Self {
         self.unit = Some(unit);
         self
@@ -206,6 +264,11 @@ impl Param {
     }
 
     pub fn set_value_norm(&mut self, val: f64) {
+        self.as_param_mut().set_value(val);
+    }
+
+    pub fn set_value_denorm(&mut self, val: f64) {
+        let val = self.as_param().normalize(val);
         self.as_param_mut().set_value(val);
     }
 

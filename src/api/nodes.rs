@@ -1,12 +1,13 @@
 use heapless::Vec;
 
 use crate::console_print;
+use crate::draw::camera;
 use crate::graph::*;
 use crate::render;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn node_count() -> usize {
-    state().node_count
+    state().nodes.len()
 }
 
 #[unsafe(no_mangle)]
@@ -70,7 +71,6 @@ pub extern "C" fn remove_node(target_idx: usize) {
         s.nodes[i] = s.nodes[i + 1];
     }
     s.nodes.pop();
-    s.node_count -= 1;
 
     // reindex (or drop) any in-flight interaction pointing at shifted nodes
     s.dragging_node = s
@@ -92,7 +92,6 @@ pub extern "C" fn remove_all_nodes() {
     let s = state();
 
     s.nodes.clear();
-    s.node_count = 0;
     s.links.clear();
 
     s.dragging_node = None;
@@ -147,7 +146,6 @@ pub unsafe extern "C" fn add_node(x: f32, y: f32, name_ptr: *const u8, name_len:
         console_print!("Error: Maximum node capacity reached.");
         return -1;
     }
-    s.node_count += 1;
 
     s.version += 1;
     render();
@@ -160,8 +158,9 @@ pub fn pack_f32_pair(a: f32, b: f32) -> u64 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn node_average_pos() -> u64 {
+pub extern "C" fn average_node_pos() {
     let s = state();
+    let c = camera();
 
     let (sx, sy, n) = s
         .nodes
@@ -170,5 +169,33 @@ pub extern "C" fn node_average_pos() -> u64 {
         .map(|n| (n.x, n.y))
         .fold((0.0, 0.0, 0), |(sx, sy, n), (x, y)| (sx + x, sy + y, n + 1));
 
-    pack_f32_pair(sx / n as f32, sy / n as f32)
+    c.x = sx / n as f32;
+    c.y = sy / n as f32 - 260.0;
+    c.zoom = 1.0;
+
+    render();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn auto_align_nodes() {
+    let s = state();
+
+    s.auto_layout();
+    render();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn set_node_value(node_id: usize, param_id: usize, val_denorm: f64) {
+    let s = state();
+
+    let Some(node) = s.nodes.get_mut(node_id) else {
+        return;
+    };
+
+    let Some(param) = node.params.get_mut(param_id).and_then(|p| p.as_mut()) else {
+        return;
+    };
+
+    param.set_value_denorm(val_denorm);
+    render();
 }

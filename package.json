@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently \"vite\" \"bun run dev:rust\"",
     "dev:rust": "cargo watch -w src -x \"build --target wasm32-unknown-unknown --release\"",
-    "build": "bun run build:rust && vite build",
+    "build": "cross-env NODE_ENV=production bun run build:rust && vite build",
     "build:rust": "cargo build --target wasm32-unknown-unknown --release",
     "preview": "vite preview"
   },
@@ -14,8 +14,9 @@
     "@types/audioworklet": "^0.0.100",
     "@types/node": "^26.1.0",
     "concurrently": "^10.0.3",
+    "cross-env": "^10.1.0",
+    "shader-minifier-wasm": "^0.2.1",
     "typescript": "~6.0.3",
-    "vite": "^8.1.2",
-    "vite-plugin-glsl": "^1.6.0"
+    "vite": "^8.1.2"
   }
 }

@@ -1,22 +1,5 @@
 import wavetableNodeUrl from "./wavetable-node?worker&url";
 
-export function registerWorkletSender(audioWorkletNode: AudioWorkletNode) {
-  return (buf: Float32Array) => {
-    if (buf.length === 0) return;
-
-    const sampleCopy = new Float32Array(buf.length);
-    sampleCopy.set(buf);
-
-    audioWorkletNode.port.postMessage(
-      {
-        type: "WAVEFORM_DATA",
-        buffer: sampleCopy.buffer,
-      },
-      [sampleCopy.buffer],
-    );
-  };
-}
-
 export class WaveformPlayer {
   private audioCtx: AudioContext | null = null;
   private workletNode: AudioWorkletNode | null = null;

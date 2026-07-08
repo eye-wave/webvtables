@@ -18,6 +18,7 @@ macro_rules! wasm_imports {
         }
 
         $(
+            #[allow(clippy::too_many_arguments)]
             pub fn $name(
                 $($arg: $argty),*
             ) $(-> $ret)? {
@@ -51,6 +52,7 @@ wasm_imports! {
     fn log2f(x: f32) -> f32;
     fn log10f(x: f32) -> f32;
 
+    fn open_float_param(node_id:usize,param_id:usize,x:f32,y:f32,w:f32,h:f32,zoom:f32,value:f64,min:f64,max:f64);
     fn click_btn(id: usize);
     fn open_context_menu(x:f32,y:f32,hit:u32);
     fn open_node_picker(x:f32,y:f32);

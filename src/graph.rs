@@ -24,7 +24,6 @@ mod consts {
     /// Per-node scratch state (e.g. a filter's IIR history) that must
     /// survive across process() calls instead of resetting every frame.
     pub const MAX_NODE_STATE: usize = 4;
-    /// Cap on input sockets a single node kind can have (Add uses 2 today).
     pub const MAX_NODE_INPUTS: usize = 4;
 
     pub const SOCKET_R: f32 = 5.0;
@@ -36,7 +35,6 @@ pub use consts::*;
 
 pub struct GraphState {
     pub nodes: Vec<Node, MAX_NODES>,
-    pub node_count: usize,
     pub links: Vec<Link, MAX_LINKS>,
     pub dragging_node: Option<usize>,
     pub drag_offset: (f32, f32),
@@ -63,7 +61,6 @@ pub struct GraphState {
 
 static mut STATE: GraphState = GraphState {
     nodes: Vec::new(),
-    node_count: 0,
     links: Vec::new(),
     dragging_node: None,
     drag_offset: (0.0, 0.0),
@@ -113,4 +110,61 @@ pub fn creates_cycle(s: &GraphState, from: usize, to: usize) -> bool {
 
 pub fn is_valid_target(s: &GraphState, from: usize, to: usize) -> bool {
     to != from && !creates_cycle(s, from, to)
+}
+
+impl GraphState {
+    pub fn auto_layout(&mut self) {
+        let num_nodes = self.nodes.len();
+        if num_nodes == 0 {
+            return;
+        }
+
+        let mut layers = [0usize; MAX_NODES];
+
+        let mut changed = true;
+        let mut passes = 0;
+
+        while changed && passes < num_nodes {
+            changed = false;
+            for link in self.links.iter() {
+                if link.from < num_nodes && link.to < num_nodes {
+                    let source_layer = layers[link.from];
+                    let target_layer = layers[link.to];
+
+                    if target_layer <= source_layer {
+                        layers[link.to] = source_layer + 1;
+                        changed = true;
+                    }
+                }
+            }
+            passes += 1;
+        }
+
+        let mut max_layer = 0;
+        for l in layers.iter().take(num_nodes) {
+            if *l > max_layer {
+                max_layer = *l;
+            }
+        }
+
+        const X_SPACING: f32 = 260.0;
+        const Y_SPACING: f32 = 40.0;
+        let start_x = 100.0;
+        let start_y = 100.0;
+
+        for current_layer in 0..=max_layer {
+            let current_x = start_x + (current_layer as f32 * X_SPACING);
+            let mut current_y = start_y;
+
+            for (i, l) in layers.iter().enumerate().take(num_nodes) {
+                if *l == current_layer {
+                    let node = &mut self.nodes[i];
+                    node.x = current_x;
+                    node.y = current_y;
+
+                    current_y += node.height() + Y_SPACING;
+                }
+            }
+        }
+    }
 }

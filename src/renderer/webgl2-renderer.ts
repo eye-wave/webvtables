@@ -6,8 +6,10 @@ import TEXT_VERT_SRC from "./glyph-vert.glsl";
 import TEXT_FRAG_SRC from "./glyph-frag.glsl";
 import WAVE_VERT_SRC from "./wave-vert.glsl";
 import WAVE_FRAG_SRC from "./wave-frag.glsl";
+import REPEAT_LINE_VERT_SRC from "./repeat-line-vert.glsl";
+import REPEAT_LINE_FRAG_SRC from "./repeat-line-frag.glsl";
 
-const FLOATS_PER_INSTANCE = 10;
+const FLOATS_PER_INSTANCE = 13;
 const INITIAL_CAPACITY = 1024;
 const GLYPH_CACHE_MAX = 2000;
 
@@ -101,6 +103,19 @@ interface WaveInstance {
   samples: Float32Array;
 }
 
+interface RepeatLineInstance {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  count: number;
+  gap: number;
+  dir: 0 | 1;
+  z: number;
+  lineWidth: number;
+  color: [number, number, number];
+}
+
 function createOffscreenMeasureCtx(): CanvasRenderingContext2D {
   const c = document.createElement("canvas");
   const ctx = c.getContext("2d");
@@ -149,6 +164,19 @@ export class WebGL2Renderer implements Renderer {
   private waveUCount: WebGLUniformLocation;
   private waveInstances: WaveInstance[] = [];
 
+  // Repeated-stroke-line pipeline: one instanced draw call per
+  // strokeLineRepeated op, gl_InstanceID drives the per-repeat offset on the
+  // GPU instead of pushing `count` separate line instances from JS.
+  private repeatLineProgram: WebGLProgram;
+  private repeatLineVao: WebGLVertexArrayObject;
+  private repeatLineUResolution: WebGLUniformLocation;
+  private repeatLineUBase: WebGLUniformLocation;
+  private repeatLineUStep: WebGLUniformLocation;
+  private repeatLineULineWidth: WebGLUniformLocation;
+  private repeatLineUColor: WebGLUniformLocation;
+  private repeatLineUZ: WebGLUniformLocation;
+  private repeatLineInstances: RepeatLineInstance[] = [];
+
   constructor(
     private gl: WebGL2RenderingContext,
     textCtx?: CanvasRenderingContext2D,
@@ -191,6 +219,8 @@ export class WebGL2Renderer implements Renderer {
     attr(4, 3, 5); // aColor
     attr(5, 1, 8); // aZ
     attr(6, 1, 9); // aShape
+    attr(7, 1, 10); // aRingWidth
+    attr(8, 2, 11); // aAngles
 
     this.instanceBuf = instanceBuf;
     this.vao = vao;
@@ -251,6 +281,34 @@ export class WebGL2Renderer implements Renderer {
     );
     this.waveTex = waveTex;
 
+    // Repeat-line pipeline: reuses the same unit-quad geometry, instanced by
+    // gl_InstanceID with the base line + per-repeat step passed as uniforms.
+    const repeatLineProgram = link(
+      gl,
+      REPEAT_LINE_VERT_SRC,
+      REPEAT_LINE_FRAG_SRC,
+    );
+    this.repeatLineProgram = repeatLineProgram;
+    this.repeatLineUResolution = gl.getUniformLocation(
+      repeatLineProgram,
+      "uResolution",
+    )!;
+    this.repeatLineUBase = gl.getUniformLocation(repeatLineProgram, "uBase")!;
+    this.repeatLineUStep = gl.getUniformLocation(repeatLineProgram, "uStep")!;
+    this.repeatLineULineWidth = gl.getUniformLocation(
+      repeatLineProgram,
+      "uLineWidth",
+    )!;
+    this.repeatLineUColor = gl.getUniformLocation(repeatLineProgram, "uColor")!;
+    this.repeatLineUZ = gl.getUniformLocation(repeatLineProgram, "uZ")!;
+
+    const repeatLineVao = gl.createVertexArray()!;
+    gl.bindVertexArray(repeatLineVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    this.repeatLineVao = repeatLineVao;
+
     gl.bindVertexArray(null);
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
@@ -269,6 +327,7 @@ export class WebGL2Renderer implements Renderer {
     this.nextZ = 0;
     this.textInstances = [];
     this.waveInstances = [];
+    this.repeatLineInstances = [];
     const { gl } = this;
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -300,14 +359,31 @@ export class WebGL2Renderer implements Renderer {
     sy: number,
     rot: number,
     color: [number, number, number],
-    shape: 0 | 1,
+    shape: 0 | 1 | 2,
+    ringWidth = 0,
+    minAngle = 0,
+    maxAngle = 0,
   ) {
     this.growIfNeeded();
 
     const z = 1 - this.nextZ++ / 1_000_000;
     const o = this.count * FLOATS_PER_INSTANCE;
     this.data.set(
-      [cx, cy, sx, sy, rot, color[0], color[1], color[2], z, shape],
+      [
+        cx,
+        cy,
+        sx,
+        sy,
+        rot,
+        color[0],
+        color[1],
+        color[2],
+        z,
+        shape,
+        ringWidth,
+        minAngle,
+        maxAngle,
+      ],
       o,
     );
     this.count++;
@@ -329,6 +405,55 @@ export class WebGL2Renderer implements Renderer {
 
     // prettier-ignore
     this.pushInstance((x1 + x2) / 2,(y1 + y2) / 2,len,this.lineW,rot,this.stroke,0);
+  }
+
+  strokeArc(
+    x: number,
+    y: number,
+    radius: number,
+    minAngle: number,
+    maxAngle: number,
+  ) {
+    // Just another shape in the existing batched instance buffer, so it
+    // rides along in the same single drawArraysInstanced call as
+    // rects/circles/lines - no extra draw call needed.
+    this.pushInstance(
+      x,
+      y,
+      radius * 2,
+      radius * 2,
+      0,
+      this.stroke,
+      2,
+      this.lineW,
+      minAngle,
+      maxAngle,
+    );
+  }
+
+  strokeLineRepeated(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    count: number,
+    gap: number,
+    dir: 0 | 1,
+  ) {
+    if (count <= 0) return;
+    const z = 1 - this.nextZ++ / 1_000_000;
+    this.repeatLineInstances.push({
+      x1,
+      y1,
+      x2,
+      y2,
+      count,
+      gap,
+      dir,
+      z,
+      lineWidth: this.lineW,
+      color: this.stroke,
+    });
   }
 
   private getGlyphEntry(text: string, size: number): GlyphEntry {
@@ -455,6 +580,29 @@ export class WebGL2Renderer implements Renderer {
         gl.uniform1f(this.waveUZ, wv.z);
         gl.uniform1f(this.waveULineWidth, wv.lineWidth);
         gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, BUFFER_LEN - 1);
+      }
+    }
+
+    if (this.repeatLineInstances.length > 0) {
+      gl.useProgram(this.repeatLineProgram);
+      gl.bindVertexArray(this.repeatLineVao);
+      gl.uniform2f(this.repeatLineUResolution, this.width, this.height);
+      for (const rl of this.repeatLineInstances) {
+        gl.uniform4f(this.repeatLineUBase, rl.x1, rl.y1, rl.x2, rl.y2);
+        gl.uniform2f(
+          this.repeatLineUStep,
+          rl.dir === 0 ? rl.gap : 0,
+          rl.dir === 1 ? rl.gap : 0,
+        );
+        gl.uniform1f(this.repeatLineULineWidth, rl.lineWidth);
+        gl.uniform3f(
+          this.repeatLineUColor,
+          rl.color[0],
+          rl.color[1],
+          rl.color[2],
+        );
+        gl.uniform1f(this.repeatLineUZ, rl.z);
+        gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, rl.count);
       }
     }
 

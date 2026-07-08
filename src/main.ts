@@ -16,9 +16,18 @@ import { registerContextMenu } from "./context-menu";
 import { registerNodePicker } from "./node-picker";
 import { player } from "./audio/engine";
 import { math_ffi } from "./wasm/math";
+import {
+  hideInputs,
+  open_float_param,
+  registerParamInputs,
+} from "./param-input";
 
 declare const viewport: HTMLDivElement;
 declare const canvas_graph: HTMLCanvasElement;
+declare const webgl_warning: HTMLDivElement;
+
+declare const param_n_input: HTMLInputElement;
+declare const param_e_input: HTMLInputElement;
 
 const CURSORS = ["default", "grab", "grabbing", "pointer"];
 
@@ -26,7 +35,8 @@ function createRenderer(canvas: HTMLCanvasElement): Renderer {
   const gl = canvas.getContext("webgl2");
   if (gl) return new WebGL2Renderer(gl);
 
-  console.warn("WebGL2 unavailable, falling back to Canvas2D");
+  webgl_warning.style.display = "";
+
   const ctx2d = canvas.getContext("2d");
   if (!ctx2d) throw "Failed to get a rendering context";
   return new Canvas2DRenderer(ctx2d);
@@ -64,6 +74,8 @@ async function init() {
       console.log(logBuffer);
       logBuffer = "";
     },
+
+    open_float_param,
 
     click_btn: async (id: usize) => {
       if (id === 0) {
@@ -126,7 +138,9 @@ async function init() {
   openMenu = registerContextMenu(exports, nodeNames);
   openPicker = registerNodePicker(exports, nodeNames);
 
-  const posFromEvent = (e: MouseEvent): [f32, f32] =>
+  registerParamInputs(exports.set_node_value);
+
+  const posFromEvent = (e: MouseLikeEvent): [f32, f32] =>
     [e.clientX - viewport.offsetLeft, e.clientY - viewport.offsetTop] as [
       f32,
       f32,
@@ -139,13 +153,29 @@ async function init() {
       cb(e);
     };
 
+  type MouseLikeEvent = { clientX: number; clientY: number; button?: number };
+
   const mouseWrap =
-    (cb: (x: f32, y: f32, btn: i8) => void) => (e: MouseEvent) =>
-      cb(...posFromEvent(e), e.button as i8);
+    (cb: (x: f32, y: f32, btn: i8) => void) => (e: MouseLikeEvent) =>
+      cb(...posFromEvent(e), (e.button ?? -1) as i8);
+
+  const touchWrap =
+    (cb: (x: f32, y: f32, ...args: any[]) => void, ...extraArgs: any[]) =>
+    (e: TouchEvent) => {
+      const touches = e.touches.length > 0 ? e.touches : e.changedTouches;
+      if (!touches || touches.length === 0) return;
+
+      cb(...posFromEvent(touches[0]), ...extraArgs);
+    };
 
   window.onmouseup = mouseWrap(exports.on_mouse_up);
+  window.ontouchend = touchWrap(exports.on_mouse_up, -1);
 
-  canvas_graph.onmousedown = mouseWrap(exports.on_mouse_down);
+  canvas_graph.onmousedown = (e) => {
+    const pos = posFromEvent(e);
+    exports.on_mouse_down(...pos, e.button as i8, e.ctrlKey);
+  };
+
   canvas_graph.ondblclick = mouseWrap(exports.on_dbl_click);
   canvas_graph.oncontextmenu = prevDef(mouseWrap(exports.on_context_menu));
   canvas_graph.onmousemove = (e) => {
@@ -155,9 +185,21 @@ async function init() {
   };
 
   canvas_graph.addEventListener(
+    "touchstart",
+    prevDef(touchWrap(exports.on_mouse_down, -1, false)),
+    { passive: false },
+  );
+  canvas_graph.addEventListener(
+    "touchmove",
+    prevDef(touchWrap(exports.on_mouse_move, false)),
+    { passive: false },
+  );
+
+  canvas_graph.addEventListener(
     "wheel",
     prevDef((e) => {
       const pos = posFromEvent(e);
+      hideInputs();
       exports.on_wheel(...pos, e.deltaX, e.deltaY, e.ctrlKey);
     }),
     { passive: false },

@@ -7,12 +7,17 @@ layout(location = 3) in float aRot;
 layout(location = 4) in vec3 aColor;
 layout(location = 5) in float aZ;
 layout(location = 6) in float aShape;
+layout(location = 7) in float aRingWidth;
+layout(location = 8) in vec2 aAngles;
 
 uniform vec2 uResolution;
 
 out vec3 vColor;
 out vec2 vLocal;
 out float vShape;
+out vec2 vSize;
+out float vRingWidth;
+out vec2 vAngles;
 
 void main() {
   vec2 p = aPos * aSize;
@@ -29,4 +34,7 @@ void main() {
   vColor = aColor;
   vLocal = aPos;
   vShape = aShape;
+  vSize = aSize;
+  vRingWidth = aRingWidth;
+  vAngles = aAngles;
 }

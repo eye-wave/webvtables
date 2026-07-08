@@ -7,7 +7,7 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub const MIN_ZOOM: f32 = 0.25;
+    pub const MIN_ZOOM: f32 = 0.1;
     pub const MAX_ZOOM: f32 = 4.0;
 
     pub const fn new() -> Self {

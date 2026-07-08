@@ -65,8 +65,8 @@ pub unsafe extern "C" fn patch_graph(buf_ptr: *mut u8, buf_len: usize) -> i8 {
 pub extern "C" fn get_generated_frame() -> u64 {
     let s = state();
 
-    for i in 0..s.node_count {
-        if let NodeKind::Output = s.nodes[i].kind {
+    for (i, node) in s.nodes.iter().enumerate() {
+        if let NodeKind::Output = node.kind {
             if let Some(ref bufs) = s.buffers
                 && i < bufs.len()
             {

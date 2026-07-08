@@ -1,5 +1,5 @@
 use crate::api::nodes::pack_f32_pair;
-use crate::draw::camera;
+use crate::draw::{cam_s, camera};
 use crate::geom::{dist2, point_in_rect};
 use crate::{console_print, graph::*};
 use crate::{ffi, render};
@@ -88,7 +88,7 @@ fn param_hit(n: &Node, x: f32, y: f32) -> Option<usize> {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn on_mouse_down(sx: f32, sy: f32, button: i8) -> u32 {
+pub extern "C" fn on_mouse_down(sx: f32, sy: f32, button: i8, ctrl_key: bool) -> u32 {
     let s = state();
     let c = camera();
 
@@ -118,9 +118,21 @@ pub extern "C" fn on_mouse_down(sx: f32, sy: f32, button: i8) -> u32 {
 
         if let Some(p) = param_hit(&n, x, y) {
             let param = n.params[p].as_ref().unwrap();
+
+            if ctrl_key {
+                let r = n.param_value_rect(p);
+                let (x, y) = c.to_screen(r.0, r.1);
+                let w = cam_s(r.2, true);
+                let h = cam_s(r.3, true);
+
+                param.open_param_widget(i, p, x, y, w, h, c.zoom);
+                return HitResult::node(i as u16, p as i8).into_u32();
+            }
+
             s.dragging_param = Some((i, p));
             s.drag_param_start_y = y;
             s.drag_param_start_value = param.value();
+
             return HitResult::node(i as u16, p as i8).into_u32();
         }
 
@@ -243,7 +255,7 @@ pub extern "C" fn on_mouse_move(sx: f32, sy: f32, alt_key: bool) {
 pub extern "C" fn on_dbl_click(x: f32, y: f32, button: i8) {
     let s = state();
 
-    let raw_hit = on_mouse_down(x, y, -1);
+    let raw_hit = on_mouse_down(x, y, -1, false);
     let hit = HitResult::from_u32(raw_hit);
 
     if let HitType::Node = hit.kind
@@ -332,7 +344,7 @@ pub extern "C" fn on_wheel(sx: f32, sy: f32, dx: f32, dy: f32, ctrl_key: bool) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn on_context_menu(x: f32, y: f32) {
-    let raw_hit = on_mouse_down(x, y, -1);
+    let raw_hit = on_mouse_down(x, y, -1, false);
 
     ffi::open_context_menu(x, y, raw_hit);
 }

@@ -1,4 +1,5 @@
 import { loadFile, saveFile } from "./file-io";
+import { createMenuItem, showAt } from "./menu-utils";
 import {
   HitType,
   makeBufReader,
@@ -29,20 +30,7 @@ export function registerContextMenu(
     style = "",
     parent: HTMLElement = menu,
   ) {
-    const el = document.createElement("div");
-    el.textContent = text;
-    el.className = "item";
-    el.tabIndex = 0;
-
-    if (style) el.classList.add(style);
-    if (icon) {
-      const ico = document.createElement("span");
-      ico.className = "shortcut";
-      ico.textContent = icon;
-
-      el.append(ico);
-    }
-
+    const el = createMenuItem(text, icon, style);
     parent.append(el);
     return el;
   }
@@ -89,13 +77,11 @@ export function registerContextMenu(
 
     if (hit.kind === 0) {
       addSubmenu("New node", nodeNames, "highlight", menu, x, y);
-      addItem("Auto arrange", "_+_");
+      addItem("Auto arrange", "_+_").onclick = () => {
+        exports.auto_align_nodes();
+      };
       addItem("Zoom to content", "_+_").onclick = () => {
-        const packed = exports.node_average_pos();
-        const [x, y] = unpackFloats(packed);
-
-        exports.set_camera(x, y, 1);
-        exports.render();
+        exports.average_node_pos();
       };
 
       addDivider();
@@ -136,8 +122,6 @@ export function registerContextMenu(
       };
     }
 
-    menu.style.left = x + "px";
-    menu.style.top = y + "px";
-    menu.style.display = "flex";
+    showAt(menu, x, y);
   };
 }

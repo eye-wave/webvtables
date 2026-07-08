@@ -147,6 +147,7 @@ impl DrawBuf {
         self.push_u32(buf.as_ptr() as u32);
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn stroke_line_repeated(
         &mut self,
         x1: f32,

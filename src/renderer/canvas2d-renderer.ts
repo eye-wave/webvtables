@@ -45,6 +45,35 @@ export class Canvas2DRenderer implements Renderer {
     ctx.stroke();
   }
 
+  strokeLineRepeated(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    count: number,
+    gap: number,
+    dir: 0 | 1,
+  ) {
+    for (let i = 0; i < count; i++) {
+      const dx = dir === 0 ? i * gap : 0;
+      const dy = dir === 1 ? i * gap : 0;
+      this.strokeLine(x1 + dx, y1 + dy, x2 + dx, y2 + dy);
+    }
+  }
+
+  strokeArc(
+    x: number,
+    y: number,
+    radius: number,
+    minAngle: number,
+    maxAngle: number,
+  ) {
+    const { ctx } = this;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, minAngle, maxAngle);
+    ctx.stroke();
+  }
+
   fillText(text: string, size: number, x: number, y: number) {
     this.ctx.font = `${size}px sans`;
     this.ctx.fillText(text, x, y);
@@ -52,20 +81,25 @@ export class Canvas2DRenderer implements Renderer {
 
   fillWave(x: number, y: number, w: number, h: number, samples: Float32Array) {
     const { ctx } = this;
+
+    const SKIP = 8;
     const step = w / (BUFFER_LEN - 1);
     const mid = y + h * 0.5;
     const scale = h * 0.5;
     const minY = y;
     const maxY = y + h;
 
-    for (let i = 0; i < BUFFER_LEN - 1; i++) {
+    for (let i = 0; i < BUFFER_LEN - 1; i += SKIP) {
+      const nextIdx = Math.min(BUFFER_LEN - 1, i + SKIP);
+
       const s1 = samples[i];
-      const s2 = samples[i + 1];
+      const s2 = samples[nextIdx];
+
       const clipped = s1 > 1 || s1 < -1 || s2 > 1 || s2 < -1;
       ctx.strokeStyle = clipped ? "rgb(255,60,60)" : "rgb(120,200,255)";
 
       const x1 = x + i * step;
-      const x2 = x + (i + 1) * step;
+      const x2 = x + nextIdx * step;
       const y1 = Math.max(minY, Math.min(maxY, mid - s1 * scale));
       const y2 = Math.max(minY, Math.min(maxY, mid - s2 * scale));
 
@@ -73,6 +107,10 @@ export class Canvas2DRenderer implements Renderer {
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
       ctx.stroke();
+
+      if (nextIdx === BUFFER_LEN - 1) {
+        break;
+      }
     }
   }
 

@@ -10,6 +10,7 @@ const enum Op {
   FillText = 7,
   FillWave = 8,
   StrokeLineRepeated = 9,
+  StrokeArc = 10,
 }
 
 export interface Renderer {
@@ -21,6 +22,27 @@ export interface Renderer {
   fillRect(x: number, y: number, w: number, h: number): void;
   fillCircle(x: number, y: number, r: number): void;
   strokeLine(x1: number, y1: number, x2: number, y2: number): void;
+  /** Same visual result as calling strokeLine `count` times, offset by `gap`
+   * along x (dir 0) or y (dir 1) each repeat — implementations should draw
+   * this as a single batched/instanced operation, not a JS-side loop. */
+  strokeLineRepeated(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    count: number,
+    gap: number,
+    dir: 0 | 1,
+  ): void;
+  /** Strokes an arc of `radius` around x,y from minAngle to maxAngle
+   * (radians, matching atan2(dy,dx) convention, clockwise since y is down). */
+  strokeArc(
+    x: number,
+    y: number,
+    radius: number,
+    minAngle: number,
+    maxAngle: number,
+  ): void;
   fillText(text: string, size: number, x: number, y: number): void;
   /** Draws BUFFER_LEN samples in [-1,1] as a waveform inside x,y,w,h. */
   fillWave(
@@ -125,14 +147,21 @@ export function executeDrawBuffer(
         const y2 = view.getFloat32(p + 12, true);
         const count = view.getUint16(p + 16, true);
         const gap = view.getFloat32(p + 18, true);
-        const dir = view.getUint8(p + 22);
+        const dir = view.getUint8(p + 22) as 0 | 1;
         p += 23;
 
-        for (let i = 0; i < count; i++) {
-          const dx = dir === 0 ? i * gap : 0;
-          const dy = dir === 1 ? i * gap : 0;
-          r.strokeLine(x1 + dx, y1 + dy, x2 + dx, y2 + dy);
-        }
+        r.strokeLineRepeated(x1, y1, x2, y2, count, gap, dir);
+        break;
+      }
+      case Op.StrokeArc: {
+        const x = view.getFloat32(p, true);
+        const y = view.getFloat32(p + 4, true);
+        const radius = view.getFloat32(p + 8, true);
+        const minAngle = view.getFloat32(p + 12, true);
+        const maxAngle = view.getFloat32(p + 16, true);
+        p += 20;
+
+        r.strokeArc(x, y, radius, minAngle, maxAngle);
         break;
       }
       default:

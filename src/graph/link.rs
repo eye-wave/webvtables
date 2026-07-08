@@ -1,5 +1,5 @@
 use crate::{
-    draw::{Draw, DrawBuf, camera},
+    draw::{Draw, DrawBuf},
     geom::{self, point_segment_dist2},
     graph::{input_pos, output_pos},
 };
@@ -47,10 +47,7 @@ impl Draw for Link {
     }
 }
 
-pub fn find_hovered_link(s: &GraphState, sx: f32, sy: f32) -> Option<usize> {
-    let c = camera();
-    let (x, y) = c.to_world(sx, sy);
-
+pub fn find_hovered_link(s: &GraphState, x: f32, y: f32) -> Option<usize> {
     for (i, l) in s.links.iter().enumerate() {
         let (fx, fy) = output_pos(&s.nodes[l.from], l.from_socket);
         let (tx, ty) = input_pos(&s.nodes[l.to], l.to_socket);
