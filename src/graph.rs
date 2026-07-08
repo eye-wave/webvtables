@@ -6,6 +6,7 @@ mod node;
 mod param;
 mod serialize;
 mod socket;
+mod ui;
 
 pub use buffer::*;
 pub use link::*;
@@ -13,6 +14,7 @@ pub use node::*;
 pub use param::*;
 pub use serialize::SerializeGraph;
 pub use socket::*;
+pub use ui::*;
 
 mod consts {
     pub const MAX_NODES: usize = 100;
@@ -43,7 +45,11 @@ pub struct GraphState {
     pub pending_link_from: Option<(usize, usize)>,
     pub hovered_link: Option<usize>,
     pub hovered_socket: Option<SocketRef>,
+    pub viewport: (f32, f32),
+    pub viewport_bounds: (f32, f32, f32, f32),
     pub mouse: (f32, f32),
+    pub last_pan: (f32, f32),
+    pub is_panning: bool,
     /// Bumped whenever link topology changes. Lets Host cheaply detect
     /// if the audio graph need rebuilding.
     pub version: u32,
@@ -65,7 +71,11 @@ static mut STATE: GraphState = GraphState {
     pending_link_from: None,
     hovered_link: None,
     hovered_socket: None,
+    viewport: (480.0, 360.0),
+    viewport_bounds: (0.0, 0.0, 360.0, 480.0),
     mouse: (0.0, 0.0),
+    last_pan: (0.0, 0.0),
+    is_panning: false,
     version: 0,
     buffers: None,
 };

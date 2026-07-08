@@ -34,30 +34,35 @@ export function unpackFloats(value: u64): [f32, f32] {
 }
 
 export type WasmExports = {
-  init: () => void;
-  on_mouse_down: (x: f32, y: f32) => u32;
+  add_node: (x: f32, y: f32, name_ptr: const_u8, name_len: usize) => isize;
+  allocate_patch_buffer: (len: usize) => mut_u8;
+  free_buffer: (ptr: mut_u8, len: usize) => void;
   get_cursor_kind: (x: f32, y: f32) => u8;
+  get_generated_frame: () => u64;
+  get_world_pos: (sx: f32, sy: f32) => u64;
+  graph_version: () => u32;
+  init: () => void;
   iter_all_nodes: () => void;
-  on_mouse_move: (x: f32, y: f32, _btn: u8, alt_key: bool) => void;
-  on_dbl_click: (x: f32, y: f32) => u32;
-  on_mouse_up: (x: f32, y: f32) => void;
+  link_at: (slot: usize) => u32;
+  max_links: () => usize;
+  node_average_pos: () => u64;
   node_count: () => usize;
   node_kind: (i: usize) => u8;
   node_param_count: (i: usize) => usize;
   node_param_value: (i: usize, p: usize) => f64;
-  max_links: () => usize;
-  link_at: (slot: usize) => u32;
-  graph_version: () => u32;
-  render: () => void;
-  remove_node: (target_idx: usize) => void;
-  remove_all_nodes: () => void;
-  add_node: (x: f32, y: f32, name_ptr: const_u8, name_len: usize) => isize;
-  serialize_graph: () => u64;
-  free_buffer: (ptr: mut_u8, len: usize) => void;
-  allocate_patch_buffer: (len: usize) => mut_u8;
+  on_context_menu: (x: f32, y: f32) => void;
+  on_dbl_click: (x: f32, y: f32, btn: i8) => u32;
+  on_mouse_down: (x: f32, y: f32, btn: i8) => u32;
+  on_mouse_move: (x: f32, y: f32, alt_key: bool) => void;
+  on_mouse_up: (x: f32, y: f32) => void;
+  on_resize: (w: number, h: number) => void;
+  on_wheel: (sx: f32, sy: f32, dx: number, dy: number, ctrl_key: bool) => void;
   patch_graph: (buf_ptr: mut_u8, buf_len: usize) => i32;
-  node_average_pos: () => u64;
-  get_generated_frame: () => u64;
+  remove_all_nodes: () => void;
+  remove_node: (target_idx: usize) => void;
+  render: () => void;
+  serialize_graph: () => u64;
+  set_camera: (x: f32, y: f32, zoom: number) => void;
 
   memory: WebAssembly.Memory;
 };

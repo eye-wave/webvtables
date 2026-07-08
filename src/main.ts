@@ -11,36 +11,19 @@ import {
 import { executeDrawBuffer, type Renderer } from "./renderer/renderer";
 import { Canvas2DRenderer } from "./renderer/canvas2d-renderer";
 import { WebGL2Renderer } from "./renderer/webgl2-renderer";
-import { createKnobs } from "./audio/knobs";
 import { registerContextMenu } from "./context-menu";
-import { toWorld, zoomAt, pan, panByDrag } from "./camera";
 import { registerNodePicker } from "./node-picker";
 import { player } from "./audio/engine";
 import { math_ffi } from "./wasm/math";
 
-createKnobs();
-
 declare const viewport: HTMLDivElement;
 declare const canvas_graph: HTMLCanvasElement;
-declare const play_btn: HTMLButtonElement;
 
 const CURSORS = ["default", "grab", "grabbing", "pointer"];
 
-function createTextOverlay(base: HTMLCanvasElement): CanvasRenderingContext2D {
-  const overlay = document.createElement("canvas");
-  overlay.style.position = "absolute";
-  overlay.style.left = "0";
-  overlay.style.top = "0";
-  overlay.style.pointerEvents = "none";
-  base.insertAdjacentElement("afterend", overlay);
-  const ctx = overlay.getContext("2d");
-  if (!ctx) throw "Failed to get 2d context for text overlay";
-  return ctx;
-}
-
 function createRenderer(canvas: HTMLCanvasElement): Renderer {
   const gl = canvas.getContext("webgl2");
-  if (gl) return new WebGL2Renderer(gl, createTextOverlay(canvas));
+  if (gl) return new WebGL2Renderer(gl);
 
   console.warn("WebGL2 unavailable, falling back to Canvas2D");
   const ctx2d = canvas.getContext("2d");
@@ -60,7 +43,7 @@ async function init() {
   const nodeNames: Record<string, RawStr[]> = {};
 
   let openMenu: (x: f32, y: f32, hit: HitType) => void;
-  let openPicker: (x: f32, y: f32, id: i32) => void;
+  let openPicker: (x: f32, y: f32) => void;
 
   const wasm_ffi = {
     log_str(ptr: const_u8, len: usize) {
@@ -80,6 +63,13 @@ async function init() {
       logBuffer = "";
     },
 
+    open_context_menu: (x: f32, y: f32, raw_hit: u32) => {
+      const hit = unpackHitResult(raw_hit);
+      openMenu(x, y, hit);
+    },
+    open_node_picker: (x: f32, y: f32) => {
+      openPicker(x, y);
+    },
     push_node_name: (
       ptr: const_u8,
       len: usize,
@@ -91,6 +81,7 @@ async function init() {
       if (!nodeNames[category]) nodeNames[category] = [];
       nodeNames[category].push({ ptr, len });
     },
+
     draw_flush(ptr: const_u8, len: usize) {
       const fatptr = exports.get_generated_frame();
       const addr = unpackBuffer(fatptr);
@@ -116,109 +107,62 @@ async function init() {
   openMenu = registerContextMenu(exports, nodeNames);
   openPicker = registerNodePicker(exports, nodeNames);
 
-  // Screen -> world through the camera. Rendering (both renderer impls)
-  // applies the same camera to draw commands, so this stays in sync.
-  const worldPosFromEvent = (e: MouseEvent): [f32, f32] =>
-    toWorld(
-      e.clientX - viewport.offsetLeft,
-      e.clientY - viewport.offsetTop,
-    ) as [f32, f32];
-
   const posFromEvent = (e: MouseEvent): [f32, f32] =>
     [e.clientX - viewport.offsetLeft, e.clientY - viewport.offsetTop] as [
       f32,
       f32,
     ];
 
-  const mouseWrapper =
-    (cb: (x: f32, y: f32, btn: u8, altKey: boolean) => void) =>
-    (e: MouseEvent) =>
-      cb(...worldPosFromEvent(e), e.button as u8, e.altKey);
+  const prevDef =
+    <F extends (e: E) => void, E extends Event>(cb: F) =>
+    (e: E) => {
+      e.preventDefault();
+      cb(e);
+    };
 
-  // Empty-canvas mousedown pans the viewport instead of doing nothing;
-  // on_mouse_down's return tells us whether it actually grabbed a node,
-  // param, socket, or link, so we don't fight over the same drag.
-  let isPanning = false;
-  let lastScreen: [number, number] = [0, 0];
+  const mouseWrap =
+    (cb: (x: f32, y: f32, btn: i8) => void) => (e: MouseEvent) =>
+      cb(...posFromEvent(e), e.button as i8);
 
-  window.onmouseup = (e) => {
-    isPanning = false;
-    mouseWrapper(exports.on_mouse_up)(e);
-  };
-  canvas_graph.onmousedown = (e) => {
-    const pos = worldPosFromEvent(e);
-    const hit = unpackHitResult(exports.on_mouse_down(...pos));
-    if (hit.kind === 0 && e.button === 0) {
-      isPanning = true;
-      lastScreen = [e.clientX, e.clientY];
-    }
-  };
-  canvas_graph.ondblclick = (e) => {
-    const pos = worldPosFromEvent(e);
-    const hit = unpackHitResult(exports.on_dbl_click(...pos));
+  window.onmouseup = mouseWrap(exports.on_mouse_up);
 
-    if (hit.kind === 0 && e.button === 0) {
-      openPicker(...posFromEvent(e), e.button as i32);
-    }
-  };
-  canvas_graph.oncontextmenu = (e) => {
-    e.preventDefault();
-
-    const pos = worldPosFromEvent(e);
-    const hit = unpackHitResult(exports.on_mouse_down(...pos));
-
-    openMenu(...posFromEvent(e), hit);
+  canvas_graph.onmousedown = mouseWrap(exports.on_mouse_down);
+  canvas_graph.ondblclick = mouseWrap(exports.on_dbl_click);
+  canvas_graph.oncontextmenu = prevDef(mouseWrap(exports.on_context_menu));
+  canvas_graph.onmousemove = (e) => {
+    const pos = posFromEvent(e);
+    exports.on_mouse_move(...pos, e.altKey);
+    canvas_graph.style.cursor = CURSORS[exports.get_cursor_kind(...pos)];
   };
 
   canvas_graph.addEventListener(
     "wheel",
-    (e) => {
-      e.preventDefault();
-      const screenX = e.clientX - viewport.offsetLeft;
-      const screenY = e.clientY - viewport.offsetTop;
-      if (e.ctrlKey) {
-        // pinch-to-zoom (trackpad) or ctrl+wheel: zoom around the cursor.
-        zoomAt(screenX, screenY, e.deltaY);
-      } else {
-        // plain scroll/two-finger swipe: pan.
-        pan(e.deltaX, e.deltaY);
-      }
-      exports.render(); // re-emit the draw buffer under the new camera
-    },
+    prevDef((e) => {
+      const pos = posFromEvent(e);
+      exports.on_wheel(...pos, e.deltaX, e.deltaY, e.ctrlKey);
+    }),
     { passive: false },
   );
 
-  canvas_graph.onmousemove = (e) => {
-    if (isPanning) {
-      panByDrag(e.clientX - lastScreen[0], e.clientY - lastScreen[1]);
-      lastScreen = [e.clientX, e.clientY];
-      exports.render(); // re-emit the draw buffer under the new camera
-      return;
-    }
-
-    const pos = worldPosFromEvent(e);
-    exports.on_mouse_move(...pos, e.button as u8, e.altKey);
-    canvas_graph.style.cursor = CURSORS[exports.get_cursor_kind(...pos)];
-  };
-
   exports.init();
 
-  play_btn.onclick = async () => {
-    if (player.status === "uninitialized") {
-      await player.initialize();
-      exports.render();
-    }
+  // play_btn.onclick = async () => {
+  //   if (player.status === "uninitialized") {
+  //     await player.initialize();
+  //     exports.render();
+  //   }
 
-    if (player.status === "paused") {
-      player.resume();
-      play_btn.textContent = "Pause";
-    } else {
-      player.pause();
-      play_btn.textContent = "Play";
-    }
-  };
+  //   if (player.status === "paused") {
+  //     player.resume();
+  //     play_btn.textContent = "Pause";
+  //   } else {
+  //     player.pause();
+  //     play_btn.textContent = "Play";
+  //   }
+  // };
 
   function onCanvasResize() {
+    exports.on_resize(window.innerWidth, window.innerHeight);
     renderer.resize(viewport.offsetWidth, viewport.offsetHeight);
     exports.render();
   }

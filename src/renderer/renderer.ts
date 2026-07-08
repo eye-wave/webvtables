@@ -20,8 +20,7 @@ export interface Renderer {
   fillRect(x: number, y: number, w: number, h: number): void;
   fillCircle(x: number, y: number, r: number): void;
   strokeLine(x1: number, y1: number, x2: number, y2: number): void;
-  fillText(text: string, x: number, y: number): void;
-  fontSize(x: number): void;
+  fillText(text: string, size: number, x: number, y: number): void;
   endFrame(): void;
 }
 
@@ -88,13 +87,14 @@ export function executeDrawBuffer(
         p += 16;
         break;
       case Op.FillText: {
-        const x = view.getFloat32(p, true);
-        const y = view.getFloat32(p + 4, true);
-        const len = view.getUint16(p + 8, true);
-        p += 10;
+        const size = view.getFloat32(p, true);
+        const x = view.getFloat32(p + 4, true);
+        const y = view.getFloat32(p + 8, true);
+        const len = view.getUint16(p + 12, true);
+        p += 14;
         const text = textDecoder.decode(bytes.subarray(p, p + len));
         p += len;
-        r.fillText(text, x, y);
+        r.fillText(text, size, x, y);
         break;
       }
       case Op.FillWave: {

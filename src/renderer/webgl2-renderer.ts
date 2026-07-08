@@ -1,10 +1,12 @@
 import type { Renderer } from "./renderer";
-import { camera } from "../camera";
 import VERTEX_SRC from "./shader-vert.glsl";
 import FRAGMENT_SRC from "./shader-frag.glsl";
+import TEXT_VERT_SRC from "./glyph-vert.glsl";
+import TEXT_FRAG_SRC from "./glyph-frag.glsl";
 
 const FLOATS_PER_INSTANCE = 10;
 const INITIAL_CAPACITY = 1024;
+const GLYPH_CACHE_MAX = 2000;
 
 function compile(
   gl: WebGL2RenderingContext,
@@ -22,6 +24,77 @@ function compile(
   return shader;
 }
 
+function link(
+  gl: WebGL2RenderingContext,
+  vertSrc: string,
+  fragSrc: string,
+): WebGLProgram {
+  const vs = compile(gl, gl.VERTEX_SHADER, vertSrc);
+  const fs = compile(gl, gl.FRAGMENT_SHADER, fragSrc);
+  const program = gl.createProgram()!;
+  gl.attachShader(program, vs);
+  gl.attachShader(program, fs);
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    throw new Error(`program link failed: ${gl.getProgramInfoLog(program)}`);
+  }
+  return program;
+}
+
+export function computeGlyphBox(
+  metrics: Pick<
+    TextMetrics,
+    "width" | "actualBoundingBoxAscent" | "actualBoundingBoxDescent"
+  >,
+  size: number,
+): { w: number; h: number; ascent: number } {
+  const ascent = metrics.actualBoundingBoxAscent || size;
+  const descent = metrics.actualBoundingBoxDescent || size * 0.25;
+  return {
+    w: Math.max(1, Math.ceil(metrics.width)),
+    h: Math.max(1, Math.ceil(ascent + descent)),
+    ascent,
+  };
+}
+
+export function __selfCheckComputeGlyphBox() {
+  const box = computeGlyphBox(
+    { width: 42, actualBoundingBoxAscent: 10, actualBoundingBoxDescent: 3 },
+    16,
+  );
+  console.assert(box.w === 42, "width should pass through ceiled");
+  console.assert(box.h === 13, "height should be ascent+descent ceiled");
+  console.assert(box.ascent === 10, "ascent should pass through");
+  const fallback = computeGlyphBox({ width: 5.2 } as TextMetrics, 20);
+  console.assert(
+    fallback.h === Math.ceil(20 + 20 * 0.25),
+    "fallback ascent/descent from size",
+  );
+}
+
+interface GlyphEntry {
+  tex: WebGLTexture;
+  w: number;
+  h: number;
+  ascent: number;
+}
+
+interface TextInstance {
+  tex: WebGLTexture;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  z: number;
+}
+
+function createOffscreenMeasureCtx(): CanvasRenderingContext2D {
+  const c = document.createElement("canvas");
+  const ctx = c.getContext("2d");
+  if (!ctx) throw "Failed to get 2d context for text measurement";
+  return ctx;
+}
+
 export class WebGL2Renderer implements Renderer {
   private program: WebGLProgram;
   private vao: WebGLVertexArrayObject;
@@ -35,21 +108,28 @@ export class WebGL2Renderer implements Renderer {
   private lineW = 1;
   private width = 0;
   private height = 0;
-  private _fontSize: number = 13;
+
+  // Text-as-texture pipeline.
+  private textProgram: WebGLProgram;
+  private textVao: WebGLVertexArrayObject;
+  private textUResolution: WebGLUniformLocation;
+  private textUCenter: WebGLUniformLocation;
+  private textUSize: WebGLUniformLocation;
+  private textUZ: WebGLUniformLocation;
+  private textUSampler: WebGLUniformLocation;
+  private glyphCache = new Map<string, GlyphEntry>();
+  private textInstances: TextInstance[] = [];
+  private measureCtx: CanvasRenderingContext2D;
 
   constructor(
     private gl: WebGL2RenderingContext,
-    private textCtx: CanvasRenderingContext2D,
+    textCtx?: CanvasRenderingContext2D,
   ) {
-    const vs = compile(gl, gl.VERTEX_SHADER, VERTEX_SRC);
-    const fs = compile(gl, gl.FRAGMENT_SHADER, FRAGMENT_SRC);
-    const program = gl.createProgram()!;
-    gl.attachShader(program, vs);
-    gl.attachShader(program, fs);
-    gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-      throw new Error(`program link failed: ${gl.getProgramInfoLog(program)}`);
-    }
+    // textCtx param kept optional for call-site compat; only used for font measurement now
+    // (no longer a drawn-to overlay), so we make our own if the caller didn't pass one.
+    this.measureCtx = textCtx ?? createOffscreenMeasureCtx();
+
+    const program = link(gl, VERTEX_SRC, FRAGMENT_SRC);
     this.program = program;
     this.uResolution = gl.getUniformLocation(program, "uResolution")!;
 
@@ -87,6 +167,24 @@ export class WebGL2Renderer implements Renderer {
     this.instanceBuf = instanceBuf;
     this.vao = vao;
 
+    // Text quad pipeline: reuses the same unit-quad geometry, non-instanced
+    // (draw count is one draw call per unique on-screen text placement, not
+    // per unique glyph texture - textures are cached/reused across frames).
+    const textProgram = link(gl, TEXT_VERT_SRC, TEXT_FRAG_SRC);
+    this.textProgram = textProgram;
+    this.textUResolution = gl.getUniformLocation(textProgram, "uResolution")!;
+    this.textUCenter = gl.getUniformLocation(textProgram, "uCenter")!;
+    this.textUSize = gl.getUniformLocation(textProgram, "uSize")!;
+    this.textUZ = gl.getUniformLocation(textProgram, "uZ")!;
+    this.textUSampler = gl.getUniformLocation(textProgram, "uSampler")!;
+
+    const textVao = gl.createVertexArray()!;
+    gl.bindVertexArray(textVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    this.textVao = textVao;
+
     gl.bindVertexArray(null);
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
@@ -97,18 +195,13 @@ export class WebGL2Renderer implements Renderer {
     this.height = height;
     this.gl.canvas.width = width;
     this.gl.canvas.height = height;
-    this.textCtx.canvas.width = width;
-    this.textCtx.canvas.height = height;
     this.gl.viewport(0, 0, width, height);
   }
 
   beginFrame() {
     this.count = 0;
     this.nextZ = 0;
-    const { textCtx } = this;
-    textCtx.setTransform(1, 0, 0, 1, 0, 0);
-    textCtx.clearRect(0, 0, this.width, this.height);
-    textCtx.setTransform(camera.zoom, 0, 0, camera.zoom, camera.x, camera.y);
+    this.textInstances = [];
     const { gl } = this;
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -154,59 +247,127 @@ export class WebGL2Renderer implements Renderer {
   }
 
   fillRect(x: number, y: number, w: number, h: number) {
-    const { zoom } = camera;
-    const cx = (x + w / 2) * zoom + camera.x;
-    const cy = (y + h / 2) * zoom + camera.y;
-    this.pushInstance(cx, cy, w * zoom, h * zoom, 0, this.fill, 0);
+    this.pushInstance(x + w / 2, y + h / 2, w, h, 0, this.fill, 0);
   }
 
   fillCircle(x: number, y: number, r: number) {
-    const { zoom } = camera;
-    const cx = x * zoom + camera.x;
-    const cy = y * zoom + camera.y;
-    const d = r * 2 * zoom;
-    this.pushInstance(cx, cy, d, d, 0, this.fill, 1);
+    this.pushInstance(x, y, r * 2, r * 2, 0, this.fill, 1);
   }
 
   strokeLine(x1: number, y1: number, x2: number, y2: number) {
-    const { zoom } = camera;
-    const sx1 = x1 * zoom + camera.x;
-    const sy1 = y1 * zoom + camera.y;
-    const sx2 = x2 * zoom + camera.x;
-    const sy2 = y2 * zoom + camera.y;
-    const dx = sx2 - sx1;
-    const dy = sy2 - sy1;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
     const len = Math.hypot(dx, dy);
     const rot = Math.atan2(dy, dx);
 
     // prettier-ignore
-    this.pushInstance((sx1 + sx2) / 2,(sy1 + sy2) / 2,len,this.lineW * zoom,rot,this.stroke,0);
+    this.pushInstance((x1 + x2) / 2,(y1 + y2) / 2,len,this.lineW,rot,this.stroke,0);
   }
 
-  fontSize(n: number) {
-    this._fontSize = n;
-  }
-
-  fillText(text: string, x: number, y: number) {
+  private getGlyphEntry(text: string, size: number): GlyphEntry {
     const [r, g, b] = this.fill;
-    this.textCtx.font = `${this._fontSize}px sans`;
-    this.textCtx.fillStyle = `rgb(${r * 255},${g * 255},${b * 255})`;
-    this.textCtx.fillText(text, x, y);
+    const key = `${size}|${r},${g},${b}|${text}`;
+
+    const cached = this.glyphCache.get(key);
+    if (cached) {
+      this.glyphCache.delete(key);
+      this.glyphCache.set(key, cached);
+      return cached;
+    }
+
+    this.measureCtx.font = `${size}px sans`;
+    const metrics = this.measureCtx.measureText(text);
+    const { w, h, ascent } = computeGlyphBox(metrics, size);
+
+    const glyphCanvas = document.createElement("canvas");
+    glyphCanvas.width = w;
+    glyphCanvas.height = h;
+    const gctx = glyphCanvas.getContext("2d")!;
+    gctx.font = `${size}px sans`;
+    gctx.fillStyle = `rgb(${r * 255},${g * 255},${b * 255})`;
+    gctx.textBaseline = "alphabetic";
+    gctx.fillText(text, 0, ascent);
+
+    const gl = this.gl;
+    const tex = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      glyphCanvas,
+    );
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    const entry: GlyphEntry = { tex, w, h, ascent };
+    this.glyphCache.set(key, entry);
+
+    if (this.glyphCache.size > GLYPH_CACHE_MAX) {
+      const oldestKey = this.glyphCache.keys().next().value;
+      if (oldestKey !== undefined) {
+        const oldest = this.glyphCache.get(oldestKey)!;
+        gl.deleteTexture(oldest.tex);
+        this.glyphCache.delete(oldestKey);
+      }
+    }
+
+    return entry;
+  }
+
+  fillText(text: string, size: number, x: number, y: number) {
+    const { tex, w, h, ascent } = this.getGlyphEntry(text, size);
+    const z = 1 - this.nextZ++ / 1_000_000;
+    this.textInstances.push({
+      tex,
+      x: x + w / 2,
+      y: y - ascent + h / 2,
+      w,
+      h,
+      z,
+    });
   }
 
   endFrame() {
     const { gl } = this;
-    if (this.count === 0) return;
-    gl.useProgram(this.program);
-    gl.bindVertexArray(this.vao);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuf);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      this.data.subarray(0, this.count * FLOATS_PER_INSTANCE),
-      gl.DYNAMIC_DRAW,
-    );
-    gl.uniform2f(this.uResolution, this.width, this.height);
-    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.count);
+
+    if (this.count > 0) {
+      gl.useProgram(this.program);
+      gl.bindVertexArray(this.vao);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuf);
+      gl.bufferData(
+        gl.ARRAY_BUFFER,
+        this.data.subarray(0, this.count * FLOATS_PER_INSTANCE),
+        gl.DYNAMIC_DRAW,
+      );
+      gl.uniform2f(this.uResolution, this.width, this.height);
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.count);
+    }
+
+    if (this.textInstances.length > 0) {
+      gl.useProgram(this.textProgram);
+      gl.bindVertexArray(this.textVao);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.uniform2f(this.textUResolution, this.width, this.height);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.uniform1i(this.textUSampler, 0);
+      for (const t of this.textInstances) {
+        gl.bindTexture(gl.TEXTURE_2D, t.tex);
+        gl.uniform2f(this.textUCenter, t.x, t.y);
+        gl.uniform2f(this.textUSize, t.w, t.h);
+        gl.uniform1f(this.textUZ, t.z);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      }
+      gl.disable(gl.BLEND);
+    }
+
     gl.bindVertexArray(null);
   }
 }

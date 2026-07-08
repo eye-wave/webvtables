@@ -1,6 +1,6 @@
 use crate::{
-    draw::{Draw, DrawBuf},
-    geom::point_segment_dist2,
+    draw::{Draw, DrawBuf, camera},
+    geom::{self, point_segment_dist2},
     graph::{input_pos, output_pos},
 };
 
@@ -28,6 +28,13 @@ impl Link {
 
 impl Draw for Link {
     fn draw(&self, i: usize, s: &GraphState, ctx: &mut DrawBuf) {
+        let (fx, fy) = output_pos(&s.nodes[self.from], self.from_socket);
+        let (tx, ty) = input_pos(&s.nodes[self.to], self.to_socket);
+
+        if geom::is_out_of_bounds(fx, fy, tx, ty) {
+            return;
+        }
+
         if s.hovered_link == Some(i) {
             ctx.stroke_style([255, 240, 140]);
             ctx.line_width(3.0);
@@ -35,13 +42,15 @@ impl Draw for Link {
             ctx.stroke_style([210, 180, 60]);
             ctx.line_width(2.0);
         }
-        let (fx, fy) = output_pos(&s.nodes[self.from], self.from_socket);
-        let (tx, ty) = input_pos(&s.nodes[self.to], self.to_socket);
-        ctx.stroke_line(fx, fy, tx, ty);
+
+        ctx.stroke_line(fx, fy, tx, ty, true);
     }
 }
 
-pub fn find_hovered_link(s: &GraphState, x: f32, y: f32) -> Option<usize> {
+pub fn find_hovered_link(s: &GraphState, sx: f32, sy: f32) -> Option<usize> {
+    let c = camera();
+    let (x, y) = c.to_world(sx, sy);
+
     for (i, slot) in s.links.iter().enumerate() {
         if let Some(l) = slot {
             let (fx, fy) = output_pos(&s.nodes[l.from], l.from_socket);

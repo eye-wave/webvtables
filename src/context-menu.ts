@@ -1,4 +1,3 @@
-import { camera, toWorld } from "./camera";
 import { loadFile, saveFile } from "./file-io";
 import {
   HitType,
@@ -69,7 +68,9 @@ export function registerContextMenu(
     if (Array.isArray(items)) {
       items.forEach((name) => {
         const item = addItem(readStr(name.ptr, name.len), "", "", sub);
-        const [wx, wy] = toWorld(x, y);
+        const packed = exports.get_world_pos(x, y);
+        const [wx, wy] = unpackFloats(packed);
+
         item.onclick = () => exports.add_node(wx, wy, name.ptr, name.len);
       });
     } else {
@@ -93,10 +94,7 @@ export function registerContextMenu(
         const packed = exports.node_average_pos();
         const [x, y] = unpackFloats(packed);
 
-        camera.x = x;
-        camera.y = y;
-        camera.zoom = 1;
-
+        exports.set_camera(x, y, 1);
         exports.render();
       };
 

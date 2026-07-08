@@ -42,6 +42,7 @@ wasm_imports! {
 
     fn atan2f(x: f32,y:f32) -> f32;
     fn powf(x: f32,y:f32) -> f32;
+    fn expf(x: f32) -> f32;
     fn roundf(x: f32) -> f32;
     fn sinf(x: f32) -> f32;
     fn cosf(x: f32) -> f32;
@@ -50,6 +51,8 @@ wasm_imports! {
     fn log2f(x: f32) -> f32;
     fn log10f(x: f32) -> f32;
 
+    fn open_context_menu(x:f32,y:f32,hit:u32);
+    fn open_node_picker(x:f32,y:f32);
     fn push_node_name(title: *const u8, len: usize, category: *const u8, len2: usize);
     fn draw_flush(ptr: *const u8, len: usize);
 }

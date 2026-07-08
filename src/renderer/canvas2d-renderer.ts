@@ -1,9 +1,6 @@
 import type { Renderer } from "./renderer";
-import { camera } from "../camera";
 
 export class Canvas2DRenderer implements Renderer {
-  private _fontSize: number = 13;
-
   constructor(private ctx: CanvasRenderingContext2D) {}
 
   resize(width: number, height: number) {
@@ -13,10 +10,7 @@ export class Canvas2DRenderer implements Renderer {
 
   beginFrame() {
     const { ctx } = this;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-    // World-space coordinates from here on; scale/translate is the camera.
-    ctx.setTransform(camera.zoom, 0, 0, camera.zoom, camera.x, camera.y);
   }
 
   setFillStyle(r: number, g: number, b: number) {
@@ -50,12 +44,8 @@ export class Canvas2DRenderer implements Renderer {
     ctx.stroke();
   }
 
-  fontSize(n: number) {
-    this._fontSize = n;
-  }
-
-  fillText(text: string, x: number, y: number) {
-    this.ctx.font = `${this._fontSize}px sans`;
+  fillText(text: string, size: number, x: number, y: number) {
+    this.ctx.font = `${size}px sans`;
     this.ctx.fillText(text, x, y);
   }
 

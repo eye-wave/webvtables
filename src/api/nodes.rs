@@ -168,7 +168,7 @@ pub unsafe extern "C" fn add_node(x: f32, y: f32, name_ptr: *const u8, name_len:
     new_idx as isize
 }
 
-fn pack_f32_pair(a: f32, b: f32) -> u64 {
+pub fn pack_f32_pair(a: f32, b: f32) -> u64 {
     ((a.to_bits() as u64) << 32) | (b.to_bits() as u64)
 }
 

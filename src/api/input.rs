@@ -1,6 +1,8 @@
+use crate::api::nodes::pack_f32_pair;
+use crate::draw::camera;
 use crate::geom::{dist2, point_in_rect};
-use crate::render;
 use crate::{console_print, graph::*};
+use crate::{ffi, render};
 
 #[repr(u8)]
 #[derive(Copy, Clone)]
@@ -78,13 +80,17 @@ fn param_hit(n: &Node, x: f32, y: f32) -> Option<usize> {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn on_mouse_down(x: f32, y: f32) -> u32 {
+pub extern "C" fn on_mouse_down(sx: f32, sy: f32, button: i8) -> u32 {
     let s = state();
+    let c = camera();
+
+    let (x, y) = c.to_world(sx, sy);
 
     for i in 0..s.node_count {
         let n = &s.nodes[i];
         for o in 0..n.kind.output_count() {
             let (ox, oy) = output_pos(n, o);
+
             if dist2(x, y, ox, oy) <= SOCKET_HIT_R2 {
                 s.pending_link_from = Some((i, o));
                 return HitResult::node(i as u16, -1).into_u32();
@@ -122,6 +128,11 @@ pub extern "C" fn on_mouse_down(x: f32, y: f32) -> u32 {
         return HitResult::link(i as u16).into_u32();
     }
 
+    if button == 0 {
+        s.is_panning = true;
+        s.last_pan = (sx, sy);
+    }
+
     HitResult::empty().into_u32()
 }
 
@@ -134,8 +145,12 @@ pub enum CursorKind {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn get_cursor_kind(x: f32, y: f32) -> CursorKind {
+pub extern "C" fn get_cursor_kind(sx: f32, sy: f32) -> CursorKind {
     let s = state();
+    let c = camera();
+
+    let (x, y) = c.to_world(sx, sy);
+
     if s.dragging_node.is_some() || s.dragging_param.is_some() {
         return CursorKind::Grabbing;
     }
@@ -153,8 +168,20 @@ pub extern "C" fn get_cursor_kind(x: f32, y: f32) -> CursorKind {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn on_mouse_move(x: f32, y: f32, _btn: u8, alt_key: bool) {
+pub extern "C" fn on_mouse_move(sx: f32, sy: f32, alt_key: bool) {
     let s = state();
+    let c = camera();
+
+    if s.is_panning {
+        let (lx, ly) = s.last_pan;
+        c.pan_by_drag(sx - lx, sy - ly);
+        s.last_pan = (sx, sy);
+
+        render();
+        return;
+    }
+
+    let (x, y) = c.to_world(sx, sy);
     s.mouse = (x, y);
 
     if let Some(i) = s.dragging_node {
@@ -197,10 +224,10 @@ pub extern "C" fn on_mouse_move(x: f32, y: f32, _btn: u8, alt_key: bool) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn on_dbl_click(x: f32, y: f32) -> u32 {
+pub extern "C" fn on_dbl_click(x: f32, y: f32, button: i8) {
     let s = state();
 
-    let raw_hit = on_mouse_down(x, y);
+    let raw_hit = on_mouse_down(x, y, -1);
     let hit = HitResult::from_u32(raw_hit);
 
     if let HitType::Node = hit.kind
@@ -217,17 +244,26 @@ pub extern "C" fn on_dbl_click(x: f32, y: f32) -> u32 {
 
             s.version += 1;
             render();
-
-            return raw_hit;
+            return;
         }
     }
 
-    raw_hit
+    if let HitType::Empty = hit.kind
+        && button == 0
+    {
+        ffi::open_node_picker(x, y);
+    }
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn on_mouse_up(x: f32, y: f32) {
+pub extern "C" fn on_mouse_up(sx: f32, sy: f32) {
     let s = state();
+    let c = camera();
+
+    let (x, y) = c.to_world(sx, sy);
+
+    s.is_panning = false;
+
     if let Some((from, from_socket)) = s.pending_link_from {
         'search: for j in 0..s.node_count {
             let n = &s.nodes[j];
@@ -266,4 +302,46 @@ pub extern "C" fn on_mouse_up(x: f32, y: f32) {
     s.dragging_node = None;
     s.dragging_param = None;
     render();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn on_wheel(sx: f32, sy: f32, dx: f32, dy: f32, ctrl_key: bool) {
+    let c = camera();
+
+    if ctrl_key {
+        c.zoom_at(sx, sy, dy);
+    } else {
+        c.pan(dx, dy);
+    }
+
+    render();
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn on_context_menu(x: f32, y: f32) {
+    let raw_hit = on_mouse_down(x, y, -1);
+
+    ffi::open_context_menu(x, y, raw_hit);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn on_resize(w: f32, h: f32) {
+    let s = state();
+    s.viewport = (w, h);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn set_camera(x: f32, y: f32, zoom: f32) {
+    let c = camera();
+    c.x = x;
+    c.y = y;
+    c.zoom = zoom;
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn get_world_pos(sx: f32, sy: f32) -> u64 {
+    let c = camera();
+
+    let (x, y) = c.to_world(sx, sy);
+    pack_f32_pair(x, y)
 }

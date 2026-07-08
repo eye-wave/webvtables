@@ -5,12 +5,16 @@
 //!   4  FillRect     f32 x, y, w, h
 //!   5  FillCircle   f32 x, y, r
 //!   6  StrokeLine   f32 x1, y1, x2, y2
-//!   7  FillText     f32 x, y, u16 len, [u8; len] utf8
+//!   7  FillText     f32 size, x, y, u16 len, [u8; len] utf8
 //!   8  FillWave     f32 x, y, w, h, *const u8 ptr
 
 use alloc::vec::Vec;
 
 use crate::graph::{BUFFER_LEN, GraphState};
+
+mod camera;
+
+pub use camera::*;
 
 pub type Color = [u8; 3];
 
@@ -79,45 +83,56 @@ impl DrawBuf {
         self.push_f32(w);
     }
 
-    pub fn fill_rect(&mut self, x: f32, y: f32, w: f32, h: f32) {
+    pub fn fill_rect(&mut self, x: f32, y: f32, w: f32, h: f32, with_cam: bool) {
         self.push_u8(Op::FillRect as u8);
-        self.push_f32(x);
-        self.push_f32(y);
-        self.push_f32(w);
-        self.push_f32(h);
+
+        self.push_f32(cam_x(x, with_cam));
+        self.push_f32(cam_y(y, with_cam));
+        self.push_f32(cam_s(w, with_cam));
+        self.push_f32(cam_s(h, with_cam));
     }
 
-    pub fn fill_circle(&mut self, x: f32, y: f32, r: f32) {
+    pub fn fill_circle(&mut self, x: f32, y: f32, r: f32, with_cam: bool) {
         self.push_u8(Op::FillCircle as u8);
-        self.push_f32(x);
-        self.push_f32(y);
-        self.push_f32(r);
+        self.push_f32(cam_x(x, with_cam));
+        self.push_f32(cam_y(y, with_cam));
+        self.push_f32(cam_s(r, with_cam));
     }
 
-    pub fn stroke_line(&mut self, x1: f32, y1: f32, x2: f32, y2: f32) {
+    pub fn stroke_line(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, with_cam: bool) {
         self.push_u8(Op::StrokeLine as u8);
-        self.push_f32(x1);
-        self.push_f32(y1);
-        self.push_f32(x2);
-        self.push_f32(y2);
+        self.push_f32(cam_x(x1, with_cam));
+        self.push_f32(cam_y(y1, with_cam));
+        self.push_f32(cam_x(x2, with_cam));
+        self.push_f32(cam_y(y2, with_cam));
     }
 
-    pub fn fill_text(&mut self, text: &str, x: f32, y: f32) {
+    pub fn fill_text(&mut self, text: &str, size: f32, x: f32, y: f32, with_cam: bool) {
         let bytes = text.as_bytes();
         let len = bytes.len().min(u16::MAX as usize) as u16;
         self.push_u8(Op::FillText as u8);
-        self.push_f32(x);
-        self.push_f32(y);
+        self.push_f32(cam_s(size, with_cam));
+        self.push_f32(cam_x(x, with_cam));
+        self.push_f32(cam_y(y, with_cam));
         self.push_u16(len);
         self.buf.extend_from_slice(&bytes[..len as usize]);
     }
 
-    pub fn fill_wave(&mut self, x: f32, y: f32, w: f32, h: f32, buf: &[f32; BUFFER_LEN]) {
+    pub fn fill_wave(
+        &mut self,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        buf: &[f32; BUFFER_LEN],
+        with_cam: bool,
+    ) {
+        self.line_width(1.0);
         self.push_u8(Op::FillWave as u8);
-        self.push_f32(x);
-        self.push_f32(y);
-        self.push_f32(w);
-        self.push_f32(h);
+        self.push_f32(cam_x(x, with_cam));
+        self.push_f32(cam_y(y, with_cam));
+        self.push_f32(cam_s(w, with_cam));
+        self.push_f32(cam_s(h, with_cam));
         self.push_u32(buf.as_ptr() as u32);
     }
 
@@ -127,7 +142,41 @@ impl DrawBuf {
 }
 
 static mut DRAWBUF: DrawBuf = DrawBuf::new();
+static mut EDITOR_CAM: Camera = Camera::new();
 
+#[inline(always)]
 pub fn drawbuf() -> &'static mut DrawBuf {
     unsafe { &mut DRAWBUF }
+}
+
+#[inline(always)]
+pub fn camera() -> &'static mut Camera {
+    unsafe { &mut EDITOR_CAM }
+}
+
+pub fn cam_x(x: f32, with_cam: bool) -> f32 {
+    if with_cam {
+        let c = camera();
+        (x + c.x) * c.zoom
+    } else {
+        x
+    }
+}
+
+pub fn cam_y(y: f32, with_cam: bool) -> f32 {
+    if with_cam {
+        let c = camera();
+        (y + c.y) * c.zoom
+    } else {
+        y
+    }
+}
+
+pub fn cam_s(s: f32, with_cam: bool) -> f32 {
+    if with_cam {
+        let c = camera();
+        s * c.zoom
+    } else {
+        s
+    }
 }

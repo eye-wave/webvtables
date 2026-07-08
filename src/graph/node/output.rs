@@ -81,7 +81,7 @@ impl NodeLogic for OutputNode {
         let bins = BUFFER_LEN / 2;
 
         ctx.fill_style([16, 16, 20]);
-        ctx.fill_rect(x, y, w, h);
+        ctx.fill_rect(x, y, w, h, true);
 
         let db_min = -60.0f32;
         let db_max = 0.0f32;
@@ -96,7 +96,7 @@ impl NodeLogic for OutputNode {
             |db: f32| y + h * (1.0 - (db.clamp(db_min, db_max) - db_min) / (db_max - db_min));
 
         ctx.stroke_style([100, 220, 160]);
-        ctx.line_width(2.0);
+        ctx.line_width(1.0);
         let steps = w as usize;
         let mut prev: Option<(f32, f32)> = None;
         for px in 0..=steps {
@@ -110,7 +110,7 @@ impl NodeLogic for OutputNode {
             let px_x = x + px as f32;
             let px_y = db_to_y(db);
             if let Some((lx, ly)) = prev {
-                ctx.stroke_line(lx, ly, px_x, px_y);
+                ctx.stroke_line(lx, ly, px_x, px_y, true);
             }
 
             prev = Some((px_x, px_y));

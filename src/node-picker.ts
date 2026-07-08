@@ -1,5 +1,9 @@
-import { toWorld } from "./camera";
-import { makeStrReader, type RawStr, type WasmExports } from "./wasm";
+import {
+  makeStrReader,
+  unpackFloats,
+  type RawStr,
+  type WasmExports,
+} from "./wasm";
 
 declare const search_menu: HTMLDivElement;
 
@@ -72,7 +76,9 @@ export function registerNodePicker(
   }
 
   function confirm(raw: RawStr) {
-    const worldPos = toWorld(...pos);
+    const packed = exports.get_world_pos(...pos);
+    const worldPos = unpackFloats(packed);
+
     exports.add_node(...worldPos, raw.ptr, raw.len);
     close();
   }

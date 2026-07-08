@@ -291,31 +291,37 @@ impl Draw for Node {
 
         // Dynamic background container
         ctx.fill_style([40, 42, 48]);
-        ctx.fill_rect(self.x, self.y, Self::W, current_h);
+        ctx.fill_rect(self.x, self.y, Self::W, current_h, true);
 
         // Header
         ctx.fill_style(self.kind.header_color());
-        ctx.fill_rect(self.x, self.y, Self::W, Self::HEADER_H);
+        ctx.fill_rect(self.x, self.y, Self::W, Self::HEADER_H, true);
 
         ctx.fill_style([230, 230, 230]);
-        ctx.fill_text(self.kind.title(), self.x + 6.0, self.y + 14.0);
+        ctx.fill_text(self.kind.title(), 13.0, self.x + 6.0, self.y + 14.0, true);
 
         // Parameters
         let mut current_y = self.y + Self::HEADER_H + 12.0;
 
         for (active_idx, param) in self.params.iter().flatten().enumerate() {
             ctx.fill_style([180, 180, 180]);
-            ctx.fill_text(param.name(), self.x + 8.0, current_y);
+            ctx.fill_text(param.name(), 13.0, self.x + 8.0, current_y, true);
 
             let mut vbuf: FixedStr<16> = FixedStr::new();
             param.format_value(&mut vbuf);
 
             let (box_x, box_y, box_w, box_h) = self.param_value_rect(active_idx);
             ctx.fill_style([25, 26, 32]);
-            ctx.fill_rect(box_x, box_y, box_w, box_h);
+            ctx.fill_rect(box_x, box_y, box_w, box_h, true);
 
             ctx.fill_style([140, 200, 140]);
-            ctx.fill_text(vbuf.as_str(), box_x + Self::VALUE_PAD, current_y);
+            ctx.fill_text(
+                vbuf.as_str(),
+                13.0,
+                box_x + Self::VALUE_PAD,
+                current_y,
+                true,
+            );
 
             current_y += Self::PARAM_H;
         }
@@ -328,10 +334,10 @@ impl Draw for Node {
             let h = Self::WAVE_H - 6.0;
 
             ctx.fill_style([20, 20, 24]);
-            ctx.fill_rect(x, y, w, h);
+            ctx.fill_rect(x, y, w, h, true);
 
             let samples = &s.buffers.as_ref().unwrap()[i];
-            ctx.fill_wave(x, y, w, h, samples);
+            ctx.fill_wave(x, y, w, h, samples, true);
         }
 
         // Widget
@@ -358,14 +364,14 @@ impl Draw for Node {
                 if is_valid_drop_zone {
                     if is_hovered {
                         ctx.fill_style([255, 215, 0]);
-                        ctx.fill_circle(ix, iy, SOCKET_R + 4.0);
+                        ctx.fill_circle(ix, iy, SOCKET_R + 4.0, true);
                     } else {
                         ctx.fill_style([100, 220, 100]);
-                        ctx.fill_circle(ix, iy, SOCKET_R + 2.0);
+                        ctx.fill_circle(ix, iy, SOCKET_R + 2.0, true);
                     }
                 } else {
                     ctx.fill_style([50, 50, 50]);
-                    ctx.fill_circle(ix, iy, SOCKET_R);
+                    ctx.fill_circle(ix, iy, SOCKET_R, true);
                 }
             } else {
                 ctx.fill_style([
@@ -373,7 +379,12 @@ impl Draw for Node {
                     if is_hovered { 255 } else { 180 },
                     if is_hovered { 150 } else { 250 },
                 ]);
-                ctx.fill_circle(ix, iy, if is_hovered { SOCKET_R + 2.0 } else { SOCKET_R });
+                ctx.fill_circle(
+                    ix,
+                    iy,
+                    if is_hovered { SOCKET_R + 2.0 } else { SOCKET_R },
+                    true,
+                );
             }
         }
 
@@ -397,6 +408,7 @@ impl Draw for Node {
                 } else {
                     SOCKET_R
                 },
+                true,
             );
         }
     }

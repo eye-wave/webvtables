@@ -68,6 +68,13 @@ pub extern "C" fn iter_all_nodes() {
 #[unsafe(no_mangle)]
 pub extern "C" fn render() {
     let s = state();
+    s.viewport_bounds = (
+        0.0,
+        HEADER_HEIGHT,
+        s.viewport.0,
+        s.viewport.1 * KEYFRAME_POS_PERCENT,
+    );
+
     process_graph(s);
 
     let ctx = drawbuf();
@@ -80,15 +87,26 @@ pub extern "C" fn render() {
     }
 
     if let Some((from, from_socket)) = s.pending_link_from {
+        let (fx, fy) = output_pos(&s.nodes[from], from_socket);
+
         ctx.stroke_style([210, 180, 60]);
         ctx.line_width(2.0);
-        let (fx, fy) = output_pos(&s.nodes[from], from_socket);
-        ctx.stroke_line(fx, fy, s.mouse.0, s.mouse.1);
+
+        ctx.stroke_line(fx, fy, s.mouse.0, s.mouse.1, true);
     }
 
-    for i in 0..s.node_count {
-        s.nodes[i].draw(i, s, ctx);
+    for (i, node) in s.nodes.iter().take(s.node_count).enumerate() {
+        if geom::is_out_of_bounds(node.x, node.y, node.x + Node::W, node.y + node.height()) {
+            continue;
+        }
+
+        node.draw(i, s, ctx);
     }
+
+    CameraWidget.draw(0, s, ctx);
+    Header.draw(0, s, ctx);
+    KeyframeRuler.draw(0, s, ctx);
+    KeyframeLanes.draw(0, s, ctx);
 
     let (ptr, len) = ctx.as_ptr_len();
     ffi::draw_flush(ptr, len);

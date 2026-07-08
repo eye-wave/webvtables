@@ -148,7 +148,7 @@ impl NodeLogic for FilterNode {
         let bins = BUFFER_LEN / 2;
 
         ctx.fill_style([18, 18, 22]);
-        ctx.fill_rect(x, y, w, h);
+        ctx.fill_rect(x, y, w, h, true);
 
         let db_min = -30.0f32;
         let db_max = 30.0f32;
@@ -157,7 +157,7 @@ impl NodeLogic for FilterNode {
 
         ctx.stroke_style([70, 70, 78]);
         ctx.line_width(1.0);
-        ctx.stroke_line(x, db_to_y(0.0), x + w, db_to_y(0.0));
+        ctx.stroke_line(x, db_to_y(0.0), x + w, db_to_y(0.0), true);
 
         ctx.stroke_style([255, 215, 0]);
         ctx.line_width(2.0);
@@ -177,7 +177,7 @@ impl NodeLogic for FilterNode {
             let px_x = x + px as f32;
             let px_y = db_to_y(db);
             if let Some((lx, ly)) = prev {
-                ctx.stroke_line(lx, ly, px_x, px_y);
+                ctx.stroke_line(lx, ly, px_x, px_y, true);
             }
             prev = Some((px_x, px_y));
         }
