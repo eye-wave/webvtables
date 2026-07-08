@@ -36,17 +36,28 @@ pub use str::*;
 pub extern "C" fn init() {
     let s = state();
 
-    // heap-allocated once here instead of a static array, to keep it out of the binary.
     s.buffers = Some(alloc::vec![ZERO_BUFFER; MAX_NODES].into_boxed_slice());
 
-    s.nodes[0] = Node::new(NodeKind::BasicShapes, 40.0, 40.0);
-    s.nodes[1] = Node::new(NodeKind::Output, 340.0, 40.0);
-
-    s.nodes[0].params[0].as_mut().unwrap().set_value_norm(1.0);
+    let _ = s.nodes.push(Node::new(NodeKind::BasicShapes, 240.0, 240.0));
+    let _ = s.nodes.push(Node::new(NodeKind::Output, 500.0, 240.0));
 
     s.node_count = 2;
 
-    s.links[0] = Some(Link::new(0, 0, 1, 0));
+    let _ = s.links.push(Link::new(0, 0, 1, 0));
+
+    let mut text = FixedStr::new();
+    text.push_str("Play");
+    let btn = Button {
+        x: 5.0,
+        y: 5.0,
+        w: 50.0,
+        h: 20.0,
+        color: [240, 80, 90],
+        txt_color: [255, 255, 255],
+        text,
+    };
+
+    let _ = s.buttons.push(btn);
 
     s.version += 1;
     render();
@@ -80,10 +91,10 @@ pub extern "C" fn render() {
     let ctx = drawbuf();
     ctx.begin_frame();
 
-    for (i, slot) in s.links.iter().enumerate() {
-        if let Some(link) = slot {
-            link.draw(i, s, ctx);
-        }
+    Background.draw(0, s, ctx);
+
+    for (i, link) in s.links.iter().enumerate() {
+        link.draw(i, s, ctx);
     }
 
     if let Some((from, from_socket)) = s.pending_link_from {
@@ -105,6 +116,11 @@ pub extern "C" fn render() {
 
     CameraWidget.draw(0, s, ctx);
     Header.draw(0, s, ctx);
+
+    for (i, btn) in s.buttons.iter().enumerate() {
+        btn.draw(i, s, ctx);
+    }
+
     KeyframeRuler.draw(0, s, ctx);
     KeyframeLanes.draw(0, s, ctx);
 

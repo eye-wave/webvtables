@@ -1,5 +1,6 @@
 use crate::ffi;
 
+#[derive(Clone)]
 pub struct FixedStr<const N: usize> {
     buf: [u8; N],
     len: usize,
@@ -12,7 +13,7 @@ impl<const N: usize> Default for FixedStr<N> {
 }
 
 impl<const N: usize> FixedStr<N> {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             buf: [0; N],
             len: 0,
@@ -35,6 +36,18 @@ impl<const N: usize> FixedStr<N> {
         let end = (self.len + bytes.len()).min(N);
         self.buf[self.len..end].copy_from_slice(&bytes[..end - self.len]);
         self.len = end;
+    }
+
+    pub fn clear(&mut self) {
+        self.len = 0;
+    }
+
+    pub fn push_raw(&mut self, bytes: &[u8]) {
+        for (i, b) in bytes.iter().take(N).enumerate() {
+            self.buf[i] = *b;
+        }
+
+        self.len = bytes.len();
     }
 
     pub fn push_int(&mut self, mut v: i32) {

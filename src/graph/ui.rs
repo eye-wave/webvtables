@@ -1,7 +1,5 @@
-use crate::{
-    FixedStr,
-    draw::{Draw, camera},
-};
+use crate::FixedStr;
+use crate::draw::{Color, Direction, Draw, camera};
 
 pub const HEADER_HEIGHT: f32 = 45.0;
 
@@ -54,16 +52,91 @@ impl Draw for KeyframeRuler {
 
 pub struct KeyframeLanes;
 
+const KEYFRAME_LANE_HEIGHT: f32 = 50.0;
+
 impl Draw for KeyframeLanes {
     fn draw(&self, _i: usize, s: &super::GraphState, ctx: &mut crate::draw::DrawBuf) {
         let view_h = s.viewport.1;
         let y = view_h * KEYFRAME_POS_PERCENT + 25.0;
 
-        ctx.fill_style([40, 40, 40]);
+        let gap = KEYFRAME_LANE_HEIGHT;
 
-        for i in 0..10 {
-            let y = y + (i as f32 * 42.0);
-            ctx.fill_rect(260.0, y, 2000.0, 40.0, false);
-        }
+        ctx.fill_style([20, 20, 20]);
+        ctx.fill_rect(0.0, y, s.viewport.0, s.viewport.1 - y, false);
+
+        ctx.fill_style([180, 50, 60]);
+        ctx.fill_rect(0.0, y, 200.0, s.viewport.1 - y, false);
+
+        ctx.stroke_style([45, 45, 45]);
+        ctx.stroke_line_repeated(
+            0.0,
+            y + gap,
+            s.viewport.0,
+            y + gap,
+            8,
+            gap,
+            Direction::Vertical,
+            false,
+        );
+    }
+}
+
+#[derive(Clone)]
+pub struct Button {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    pub color: Color,
+    pub txt_color: Color,
+    pub text: FixedStr<12>,
+}
+
+impl Draw for Button {
+    fn draw(&self, _i: usize, _s: &super::GraphState, ctx: &mut crate::draw::DrawBuf) {
+        ctx.fill_style(self.color);
+        ctx.fill_rect(self.x, self.y, self.w, self.h, false);
+
+        ctx.fill_style(self.txt_color);
+        ctx.fill_text(self.text.as_str(), 13.0, self.x + 5.0, self.y + 14.0, false);
+    }
+}
+
+pub struct Background;
+
+impl Draw for Background {
+    fn draw(&self, _i: usize, s: &super::GraphState, ctx: &mut crate::draw::DrawBuf) {
+        let c = camera();
+
+        const GAP: f32 = 200.0;
+
+        let x = -c.x + (c.x % GAP) - GAP;
+        let y = -c.y + (c.y % GAP) - GAP;
+
+        let repeat_x = (s.viewport.0 / c.zoom / GAP) as u16 + 3;
+        let repeat_y = (s.viewport.1 / c.zoom / GAP) as u16 + 3;
+
+        ctx.stroke_style([35, 35, 35]);
+
+        ctx.stroke_line_repeated(
+            x,
+            y,
+            x,
+            y + (s.viewport.1 / c.zoom) + GAP * 2.0,
+            repeat_x,
+            GAP,
+            Direction::Horizontal,
+            true,
+        );
+        ctx.stroke_line_repeated(
+            x,
+            y,
+            x + (s.viewport.0 / c.zoom) + GAP * 2.0,
+            y,
+            repeat_y,
+            GAP,
+            Direction::Vertical,
+            true,
+        );
     }
 }

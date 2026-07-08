@@ -1,12 +1,14 @@
 //! Opcode layout
-//!   1  FillStyle    u8 r, u8 g, u8 b
-//!   2  StrokeStyle  u8 r, u8 g, u8 b
-//!   3  LineWidth    f32 w
-//!   4  FillRect     f32 x, y, w, h
-//!   5  FillCircle   f32 x, y, r
-//!   6  StrokeLine   f32 x1, y1, x2, y2
-//!   7  FillText     f32 size, x, y, u16 len, [u8; len] utf8
-//!   8  FillWave     f32 x, y, w, h, *const u8 ptr
+//!   1  FillStyle           u8 r, u8 g, u8 b
+//!   2  StrokeStyle         u8 r, u8 g, u8 b
+//!   3  LineWidth           f32 w
+//!   4  FillRect            f32 x, y, w, h
+//!   5  FillCircle          f32 x, y, r
+//!   6  StrokeLine          f32 x1, y1, x2, y2
+//!   7  FillText            f32 size, x, y, u16 len, [u8; len] utf8
+//!   8  FillWave            f32 x, y, w, h, *const u8 ptr
+//!   9  FillRectRepeated    f32 x, y, w, h, u16 count, f32 gap, u8 direction
+//!  10  StrokeLineRepeated  f32 x1, y1, x2, y2, u16 count, f32 gap, u8 direction
 
 use alloc::vec::Vec;
 
@@ -28,6 +30,15 @@ enum Op {
     StrokeLine = 6,
     FillText = 7,
     FillWave = 8,
+    StrokeLineRepeated = 9,
+}
+
+#[allow(unused)]
+#[repr(u8)]
+#[derive(Clone, Copy)]
+pub enum Direction {
+    Horizontal = 0,
+    Vertical = 1,
 }
 
 pub trait Draw {
@@ -134,6 +145,27 @@ impl DrawBuf {
         self.push_f32(cam_s(w, with_cam));
         self.push_f32(cam_s(h, with_cam));
         self.push_u32(buf.as_ptr() as u32);
+    }
+
+    pub fn stroke_line_repeated(
+        &mut self,
+        x1: f32,
+        y1: f32,
+        x2: f32,
+        y2: f32,
+        count: u16,
+        gap: f32,
+        direction: Direction,
+        with_cam: bool,
+    ) {
+        self.push_u8(Op::StrokeLineRepeated as u8);
+        self.push_f32(cam_x(x1, with_cam));
+        self.push_f32(cam_y(y1, with_cam));
+        self.push_f32(cam_x(x2, with_cam));
+        self.push_f32(cam_y(y2, with_cam));
+        self.push_u16(count);
+        self.push_f32(cam_s(gap, with_cam));
+        self.push_u8(direction as u8);
     }
 
     pub fn as_ptr_len(&self) -> (*const u8, usize) {

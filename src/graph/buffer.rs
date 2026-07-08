@@ -24,11 +24,8 @@ fn eval_node(s: &mut GraphState, idx: usize, done: &mut [bool; MAX_NODES]) {
     done[idx] = true;
 
     let mut sources: [Option<usize>; MAX_NODE_INPUTS] = [None; MAX_NODE_INPUTS];
-    for slot in s.links.iter() {
-        if let Some(l) = slot
-            && l.to == idx
-            && l.to_socket < MAX_NODE_INPUTS
-        {
+    for l in s.links.iter() {
+        if l.to == idx && l.to_socket < MAX_NODE_INPUTS {
             sources[l.to_socket] = Some(l.from);
         }
     }

@@ -51,13 +51,11 @@ pub fn find_hovered_link(s: &GraphState, sx: f32, sy: f32) -> Option<usize> {
     let c = camera();
     let (x, y) = c.to_world(sx, sy);
 
-    for (i, slot) in s.links.iter().enumerate() {
-        if let Some(l) = slot {
-            let (fx, fy) = output_pos(&s.nodes[l.from], l.from_socket);
-            let (tx, ty) = input_pos(&s.nodes[l.to], l.to_socket);
-            if point_segment_dist2(x, y, fx, fy, tx, ty) <= LINK_HIT_DIST2 {
-                return Some(i);
-            }
+    for (i, l) in s.links.iter().enumerate() {
+        let (fx, fy) = output_pos(&s.nodes[l.from], l.from_socket);
+        let (tx, ty) = input_pos(&s.nodes[l.to], l.to_socket);
+        if point_segment_dist2(x, y, fx, fy, tx, ty) <= LINK_HIT_DIST2 {
+            return Some(i);
         }
     }
     None

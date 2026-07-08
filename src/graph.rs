@@ -1,4 +1,5 @@
 use alloc::boxed::Box;
+use heapless::vec::Vec;
 
 mod buffer;
 mod link;
@@ -34,14 +35,15 @@ mod consts {
 pub use consts::*;
 
 pub struct GraphState {
-    pub nodes: [Node; MAX_NODES],
+    pub nodes: Vec<Node, MAX_NODES>,
     pub node_count: usize,
-    pub links: [Option<Link>; MAX_LINKS],
+    pub links: Vec<Link, MAX_LINKS>,
     pub dragging_node: Option<usize>,
     pub drag_offset: (f32, f32),
     pub dragging_param: Option<(usize, usize)>,
     pub drag_param_start_y: f32,
     pub drag_param_start_value: f64,
+    pub buttons: Vec<Button, 2>,
     pub pending_link_from: Option<(usize, usize)>,
     pub hovered_link: Option<usize>,
     pub hovered_socket: Option<SocketRef>,
@@ -60,14 +62,15 @@ pub struct GraphState {
 }
 
 static mut STATE: GraphState = GraphState {
-    nodes: [EMPTY_NODE; MAX_NODES],
+    nodes: Vec::new(),
     node_count: 0,
-    links: [None; MAX_LINKS],
+    links: Vec::new(),
     dragging_node: None,
     drag_offset: (0.0, 0.0),
     dragging_param: None,
     drag_param_start_y: 0.0,
     drag_param_start_value: 0.0,
+    buttons: Vec::new(),
     pending_link_from: None,
     hovered_link: None,
     hovered_socket: None,
@@ -97,11 +100,8 @@ pub fn creates_cycle(s: &GraphState, from: usize, to: usize) -> bool {
         if cur == from {
             return true;
         }
-        for slot in s.links.iter() {
-            if let Some(l) = slot
-                && l.from == cur
-                && !visited[l.to]
-            {
+        for l in s.links.iter() {
+            if l.from == cur && !visited[l.to] {
                 visited[l.to] = true;
                 stack[sp] = l.to;
                 sp += 1;

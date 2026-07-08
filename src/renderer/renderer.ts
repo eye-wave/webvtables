@@ -1,4 +1,4 @@
-const BUFFER_LEN = 2048;
+export const BUFFER_LEN = 2048;
 
 const enum Op {
   FillStyle = 1,
@@ -9,6 +9,7 @@ const enum Op {
   StrokeLine = 6,
   FillText = 7,
   FillWave = 8,
+  StrokeLineRepeated = 9,
 }
 
 export interface Renderer {
@@ -21,6 +22,14 @@ export interface Renderer {
   fillCircle(x: number, y: number, r: number): void;
   strokeLine(x1: number, y1: number, x2: number, y2: number): void;
   fillText(text: string, size: number, x: number, y: number): void;
+  /** Draws BUFFER_LEN samples in [-1,1] as a waveform inside x,y,w,h. */
+  fillWave(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    samples: Float32Array,
+  ): void;
   endFrame(): void;
 }
 
@@ -106,35 +115,24 @@ export function executeDrawBuffer(
         p += 20;
 
         const buf = new Float32Array(mem.buffer, ptr, BUFFER_LEN);
+        r.fillWave(x, y, w, h, buf);
+        break;
+      }
+      case Op.StrokeLineRepeated: {
+        const x1 = view.getFloat32(p, true);
+        const y1 = view.getFloat32(p + 4, true);
+        const x2 = view.getFloat32(p + 8, true);
+        const y2 = view.getFloat32(p + 12, true);
+        const count = view.getUint16(p + 16, true);
+        const gap = view.getFloat32(p + 18, true);
+        const dir = view.getUint8(p + 22);
+        p += 23;
 
-        const step = w / (BUFFER_LEN - 1);
-        const mid = y + h * 0.5;
-        const scale = h * 0.5;
-
-        const minY = y;
-        const maxY = y + h;
-
-        for (let i = 0; i < BUFFER_LEN - 1; i++) {
-          const s1 = buf[i];
-          const s2 = buf[i + 1];
-
-          const clipped = s1 > 1 || s1 < -1 || s2 > 1 || s2 < -1;
-
-          if (clipped) {
-            r.setStrokeStyle(255, 60, 60);
-          } else {
-            r.setStrokeStyle(120, 200, 255);
-          }
-
-          const x1 = x + i * step;
-          const x2 = x + (i + 1) * step;
-
-          const y1 = Math.max(minY, Math.min(maxY, mid - s1 * scale));
-          const y2 = Math.max(minY, Math.min(maxY, mid - s2 * scale));
-
-          r.strokeLine(x1, y1, x2, y2);
+        for (let i = 0; i < count; i++) {
+          const dx = dir === 0 ? i * gap : 0;
+          const dy = dir === 1 ? i * gap : 0;
+          r.strokeLine(x1 + dx, y1 + dy, x2 + dx, y2 + dy);
         }
-
         break;
       }
       default:

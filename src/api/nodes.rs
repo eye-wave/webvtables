@@ -1,3 +1,5 @@
+use heapless::Vec;
+
 use crate::console_print;
 use crate::graph::*;
 use crate::render;
@@ -27,23 +29,6 @@ pub extern "C" fn max_links() -> usize {
     MAX_LINKS
 }
 
-// Packed as (present << 31) | (from << 24) | (from_socket << 16) | (to << 8)
-// | to_socket - avoids needing multi-value returns across the FFI boundary.
-// `slot` ranges over 0..max_links().
-#[unsafe(no_mangle)]
-pub extern "C" fn link_at(slot: usize) -> u32 {
-    match state().links[slot] {
-        Some(l) => {
-            0x8000_0000
-                | ((l.from as u32) << 24)
-                | ((l.from_socket as u32) << 16)
-                | ((l.to as u32) << 8)
-                | (l.to_socket as u32)
-        }
-        None => 0,
-    }
-}
-
 #[unsafe(no_mangle)]
 pub extern "C" fn graph_version() -> u32 {
     state().version
@@ -63,26 +48,28 @@ fn reindex_after_removal(idx: usize, target: usize) -> Option<usize> {
 pub extern "C" fn remove_node(target_idx: usize) {
     let s = state();
 
-    if target_idx >= s.node_count {
+    if target_idx >= s.nodes.len() {
         return;
     }
 
-    // clear out links touching the removed node, reindex the rest
-    for slot in s.links.iter_mut() {
-        if let Some(l) = slot {
-            if l.from == target_idx || l.to == target_idx {
-                *slot = None;
-            } else {
-                l.from -= (l.from > target_idx) as usize;
-                l.to -= (l.to > target_idx) as usize;
-            }
+    // Drop links touching the removed node, reindex the rest. `links` is now
+    // a dense Vec (no Option holes), so we rebuild it rather than nulling slots.
+    let old_links = core::mem::replace(&mut s.links, Vec::new());
+    for mut l in old_links {
+        if l.from == target_idx || l.to == target_idx {
+            continue;
         }
+        l.from -= (l.from > target_idx) as usize;
+        l.to -= (l.to > target_idx) as usize;
+        // Can't exceed original capacity since we only ever remove entries.
+        let _ = s.links.push(l);
     }
 
-    // shift the remaining nodes down to fill the gap
-    for i in target_idx..(s.node_count - 1) {
+    // shift the remaining nodes down to fill the gap, then drop the tail slot
+    for i in target_idx..(s.nodes.len() - 1) {
         s.nodes[i] = s.nodes[i + 1];
     }
+    s.nodes.pop();
     s.node_count -= 1;
 
     // reindex (or drop) any in-flight interaction pointing at shifted nodes
@@ -104,12 +91,9 @@ pub extern "C" fn remove_node(target_idx: usize) {
 pub extern "C" fn remove_all_nodes() {
     let s = state();
 
-    s.nodes = [EMPTY_NODE; MAX_NODES];
+    s.nodes.clear();
     s.node_count = 0;
-
-    for slot in s.links.iter_mut() {
-        *slot = None;
-    }
+    s.links.clear();
 
     s.dragging_node = None;
     s.dragging_param = None;
@@ -131,7 +115,7 @@ pub extern "C" fn remove_all_nodes() {
 pub unsafe extern "C" fn add_node(x: f32, y: f32, name_ptr: *const u8, name_len: usize) -> isize {
     let s = state();
 
-    if s.node_count >= MAX_NODES {
+    if s.nodes.is_full() {
         console_print!("Error: Maximum node capacity reached.");
         return -1;
     }
@@ -158,8 +142,11 @@ pub unsafe extern "C" fn add_node(x: f32, y: f32, name_ptr: *const u8, name_len:
         }
     };
 
-    let new_idx = s.node_count;
-    s.nodes[new_idx] = Node::new(kind, x, y);
+    let new_idx = s.nodes.len();
+    if s.nodes.push(Node::new(kind, x, y)).is_err() {
+        console_print!("Error: Maximum node capacity reached.");
+        return -1;
+    }
     s.node_count += 1;
 
     s.version += 1;

@@ -32,6 +32,10 @@ macro_rules! define_nodes {
                     const NODES: &[NodeKind] = &[$(NodeKind::$variant),+];
                     NODES.iter()
                 }
+
+                pub const fn count() -> usize {
+                    [$(stringify!($variant)),+].len()
+                }
             }
         }
     };
@@ -276,14 +280,6 @@ impl Node {
         self.y + Self::HEADER_H + (param_count as f32 * Self::PARAM_H) + 6.0
     }
 }
-
-pub const EMPTY_NODE: Node = Node {
-    x: 0.0,
-    y: 0.0,
-    kind: NodeKind::Output,
-    params: [None; MAX_PARAMS],
-    state: [0.0; MAX_NODE_STATE],
-};
 
 impl Draw for Node {
     fn draw(&self, i: usize, s: &GraphState, ctx: &mut DrawBuf) {

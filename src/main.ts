@@ -1,6 +1,7 @@
 import {
   HitType,
   loadWasm,
+  makeBtnTextSetter,
   makeBuf32Reader,
   makeStrReader,
   unpackBuffer,
@@ -37,6 +38,7 @@ async function init() {
   let logBuffer = "";
   let readStr: (ptr: number, len: number) => string;
   let readBuf32: (ptr: number, len: number) => Float32Array;
+  let setBtnText: (idx: usize, text: string) => void;
 
   let exports: WasmExports;
 
@@ -63,6 +65,22 @@ async function init() {
       logBuffer = "";
     },
 
+    click_btn: async (id: usize) => {
+      if (id === 0) {
+        if (player.status === "uninitialized") {
+          await player.initialize();
+          exports.render();
+        }
+
+        if (player.status === "paused") {
+          player.resume();
+          setBtnText(0 as usize, "Pause");
+        } else {
+          player.pause();
+          setBtnText(0 as usize, "Play");
+        }
+      }
+    },
     open_context_menu: (x: f32, y: f32, raw_hit: u32) => {
       const hit = unpackHitResult(raw_hit);
       openMenu(x, y, hit);
@@ -101,6 +119,7 @@ async function init() {
 
   readStr = makeStrReader(exports);
   readBuf32 = makeBuf32Reader(exports);
+  setBtnText = makeBtnTextSetter(exports);
 
   exports.iter_all_nodes();
 
@@ -145,21 +164,6 @@ async function init() {
   );
 
   exports.init();
-
-  // play_btn.onclick = async () => {
-  //   if (player.status === "uninitialized") {
-  //     await player.initialize();
-  //     exports.render();
-  //   }
-
-  //   if (player.status === "paused") {
-  //     player.resume();
-  //     play_btn.textContent = "Pause";
-  //   } else {
-  //     player.pause();
-  //     play_btn.textContent = "Play";
-  //   }
-  // };
 
   function onCanvasResize() {
     exports.on_resize(window.innerWidth, window.innerHeight);

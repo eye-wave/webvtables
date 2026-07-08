@@ -11,6 +11,7 @@ license = "GPL-3.0-or-later"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+heapless = "0.9.3"
 microfft = { version = "0.6.0", default-features = false, features = [
   "size-4096",
 ] }

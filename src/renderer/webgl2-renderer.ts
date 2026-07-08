@@ -1,8 +1,11 @@
 import type { Renderer } from "./renderer";
+import { BUFFER_LEN } from "./renderer";
 import VERTEX_SRC from "./shader-vert.glsl";
 import FRAGMENT_SRC from "./shader-frag.glsl";
 import TEXT_VERT_SRC from "./glyph-vert.glsl";
 import TEXT_FRAG_SRC from "./glyph-frag.glsl";
+import WAVE_VERT_SRC from "./wave-vert.glsl";
+import WAVE_FRAG_SRC from "./wave-frag.glsl";
 
 const FLOATS_PER_INSTANCE = 10;
 const INITIAL_CAPACITY = 1024;
@@ -88,6 +91,16 @@ interface TextInstance {
   z: number;
 }
 
+interface WaveInstance {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  z: number;
+  lineWidth: number;
+  samples: Float32Array;
+}
+
 function createOffscreenMeasureCtx(): CanvasRenderingContext2D {
   const c = document.createElement("canvas");
   const ctx = c.getContext("2d");
@@ -120,6 +133,21 @@ export class WebGL2Renderer implements Renderer {
   private glyphCache = new Map<string, GlyphEntry>();
   private textInstances: TextInstance[] = [];
   private measureCtx: CanvasRenderingContext2D;
+
+  // Waveform pipeline: one instanced draw call per waveform, geometry built
+  // on the GPU from a sample texture (gl_InstanceID + texelFetch) instead of
+  // pushing BUFFER_LEN-1 line instances from JS every frame.
+  private waveProgram: WebGLProgram;
+  private waveVao: WebGLVertexArrayObject;
+  private waveTex: WebGLTexture;
+  private waveUResolution: WebGLUniformLocation;
+  private waveUOrigin: WebGLUniformLocation;
+  private waveUSize: WebGLUniformLocation;
+  private waveUZ: WebGLUniformLocation;
+  private waveULineWidth: WebGLUniformLocation;
+  private waveUSampler: WebGLUniformLocation;
+  private waveUCount: WebGLUniformLocation;
+  private waveInstances: WaveInstance[] = [];
 
   constructor(
     private gl: WebGL2RenderingContext,
@@ -185,6 +213,44 @@ export class WebGL2Renderer implements Renderer {
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     this.textVao = textVao;
 
+    // Waveform pipeline: reuses the same unit-quad geometry, instanced by
+    // gl_InstanceID with per-segment data pulled from a sample texture.
+    const waveProgram = link(gl, WAVE_VERT_SRC, WAVE_FRAG_SRC);
+    this.waveProgram = waveProgram;
+    this.waveUResolution = gl.getUniformLocation(waveProgram, "uResolution")!;
+    this.waveUOrigin = gl.getUniformLocation(waveProgram, "uOrigin")!;
+    this.waveUSize = gl.getUniformLocation(waveProgram, "uSize")!;
+    this.waveUZ = gl.getUniformLocation(waveProgram, "uZ")!;
+    this.waveULineWidth = gl.getUniformLocation(waveProgram, "uLineWidth")!;
+    this.waveUSampler = gl.getUniformLocation(waveProgram, "uSamples")!;
+    this.waveUCount = gl.getUniformLocation(waveProgram, "uCount")!;
+
+    const waveVao = gl.createVertexArray()!;
+    gl.bindVertexArray(waveVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    this.waveVao = waveVao;
+
+    const waveTex = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, waveTex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.R32F,
+      BUFFER_LEN,
+      1,
+      0,
+      gl.RED,
+      gl.FLOAT,
+      null,
+    );
+    this.waveTex = waveTex;
+
     gl.bindVertexArray(null);
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
@@ -202,6 +268,7 @@ export class WebGL2Renderer implements Renderer {
     this.count = 0;
     this.nextZ = 0;
     this.textInstances = [];
+    this.waveInstances = [];
     const { gl } = this;
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -334,6 +401,19 @@ export class WebGL2Renderer implements Renderer {
     });
   }
 
+  fillWave(x: number, y: number, w: number, h: number, samples: Float32Array) {
+    const z = 1 - this.nextZ++ / 1_000_000;
+    this.waveInstances.push({
+      x,
+      y,
+      w,
+      h,
+      z,
+      lineWidth: this.lineW,
+      samples: samples.slice(),
+    });
+  }
+
   endFrame() {
     const { gl } = this;
 
@@ -348,6 +428,34 @@ export class WebGL2Renderer implements Renderer {
       );
       gl.uniform2f(this.uResolution, this.width, this.height);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.count);
+    }
+
+    if (this.waveInstances.length > 0) {
+      gl.useProgram(this.waveProgram);
+      gl.bindVertexArray(this.waveVao);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, this.waveTex);
+      gl.uniform1i(this.waveUSampler, 0);
+      gl.uniform2f(this.waveUResolution, this.width, this.height);
+      gl.uniform1i(this.waveUCount, BUFFER_LEN);
+      for (const wv of this.waveInstances) {
+        gl.texSubImage2D(
+          gl.TEXTURE_2D,
+          0,
+          0,
+          0,
+          BUFFER_LEN,
+          1,
+          gl.RED,
+          gl.FLOAT,
+          wv.samples,
+        );
+        gl.uniform2f(this.waveUOrigin, wv.x, wv.y);
+        gl.uniform2f(this.waveUSize, wv.w, wv.h);
+        gl.uniform1f(this.waveUZ, wv.z);
+        gl.uniform1f(this.waveULineWidth, wv.lineWidth);
+        gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, BUFFER_LEN - 1);
+      }
     }
 
     if (this.textInstances.length > 0) {

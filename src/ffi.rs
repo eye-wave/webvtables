@@ -51,6 +51,7 @@ wasm_imports! {
     fn log2f(x: f32) -> f32;
     fn log10f(x: f32) -> f32;
 
+    fn click_btn(id: usize);
     fn open_context_menu(x:f32,y:f32,hit:u32);
     fn open_node_picker(x:f32,y:f32);
     fn push_node_name(title: *const u8, len: usize, category: *const u8, len2: usize);

@@ -10,6 +10,7 @@ pub enum HitType {
     Empty = 0,
     Node = 1,
     Link = 2,
+    Btn = 3,
 }
 
 impl HitType {
@@ -39,6 +40,13 @@ impl HitResult {
     fn link(id: u16) -> Self {
         Self {
             kind: HitType::Link,
+            id,
+            _sub_id: -1,
+        }
+    }
+    fn btn(id: u16) -> Self {
+        Self {
+            kind: HitType::Btn,
             id,
             _sub_id: -1,
         }
@@ -86,7 +94,14 @@ pub extern "C" fn on_mouse_down(sx: f32, sy: f32, button: i8) -> u32 {
 
     let (x, y) = c.to_world(sx, sy);
 
-    for i in 0..s.node_count {
+    for (i, b) in s.buttons.iter().enumerate() {
+        if point_in_rect(sx, sy, b.x, b.y, b.w, b.h) {
+            ffi::click_btn(i);
+            return HitResult::btn(i as u16).into_u32();
+        }
+    }
+
+    for i in 0..s.nodes.len() {
         let n = &s.nodes[i];
         for o in 0..n.kind.output_count() {
             let (ox, oy) = output_pos(n, o);
@@ -98,7 +113,7 @@ pub extern "C" fn on_mouse_down(sx: f32, sy: f32, button: i8) -> u32 {
         }
     }
 
-    for i in (0..s.node_count).rev() {
+    for i in (0..s.nodes.len()).rev() {
         let n = s.nodes[i];
 
         if let Some(p) = param_hit(&n, x, y) {
@@ -121,7 +136,7 @@ pub extern "C" fn on_mouse_down(sx: f32, sy: f32, button: i8) -> u32 {
     }
 
     if let Some(i) = find_hovered_link(s, x, y) {
-        s.links[i] = None;
+        s.links.remove(i);
         s.hovered_link = None;
         s.version += 1;
         console_print!("removed link ", i);
@@ -154,12 +169,19 @@ pub extern "C" fn get_cursor_kind(sx: f32, sy: f32) -> CursorKind {
     if s.dragging_node.is_some() || s.dragging_param.is_some() {
         return CursorKind::Grabbing;
     }
-    for i in 0..s.node_count {
-        let n = s.nodes[i];
-        if header_hit(&n, x, y) || param_hit(&n, x, y).is_some() {
+
+    for n in s.nodes.iter() {
+        if header_hit(n, x, y) || param_hit(n, x, y).is_some() {
             return CursorKind::Grab;
         }
     }
+
+    for b in s.buttons.iter() {
+        if point_in_rect(sx, sy, b.x, b.y, b.w, b.h) {
+            return CursorKind::Pointer;
+        }
+    }
+
     if find_hovered_link(s, x, y).is_some() {
         return CursorKind::Pointer;
     }
@@ -196,16 +218,10 @@ pub extern "C" fn on_mouse_move(sx: f32, sy: f32, alt_key: bool) {
         }
     }
 
-    let mouse_over_any_node = (0..s.node_count).any(|i| {
-        point_in_rect(
-            x,
-            y,
-            s.nodes[i].x,
-            s.nodes[i].y,
-            Node::W,
-            s.nodes[i].height(),
-        )
-    });
+    let mouse_over_any_node = s
+        .nodes
+        .iter()
+        .any(|n| point_in_rect(x, y, n.x, n.y, Node::W, n.height()));
 
     s.hovered_link =
         if s.dragging_node.is_none() && s.pending_link_from.is_none() && !mouse_over_any_node {
@@ -265,30 +281,27 @@ pub extern "C" fn on_mouse_up(sx: f32, sy: f32) {
     s.is_panning = false;
 
     if let Some((from, from_socket)) = s.pending_link_from {
-        'search: for j in 0..s.node_count {
+        'search: for j in 0..s.nodes.len() {
             let n = &s.nodes[j];
             for to_socket in 0..n.kind.input_count() {
                 let (ix, iy) = input_pos(n, to_socket);
                 if dist2(x, y, ix, iy) <= SOCKET_HIT_R2 {
                     if is_valid_target(s, from, j) {
-                        for slot in s.links.iter_mut() {
-                            if matches!(slot, Some(l) if l.to == j && l.to_socket == to_socket) {
-                                *slot = None;
-                            }
-                        }
+                        s.links.retain(|l| !(l.to == j && l.to_socket == to_socket));
 
-                        for slot in s.links.iter_mut() {
-                            if slot.is_none() {
-                                *slot = Some(Link {
-                                    from,
-                                    from_socket,
-                                    to: j,
-                                    to_socket,
-                                });
-                                s.version += 1;
-                                console_print!("linked node ", from, " -> ", j);
-                                break;
-                            }
+                        if s.links
+                            .push(Link {
+                                from,
+                                from_socket,
+                                to: j,
+                                to_socket,
+                            })
+                            .is_ok()
+                        {
+                            s.version += 1;
+                            console_print!("linked node ", from, " -> ", j);
+                        } else {
+                            console_print!("link capacity reached");
                         }
                     } else {
                         console_print!("rejected link ", from, " -> ", j);
@@ -344,4 +357,26 @@ pub extern "C" fn get_world_pos(sx: f32, sy: f32) -> u64 {
 
     let (x, y) = c.to_world(sx, sy);
     pack_f32_pair(x, y)
+}
+
+static mut BTN_TEXT_BUFFER: [u8; 12] = [0; 12];
+
+#[unsafe(no_mangle)]
+pub extern "C" fn get_btn_text_buffer() -> *mut u8 {
+    unsafe { BTN_TEXT_BUFFER.as_mut_ptr() }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn write_btn_text(idx: usize, text_len: usize) {
+    let s = state();
+    let Some(btn) = s.buttons.get_mut(idx) else {
+        return;
+    };
+
+    let byte_len = text_len.min(12);
+
+    btn.text.clear();
+    btn.text.push_raw(unsafe { &BTN_TEXT_BUFFER[0..byte_len] });
+
+    unsafe { BTN_TEXT_BUFFER.fill(0) };
 }

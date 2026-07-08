@@ -43,7 +43,6 @@ export type WasmExports = {
   graph_version: () => u32;
   init: () => void;
   iter_all_nodes: () => void;
-  link_at: (slot: usize) => u32;
   max_links: () => usize;
   node_average_pos: () => u64;
   node_count: () => usize;
@@ -63,6 +62,8 @@ export type WasmExports = {
   render: () => void;
   serialize_graph: () => u64;
   set_camera: (x: f32, y: f32, zoom: number) => void;
+  get_btn_text_buffer: () => mut_u8;
+  write_btn_text: (idx: usize, text_len: usize) => void;
 
   memory: WebAssembly.Memory;
 };
@@ -113,6 +114,18 @@ export function makeBuf32Reader(exports: WasmExports) {
       ptr,
       len / Float32Array.BYTES_PER_ELEMENT,
     );
+}
+
+export function makeBtnTextSetter(exports: WasmExports) {
+  return (idx: usize, text: string) => {
+    const ptr = exports.get_btn_text_buffer();
+
+    const textBuf = new Uint8Array(exports.memory.buffer, ptr, 12);
+    const tBytes = new TextEncoder().encode(text);
+    textBuf.set(tBytes);
+
+    exports.write_btn_text(idx, Math.min(tBytes.length, 12) as usize);
+  };
 }
 
 export async function loadWasm(
