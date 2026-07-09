@@ -42,10 +42,11 @@ export type WasmExports = {
   get_btn_text_buffer: () => mut_u8;
   get_cursor_kind: (x: f32, y: f32) => u8;
   get_generated_frame: () => u64;
+  get_node_names: () => const_u32;
+  get_node_type_count: () => usize;
   get_world_pos: (sx: f32, sy: f32) => u64;
   graph_version: () => u32;
   init: () => void;
-  iter_all_nodes: () => void;
   max_links: () => usize;
   node_count: () => usize;
   node_kind: (i: usize) => u8;
@@ -99,9 +100,16 @@ export function unpackHitResult(packedHit: u32): HitType {
   };
 }
 
+export function readStr(
+  mem: WebAssembly.Memory,
+  ptr: number,
+  len: number,
+): string {
+  return new TextDecoder().decode(new Uint8Array(mem.buffer, ptr, len));
+}
+
 export function makeStrReader(exports: WasmExports) {
-  return (ptr: number, len: number) =>
-    new TextDecoder().decode(new Uint8Array(exports.memory.buffer, ptr, len));
+  return (ptr: number, len: number) => readStr(exports.memory, ptr, len);
 }
 
 export function makeBufReader(exports: WasmExports) {
@@ -136,4 +144,39 @@ export async function loadWasm(
   const resp = await fetch(wasmUrl);
   const { instance } = await WebAssembly.instantiateStreaming(resp, { env });
   return instance.exports as unknown as WasmExports;
+}
+
+export function getNodeNames(
+  mem: WebAssembly.Memory,
+  ptr: number,
+  count: number,
+): Record<string, RawStr[]> {
+  const result: Record<string, RawStr[]> = {};
+
+  const MAX_CATEGORIES = 4;
+  const STRIDE = 2 + MAX_CATEGORIES * 2;
+
+  const view = new Uint32Array(mem.buffer, ptr, count * STRIDE);
+
+  for (let i = 0; i < count * STRIDE; i += STRIDE) {
+    const title: RawStr = {
+      ptr: view[i] as const_u8,
+      len: view[i + 1] as usize,
+    };
+
+    const catStartIndex = i + 2;
+
+    for (let j = 0; j < MAX_CATEGORIES * 2; j += 2) {
+      const catPtr = view[catStartIndex + j];
+      const catLen = view[catStartIndex + j + 1];
+
+      if (catLen === 0) continue;
+
+      const catStr = readStr(mem, catPtr, catLen);
+      if (!result[catStr]) result[catStr] = [];
+      result[catStr].push(title);
+    }
+  }
+
+  return result;
 }

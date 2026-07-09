@@ -9,6 +9,7 @@ declare global {
   type i32 = number & { __brand: "i32" };
   type u16 = number & { __brand: "u16" };
   type u32 = number & { __brand: "u32" };
+  type const_u32 = number & { __brand: "const_u32" };
   type u64 = bigint & { __brand: "u64" };
   type f32 = number & { __brand: "f32" };
   type f64 = number & { __brand: "f64" };

@@ -199,3 +199,38 @@ pub extern "C" fn set_node_value(node_id: usize, param_id: usize, val_denorm: f6
     param.set_value_denorm(val_denorm);
     render();
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn get_node_type_count() -> usize {
+    NodeKind::count()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn get_node_names() -> *const u32 {
+    const STRIDE: usize = 2 + 2 * MAX_CATEGORIES;
+    const BUF_SIZE: usize = NodeKind::count() * STRIDE;
+
+    static mut MAIN_BUF: [u32; BUF_SIZE] = [0; BUF_SIZE];
+
+    unsafe {
+        for (slot, node) in MAIN_BUF.chunks_exact_mut(STRIDE).zip(NodeKind::iter()) {
+            let title = node.title();
+            slot[0] = title.as_ptr() as u32;
+            slot[1] = title.len() as u32;
+
+            let cat_slots = &mut slot[2..];
+            cat_slots.fill(0);
+
+            for (chunk, cat) in cat_slots
+                .chunks_exact_mut(2)
+                .zip(node.as_node().category().iter())
+            {
+                let cat_str = cat.as_str();
+                chunk[0] = cat_str.as_ptr() as u32;
+                chunk[1] = cat_str.len() as u32;
+            }
+        }
+
+        MAIN_BUF.as_ptr()
+    }
+}

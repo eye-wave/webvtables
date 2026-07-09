@@ -52,10 +52,10 @@ wasm_imports! {
     fn log2f(x: f32) -> f32;
     fn log10f(x: f32) -> f32;
 
-    fn open_float_param(node_id:usize,param_id:usize,x:f32,y:f32,w:f32,h:f32,zoom:f32,value:f64,min:f64,max:f64);
+    fn open_float_param(ptr: *const u8);
+    fn open_enum_param(ptr: *const u8,len: usize);
     fn click_btn(id: usize);
     fn open_context_menu(x:f32,y:f32,hit:u32);
     fn open_node_picker(x:f32,y:f32);
-    fn push_node_name(title: *const u8, len: usize, category: *const u8, len2: usize);
     fn draw_flush(ptr: *const u8, len: usize);
 }

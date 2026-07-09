@@ -76,6 +76,8 @@ pub mod node_colors {
     pub const EFFECT: Color = [75, 180, 100];
 }
 
+pub const MAX_CATEGORIES: usize = 4;
+
 pub enum NodeCategory {
     Fft,
     Inputs,

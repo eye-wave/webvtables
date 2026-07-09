@@ -62,19 +62,6 @@ pub extern "C" fn init() {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn iter_all_nodes() {
-    for node in NodeKind::iter() {
-        let title = node.title();
-
-        for cat in node.as_node().category() {
-            let cat = cat.as_str();
-
-            ffi::push_node_name(title.as_ptr(), title.len(), cat.as_ptr(), cat.len());
-        }
-    }
-}
-
-#[unsafe(no_mangle)]
 pub extern "C" fn render() {
     let s = state();
     s.viewport_bounds = (

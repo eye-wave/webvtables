@@ -89,6 +89,71 @@ fn sym_exp(val: f64) -> f64 {
     val.signum() * (ffi::exp(val.abs()) - 1.0)
 }
 
+struct ParamWidget {
+    node_id: usize,
+    param_id: usize,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    zoom: f32,
+    value: f64,
+}
+
+impl ParamWidget {
+    fn fill_buf(&self, buffer: &mut [u8]) {
+        buffer[0..4].copy_from_slice(&(self.node_id as u32).to_le_bytes());
+        buffer[4..8].copy_from_slice(&(self.param_id as u32).to_le_bytes());
+
+        buffer[8..12].copy_from_slice(&self.x.to_le_bytes());
+        buffer[12..16].copy_from_slice(&self.y.to_le_bytes());
+        buffer[16..20].copy_from_slice(&self.w.to_le_bytes());
+        buffer[20..24].copy_from_slice(&self.h.to_le_bytes());
+        buffer[24..28].copy_from_slice(&self.zoom.to_le_bytes());
+
+        buffer[28..36].copy_from_slice(&self.value.to_le_bytes());
+    }
+}
+
+enum ParamWidgetType {
+    Number {
+        inner: ParamWidget,
+        min: f64,
+        max: f64,
+    },
+    Enum {
+        inner: ParamWidget,
+        ptr: u32,
+        len: usize,
+    },
+}
+
+impl ParamWidgetType {
+    pub fn open_widget(&self) {
+        match self {
+            Self::Number { inner, min, max } => {
+                let mut buffer = [0u8; 52];
+
+                inner.fill_buf(&mut buffer);
+
+                buffer[36..44].copy_from_slice(&(min).to_le_bytes());
+                buffer[44..52].copy_from_slice(&(max).to_le_bytes());
+
+                ffi::open_float_param(buffer.as_ptr());
+            }
+            Self::Enum { inner, ptr, len } => {
+                let mut buffer = [0u8; 40];
+
+                inner.fill_buf(&mut buffer);
+
+                buffer[36..40].copy_from_slice(&(*ptr as usize).to_le_bytes());
+
+                ffi::open_enum_param(buffer.as_ptr(), *len);
+            }
+        }
+    }
+}
+
 impl Param {
     pub fn new_linear(name: &'static str, r_min: f64, r_max: f64) -> Self {
         Self {
@@ -170,51 +235,55 @@ impl Param {
         h: f32,
         zoom: f32,
     ) {
+        let inner = ParamWidget {
+            node_id,
+            param_id,
+            x,
+            y,
+            w,
+            h,
+            zoom,
+            value: 0.0,
+        };
+
         match self.inner {
-            ParamTypes::Int(p) => {
-                ffi::open_float_param(
-                    node_id,
-                    param_id,
-                    x,
-                    y,
-                    w,
-                    h,
-                    zoom,
-                    self.denorm(),
-                    p.r_min as f64,
-                    p.r_max as f64,
-                );
+            ParamTypes::Int(p) => ParamWidgetType::Number {
+                inner: ParamWidget {
+                    value: self.denorm(),
+                    ..inner
+                },
+                min: p.r_min as f64,
+                max: p.r_max as f64,
             }
-            ParamTypes::Linear(p) => {
-                ffi::open_float_param(
-                    node_id,
-                    param_id,
-                    x,
-                    y,
-                    w,
-                    h,
-                    zoom,
-                    self.denorm(),
-                    p.r_min,
-                    p.r_max,
-                );
+            .open_widget(),
+            ParamTypes::Linear(p) => ParamWidgetType::Number {
+                inner: ParamWidget {
+                    value: self.denorm(),
+                    ..inner
+                },
+                min: p.r_min,
+                max: p.r_max,
             }
-            ParamTypes::Log(p) => {
-                ffi::open_float_param(
-                    node_id,
-                    param_id,
-                    x,
-                    y,
-                    w,
-                    h,
-                    zoom,
-                    self.denorm(),
-                    p.denormalize(0.0),
-                    p.denormalize(1.0),
-                );
+            .open_widget(),
+            ParamTypes::Log(p) => ParamWidgetType::Number {
+                inner: ParamWidget {
+                    value: self.denorm(),
+                    ..inner
+                },
+                min: p.denormalize(0.0),
+                max: p.denormalize(1.0),
             }
-            ParamTypes::Enum(_) => {}
-        }
+            .open_widget(),
+            ParamTypes::Enum(p) => ParamWidgetType::Enum {
+                inner: ParamWidget {
+                    value: self.denorm(),
+                    ..inner
+                },
+                len: p.data.len(),
+                ptr: (p.data.as_ptr() as u32),
+            }
+            .open_widget(),
+        };
     }
 
     pub fn with_unit(mut self, unit: &'static str) -> Self {
@@ -477,7 +546,7 @@ impl ParamLogic for EnumParam {
             return 0.0;
         }
 
-        denorm / self.data.len() as f64
+        denorm / self.last_index()
     }
     fn drag_range_px(&self) -> f64 {
         const PX_PER_STEP: f64 = 12.0;

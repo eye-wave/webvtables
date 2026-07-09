@@ -1,4 +1,5 @@
 import {
+  getNodeNames,
   HitType,
   loadWasm,
   makeBtnTextSetter,
@@ -18,16 +19,14 @@ import { player } from "./audio/engine";
 import { math_ffi } from "./wasm/math";
 import {
   hideInputs,
-  open_float_param,
+  openEnumParam,
+  openFloatParam,
   registerParamInputs,
 } from "./param-input";
 
 declare const viewport: HTMLDivElement;
 declare const canvas_graph: HTMLCanvasElement;
 declare const webgl_warning: HTMLDivElement;
-
-declare const param_n_input: HTMLInputElement;
-declare const param_e_input: HTMLInputElement;
 
 const CURSORS = ["default", "grab", "grabbing", "pointer"];
 
@@ -52,8 +51,6 @@ async function init() {
 
   let exports: WasmExports;
 
-  const nodeNames: Record<string, RawStr[]> = {};
-
   let openMenu: (x: f32, y: f32, hit: HitType) => void;
   let openPicker: (x: f32, y: f32) => void;
 
@@ -75,7 +72,12 @@ async function init() {
       logBuffer = "";
     },
 
-    open_float_param,
+    open_float_param(ptr: const_u8) {
+      openFloatParam(exports.memory, ptr);
+    },
+    open_enum_param(ptr: const_u8, len: usize) {
+      openEnumParam(exports.memory, ptr, len);
+    },
 
     click_btn: async (id: usize) => {
       if (id === 0) {
@@ -100,17 +102,6 @@ async function init() {
     open_node_picker: (x: f32, y: f32) => {
       openPicker(x, y);
     },
-    push_node_name: (
-      ptr: const_u8,
-      len: usize,
-      ptr2: const_u8,
-      len2: usize,
-    ) => {
-      const category = readStr(ptr2, len2);
-
-      if (!nodeNames[category]) nodeNames[category] = [];
-      nodeNames[category].push({ ptr, len });
-    },
 
     draw_flush(ptr: const_u8, len: usize) {
       const fatptr = exports.get_generated_frame();
@@ -133,7 +124,11 @@ async function init() {
   readBuf32 = makeBuf32Reader(exports);
   setBtnText = makeBtnTextSetter(exports);
 
-  exports.iter_all_nodes();
+  const nodeNames = getNodeNames(
+    exports.memory,
+    exports.get_node_names(),
+    exports.get_node_type_count(),
+  );
 
   openMenu = registerContextMenu(exports, nodeNames);
   openPicker = registerNodePicker(exports, nodeNames);
