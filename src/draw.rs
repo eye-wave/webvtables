@@ -7,8 +7,9 @@
 //!   6  StrokeLine          f32 x1, y1, x2, y2
 //!   7  FillText            f32 size, x, y, u16 len, [u8; len] utf8
 //!   8  FillWave            f32 x, y, w, h, *const u8 ptr
-//!   9  FillRectRepeated    f32 x, y, w, h, u16 count, f32 gap, u8 direction
-//!  10  StrokeLineRepeated  f32 x1, y1, x2, y2, u16 count, f32 gap, u8 direction
+//!   9  StrokeLineRepeated  f32 x1, y1, x2, y2, u16 count, f32 gap, u8 direction
+//!  10  StrokeArc           f32 x, y, r, start_angle, end_angle
+//!
 
 use alloc::vec::Vec;
 
@@ -31,6 +32,7 @@ enum Op {
     FillText = 7,
     FillWave = 8,
     StrokeLineRepeated = 9,
+    StrokeArc = 10,
 }
 
 #[allow(unused)]
@@ -167,6 +169,23 @@ impl DrawBuf {
         self.push_u16(count);
         self.push_f32(cam_s(gap, with_cam));
         self.push_u8(direction as u8);
+    }
+
+    pub fn stroke_arc(
+        &mut self,
+        x: f32,
+        y: f32,
+        r: f32,
+        start_angle: f32,
+        end_angle: f32,
+        with_cam: bool,
+    ) {
+        self.push_u8(Op::StrokeArc as u8);
+        self.push_f32(cam_x(x, with_cam));
+        self.push_f32(cam_y(y, with_cam));
+        self.push_f32(cam_s(r, with_cam));
+        self.push_f32(start_angle);
+        self.push_f32(end_angle);
     }
 
     pub fn as_ptr_len(&self) -> (*const u8, usize) {

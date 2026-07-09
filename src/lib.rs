@@ -47,7 +47,7 @@ pub extern "C" fn init() {
     text.push_str("Play");
     let btn = Button {
         x: 5.0,
-        y: 5.0,
+        y: 10.0,
         w: 50.0,
         h: 20.0,
         color: [240, 80, 90],
@@ -56,6 +56,20 @@ pub extern "C" fn init() {
     };
 
     let _ = s.buttons.push(btn);
+    let _ = s.knobs.push(Knob {
+        x: 90.0,
+        y: 15.0,
+        r: 13.0,
+        color: [140, 200, 140],
+        param: Param::new_linear("", 0.0, 100.0).with_unit("%"),
+    });
+    let _ = s.knobs.push(Knob {
+        x: 160.0,
+        y: 15.0,
+        r: 13.0,
+        color: [140, 200, 200],
+        param: Param::new_log("", 10.0, 12000.0).with_unit("hz"),
+    });
 
     s.version += 1;
     render();
@@ -104,6 +118,10 @@ pub extern "C" fn render() {
 
     for (i, btn) in s.buttons.iter().enumerate() {
         btn.draw(i, s, ctx);
+    }
+
+    for (i, knob) in s.knobs.iter().enumerate() {
+        knob.draw(i, s, ctx);
     }
 
     KeyframeRuler.draw(0, s, ctx);

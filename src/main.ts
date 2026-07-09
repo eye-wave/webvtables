@@ -7,7 +7,6 @@ import {
   makeStrReader,
   unpackBuffer,
   unpackHitResult,
-  type RawStr,
   type WasmExports,
 } from "./wasm";
 import { executeDrawBuffer, type Renderer } from "./renderer/renderer";
@@ -54,6 +53,8 @@ async function init() {
   let openMenu: (x: f32, y: f32, hit: HitType) => void;
   let openPicker: (x: f32, y: f32) => void;
 
+  const virtualPos: [f32, f32] = [0 as f32, 0 as f32];
+
   const wasm_ffi = {
     log_str(ptr: const_u8, len: usize) {
       logBuffer += readStr(ptr, len);
@@ -72,11 +73,34 @@ async function init() {
       logBuffer = "";
     },
 
+    capture_mouse() {
+      canvas_graph.requestPointerLock();
+    },
+
+    release_mouse() {
+      document.exitPointerLock();
+    },
+
     open_float_param(ptr: const_u8) {
       openFloatParam(exports.memory, ptr);
     },
     open_enum_param(ptr: const_u8, len: usize) {
       openEnumParam(exports.memory, ptr, len);
+    },
+
+    drag_knob(id: usize, value: number) {
+      if (id === 0)
+        try {
+          player.volume.setValueAtTime(value / 100, 0);
+        } catch {
+          player._cached_vol = value / 100;
+        }
+      else if (id === 1)
+        try {
+          player.frequency.setValueAtTime(value, 0);
+        } catch {
+          player._cached_freq = value;
+        }
     },
 
     click_btn: async (id: usize) => {
@@ -154,17 +178,7 @@ async function init() {
     (cb: (x: f32, y: f32, btn: i8) => void) => (e: MouseLikeEvent) =>
       cb(...posFromEvent(e), (e.button ?? -1) as i8);
 
-  const touchWrap =
-    (cb: (x: f32, y: f32, ...args: any[]) => void, ...extraArgs: any[]) =>
-    (e: TouchEvent) => {
-      const touches = e.touches.length > 0 ? e.touches : e.changedTouches;
-      if (!touches || touches.length === 0) return;
-
-      cb(...posFromEvent(touches[0]), ...extraArgs);
-    };
-
   window.onmouseup = mouseWrap(exports.on_mouse_up);
-  window.ontouchend = touchWrap(exports.on_mouse_up, -1);
 
   canvas_graph.onmousedown = (e) => {
     const pos = posFromEvent(e);
@@ -174,21 +188,18 @@ async function init() {
   canvas_graph.ondblclick = mouseWrap(exports.on_dbl_click);
   canvas_graph.oncontextmenu = prevDef(mouseWrap(exports.on_context_menu));
   canvas_graph.onmousemove = (e) => {
-    const pos = posFromEvent(e);
+    const pos = (
+      document.pointerLockElement === canvas_graph
+        ? [virtualPos[0] + e.movementX, virtualPos[1] + e.movementY]
+        : posFromEvent(e)
+    ) as [f32, f32];
+
+    virtualPos[0] = pos[0];
+    virtualPos[1] = pos[1];
+
     exports.on_mouse_move(...pos, e.altKey);
     canvas_graph.style.cursor = CURSORS[exports.get_cursor_kind(...pos)];
   };
-
-  canvas_graph.addEventListener(
-    "touchstart",
-    prevDef(touchWrap(exports.on_mouse_down, -1, false)),
-    { passive: false },
-  );
-  canvas_graph.addEventListener(
-    "touchmove",
-    prevDef(touchWrap(exports.on_mouse_move, false)),
-    { passive: false },
-  );
 
   canvas_graph.addEventListener(
     "wheel",

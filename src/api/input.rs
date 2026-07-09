@@ -1,6 +1,6 @@
 use crate::api::nodes::pack_f32_pair;
 use crate::draw::{cam_s, camera};
-use crate::geom::{dist2, point_in_rect};
+use crate::geom::{Interactive, dist2, point_in_rect};
 use crate::{console_print, graph::*};
 use crate::{ffi, render};
 
@@ -11,6 +11,7 @@ pub enum HitType {
     Node = 1,
     Link = 2,
     Btn = 3,
+    Knob = 4,
 }
 
 impl HitType {
@@ -18,6 +19,8 @@ impl HitType {
         match v {
             1 => Self::Node,
             2 => Self::Link,
+            3 => Self::Btn,
+            4 => Self::Knob,
             _ => Self::Empty,
         }
     }
@@ -47,6 +50,13 @@ impl HitResult {
     fn btn(id: u16) -> Self {
         Self {
             kind: HitType::Btn,
+            id,
+            _sub_id: -1,
+        }
+    }
+    fn knob(id: u16) -> Self {
+        Self {
+            kind: HitType::Knob,
             id,
             _sub_id: -1,
         }
@@ -95,9 +105,20 @@ pub extern "C" fn on_mouse_down(sx: f32, sy: f32, button: i8, ctrl_key: bool) ->
     let (x, y) = c.to_world(sx, sy);
 
     for (i, b) in s.buttons.iter().enumerate() {
-        if point_in_rect(sx, sy, b.x, b.y, b.w, b.h) {
+        if b.contains(sx, sy) {
             ffi::click_btn(i);
             return HitResult::btn(i as u16).into_u32();
+        }
+    }
+
+    for (i, k) in s.knobs.iter().enumerate() {
+        if k.contains(sx, sy) {
+            s.dragging_knob = Some(i);
+            s.drag_knob_start_y = sy;
+            s.drag_knob_start_value = k.param.value() as f32;
+            ffi::capture_mouse();
+
+            return HitResult::knob(i as u16).into_u32();
         }
     }
 
@@ -142,7 +163,7 @@ pub extern "C" fn on_mouse_down(sx: f32, sy: f32, button: i8, ctrl_key: bool) ->
             return HitResult::node(i as u16, -1).into_u32();
         }
 
-        if point_in_rect(x, y, n.x, n.y, Node::W, n.height()) {
+        if n.contains(x, y) {
             return HitResult::node(i as u16, -1).into_u32();
         }
     }
@@ -178,7 +199,7 @@ pub extern "C" fn get_cursor_kind(sx: f32, sy: f32) -> CursorKind {
 
     let (x, y) = c.to_world(sx, sy);
 
-    if s.dragging_node.is_some() || s.dragging_param.is_some() {
+    if s.dragging_node.is_some() || s.dragging_param.is_some() || s.dragging_knob.is_some() {
         return CursorKind::Grabbing;
     }
 
@@ -189,8 +210,14 @@ pub extern "C" fn get_cursor_kind(sx: f32, sy: f32) -> CursorKind {
     }
 
     for b in s.buttons.iter() {
-        if point_in_rect(sx, sy, b.x, b.y, b.w, b.h) {
+        if b.contains(sx, sy) {
             return CursorKind::Pointer;
+        }
+    }
+
+    for b in s.knobs.iter() {
+        if b.contains(sx, sy) {
+            return CursorKind::Grab;
         }
     }
 
@@ -215,6 +242,18 @@ pub extern "C" fn on_mouse_move(sx: f32, sy: f32, alt_key: bool) {
         return;
     }
 
+    if let Some(idx) = s.dragging_knob
+        && let Some(knob) = s.knobs.get_mut(idx)
+    {
+        let delta = s.drag_knob_start_y - sy;
+        knob.drag_to(s.drag_knob_start_value, delta);
+        render();
+
+        ffi::drag_knob(idx, knob.param.denorm());
+
+        return;
+    }
+
     let (x, y) = c.to_world(sx, sy);
     s.mouse = (x, y);
 
@@ -230,10 +269,7 @@ pub extern "C" fn on_mouse_move(sx: f32, sy: f32, alt_key: bool) {
         }
     }
 
-    let mouse_over_any_node = s
-        .nodes
-        .iter()
-        .any(|n| point_in_rect(x, y, n.x, n.y, Node::W, n.height()));
+    let mouse_over_any_node = s.nodes.iter().any(|n| n.contains(x, y));
 
     s.hovered_link =
         if s.dragging_node.is_none() && s.pending_link_from.is_none() && !mouse_over_any_node {
@@ -274,6 +310,18 @@ pub extern "C" fn on_dbl_click(x: f32, y: f32, button: i8) {
             render();
             return;
         }
+    }
+
+    if let HitType::Knob = hit.kind
+        && let Some(knob) = s.knobs.get_mut(hit.id as usize)
+    {
+        knob.reset_to_default();
+        s.dragging_knob = None;
+        ffi::release_mouse();
+
+        s.version += 1;
+        render();
+        return;
     }
 
     if let HitType::Empty = hit.kind
@@ -326,6 +374,10 @@ pub extern "C" fn on_mouse_up(sx: f32, sy: f32) {
     s.pending_link_from = None;
     s.dragging_node = None;
     s.dragging_param = None;
+    if s.dragging_knob.is_some() {
+        s.dragging_knob = None;
+        ffi::release_mouse();
+    }
     render();
 }
 

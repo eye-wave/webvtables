@@ -1,5 +1,9 @@
 use crate::FixedStr;
 use crate::draw::{Color, Direction, Draw, camera};
+use crate::ffi::{cosf, sinf};
+use crate::geom::Interactive;
+use crate::graph::Param;
+use core::f32::consts::PI;
 
 pub const HEADER_HEIGHT: f32 = 45.0;
 
@@ -67,6 +71,7 @@ impl Draw for KeyframeLanes {
         ctx.fill_style([180, 50, 60]);
         ctx.fill_rect(0.0, y, 200.0, s.viewport.1 - y, false);
 
+        ctx.line_width(1.0);
         ctx.stroke_style([45, 45, 45]);
         ctx.stroke_line_repeated(
             0.0,
@@ -92,6 +97,12 @@ pub struct Button {
     pub text: FixedStr<12>,
 }
 
+impl Interactive for Button {
+    fn rect(&self) -> (f32, f32, f32, f32) {
+        (self.x, self.y, self.w, self.h)
+    }
+}
+
 impl Draw for Button {
     fn draw(&self, _i: usize, _s: &super::GraphState, ctx: &mut crate::draw::DrawBuf) {
         ctx.fill_style(self.color);
@@ -99,6 +110,83 @@ impl Draw for Button {
 
         ctx.fill_style(self.txt_color);
         ctx.fill_text(self.text.as_str(), 13.0, self.x + 5.0, self.y + 14.0, false);
+    }
+}
+
+#[derive(Clone)]
+pub struct Knob {
+    pub x: f32,
+    pub y: f32,
+    pub r: f32,
+    pub color: Color,
+    pub param: Param,
+}
+
+impl Knob {
+    const START_ANGLE: f32 = 0.75 * PI;
+    const SWEEP: f32 = 1.5 * PI;
+
+    const DRAG_RANGE_PX: f32 = 150.0;
+
+    fn value_angle(&self) -> f32 {
+        Self::START_ANGLE + Self::SWEEP * self.param.value().clamp(0.0, 1.0) as f32
+    }
+
+    pub fn drag_to(&mut self, start_value: f32, delta_px: f32) {
+        self.param
+            .set_value_norm((start_value + delta_px / Self::DRAG_RANGE_PX).clamp(0.0, 1.0) as f64);
+    }
+
+    pub fn reset_to_default(&mut self) {
+        self.param.reset_to_default();
+    }
+}
+
+impl Interactive for Knob {
+    fn rect(&self) -> (f32, f32, f32, f32) {
+        (self.x - self.r, self.y - self.r, self.r * 2.0, self.r * 2.0)
+    }
+}
+
+impl Draw for Knob {
+    fn draw(&self, _i: usize, _s: &super::GraphState, ctx: &mut crate::draw::DrawBuf) {
+        ctx.line_width(3.0);
+
+        ctx.stroke_style([60, 60, 66]);
+        ctx.stroke_arc(
+            self.x,
+            self.y,
+            self.r,
+            Self::START_ANGLE,
+            Self::START_ANGLE + Self::SWEEP,
+            false,
+        );
+
+        ctx.stroke_style(self.color);
+        ctx.stroke_arc(
+            self.x,
+            self.y,
+            self.r,
+            Self::START_ANGLE,
+            self.value_angle(),
+            false,
+        );
+
+        let angle = self.value_angle();
+        ctx.stroke_style([230, 230, 230]);
+        ctx.line_width(2.0);
+        ctx.stroke_line(
+            self.x,
+            self.y,
+            self.x + cosf(angle) * self.r * 0.8,
+            self.y + sinf(angle) * self.r * 0.8,
+            false,
+        );
+
+        let mut vbuf: FixedStr<16> = FixedStr::new();
+        self.param.format_value(&mut vbuf);
+
+        ctx.fill_text(vbuf.as_str(), 13.0, self.x - 20.0, self.y + 20.0, false);
     }
 }
 
@@ -116,6 +204,7 @@ impl Draw for Background {
         let repeat_x = (s.viewport.0 / c.zoom / GAP) as u16 + 3;
         let repeat_y = (s.viewport.1 / c.zoom / GAP) as u16 + 3;
 
+        ctx.line_width((2.0 * c.zoom).min(1.0));
         ctx.stroke_style([35, 35, 35]);
 
         ctx.stroke_line_repeated(

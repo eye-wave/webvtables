@@ -52,10 +52,15 @@ wasm_imports! {
     fn log2f(x: f32) -> f32;
     fn log10f(x: f32) -> f32;
 
+    fn click_btn(id: usize);
+    fn drag_knob(id:usize,value:f64);
+
     fn open_float_param(ptr: *const u8);
     fn open_enum_param(ptr: *const u8,len: usize);
-    fn click_btn(id: usize);
     fn open_context_menu(x:f32,y:f32,hit:u32);
     fn open_node_picker(x:f32,y:f32);
     fn draw_flush(ptr: *const u8, len: usize);
+
+    fn capture_mouse();
+    fn release_mouse();
 }

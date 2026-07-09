@@ -1,5 +1,6 @@
 use crate::FixedStr;
 use crate::draw::{Color, Draw, DrawBuf};
+use crate::geom::Interactive;
 use crate::graph::output_pos;
 
 use super::consts::*;
@@ -280,6 +281,14 @@ impl Node {
     fn wave_y(&self) -> f32 {
         let param_count = self.params.iter().flatten().count();
         self.y + Self::HEADER_H + (param_count as f32 * Self::PARAM_H) + 6.0
+    }
+}
+
+impl Interactive for Node {
+    /// Whole-body rect (used for drag pickup / hover checks; header and
+    /// param rows have their own tighter hit tests in api/input.rs).
+    fn rect(&self) -> (f32, f32, f32, f32) {
+        (self.x, self.y, Self::W, self.height())
     }
 }
 
