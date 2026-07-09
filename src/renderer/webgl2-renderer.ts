@@ -8,6 +8,8 @@ import WAVE_VERT_SRC from "./wave-vert.glsl";
 import WAVE_FRAG_SRC from "./wave-frag.glsl";
 import REPEAT_LINE_VERT_SRC from "./repeat-line-vert.glsl";
 import REPEAT_LINE_FRAG_SRC from "./repeat-line-frag.glsl";
+import POLY_VERT_SRC from "./poly-vert.glsl";
+import POLY_FRAG_SRC from "./poly-frag.glsl";
 
 const FLOATS_PER_INSTANCE = 13;
 const INITIAL_CAPACITY = 1024;
@@ -103,6 +105,13 @@ interface WaveInstance {
   samples: Float32Array;
 }
 
+interface PolyInstance {
+  points: Float32Array;
+  count: number;
+  z: number;
+  color: [number, number, number];
+}
+
 interface RepeatLineInstance {
   x1: number;
   y1: number;
@@ -176,6 +185,19 @@ export class WebGL2Renderer implements Renderer {
   private repeatLineUColor: WebGLUniformLocation;
   private repeatLineUZ: WebGLUniformLocation;
   private repeatLineInstances: RepeatLineInstance[] = [];
+
+  // Polygon-fill pipeline for fillPoints: not instanced, raw vertex
+  // positions per call, drawn as a triangle fan.
+  // fan triangulation only renders correctly for convex (or star-shaped from
+  // vertex 0) polygons; swap in a real triangulator (e.g. earcut) if
+  // concave input shows up.
+  private polyProgram: WebGLProgram;
+  private polyVao: WebGLVertexArrayObject;
+  private polyBuf: WebGLBuffer;
+  private polyUResolution: WebGLUniformLocation;
+  private polyUColor: WebGLUniformLocation;
+  private polyUZ: WebGLUniformLocation;
+  private polyInstances: PolyInstance[] = [];
 
   constructor(
     private gl: WebGL2RenderingContext,
@@ -309,6 +331,24 @@ export class WebGL2Renderer implements Renderer {
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     this.repeatLineVao = repeatLineVao;
 
+    // Polygon-fill pipeline: own small VAO/buffer, vertex data uploaded
+    // fresh per fillPoints call (variable vertex count, unlike the other
+    // pipelines' fixed unit-quad geometry).
+    const polyProgram = link(gl, POLY_VERT_SRC, POLY_FRAG_SRC);
+    this.polyProgram = polyProgram;
+    this.polyUResolution = gl.getUniformLocation(polyProgram, "uResolution")!;
+    this.polyUColor = gl.getUniformLocation(polyProgram, "uColor")!;
+    this.polyUZ = gl.getUniformLocation(polyProgram, "uZ")!;
+
+    const polyVao = gl.createVertexArray()!;
+    gl.bindVertexArray(polyVao);
+    const polyBuf = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, polyBuf);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    this.polyVao = polyVao;
+    this.polyBuf = polyBuf;
+
     gl.bindVertexArray(null);
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
@@ -328,6 +368,7 @@ export class WebGL2Renderer implements Renderer {
     this.textInstances = [];
     this.waveInstances = [];
     this.repeatLineInstances = [];
+    this.polyInstances = [];
     const { gl } = this;
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -454,6 +495,30 @@ export class WebGL2Renderer implements Renderer {
       lineWidth: this.lineW,
       color: this.stroke,
     });
+  }
+
+  fillPoints(points: Float32Array, count: number) {
+    if (count < 3) return;
+    const z = 1 - this.nextZ++ / 1_000_000;
+    this.polyInstances.push({
+      points: points.slice(0, count * 2),
+      count,
+      z,
+      color: this.fill,
+    });
+  }
+
+  strokePoints(points: Float32Array, count: number) {
+    // Rides the existing batched line-instance pipeline segment by segment
+    // instead of adding a new draw path.
+    for (let i = 0; i < count - 1; i++) {
+      this.strokeLine(
+        points[i * 2],
+        points[i * 2 + 1],
+        points[i * 2 + 2],
+        points[i * 2 + 3],
+      );
+    }
   }
 
   private getGlyphEntry(text: string, size: number): GlyphEntry {
@@ -603,6 +668,19 @@ export class WebGL2Renderer implements Renderer {
         );
         gl.uniform1f(this.repeatLineUZ, rl.z);
         gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, rl.count);
+      }
+    }
+
+    if (this.polyInstances.length > 0) {
+      gl.useProgram(this.polyProgram);
+      gl.bindVertexArray(this.polyVao);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.polyBuf);
+      gl.uniform2f(this.polyUResolution, this.width, this.height);
+      for (const poly of this.polyInstances) {
+        gl.bufferData(gl.ARRAY_BUFFER, poly.points, gl.DYNAMIC_DRAW);
+        gl.uniform3f(this.polyUColor, ...poly.color);
+        gl.uniform1f(this.polyUZ, poly.z);
+        gl.drawArrays(gl.TRIANGLE_FAN, 0, poly.count);
       }
     }
 

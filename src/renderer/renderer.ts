@@ -11,6 +11,8 @@ const enum Op {
   FillWave = 8,
   StrokeLineRepeated = 9,
   StrokeArc = 10,
+  FillPoints = 11,
+  StrokePoints = 12,
 }
 
 export interface Renderer {
@@ -44,6 +46,10 @@ export interface Renderer {
     maxAngle: number,
   ): void;
   fillText(text: string, size: number, x: number, y: number): void;
+  /** Fills the polygon whose `count` vertices are the (x,y) pairs in `points`. */
+  fillPoints(points: Float32Array, count: number): void;
+  /** Strokes the open polyline through the `count` vertices in `points`. */
+  strokePoints(points: Float32Array, count: number): void;
   /** Draws BUFFER_LEN samples in [-1,1] as a waveform inside x,y,w,h. */
   fillWave(
     x: number,
@@ -151,6 +157,20 @@ export function executeDrawBuffer(
         p += 23;
 
         r.strokeLineRepeated(x1, y1, x2, y2, count, gap, dir);
+        break;
+      }
+      case Op.FillPoints: {
+        const ptr = view.getUint32(p, true);
+        const count = view.getUint16(p + 4, true);
+        p += 6;
+        r.fillPoints(new Float32Array(mem.buffer, ptr, count * 2), count);
+        break;
+      }
+      case Op.StrokePoints: {
+        const ptr = view.getUint32(p, true);
+        const count = view.getUint16(p + 4, true);
+        p += 6;
+        r.strokePoints(new Float32Array(mem.buffer, ptr, count * 2), count);
         break;
       }
       case Op.StrokeArc: {

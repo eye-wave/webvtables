@@ -79,6 +79,25 @@ export class Canvas2DRenderer implements Renderer {
     this.ctx.fillText(text, x, y);
   }
 
+  fillPoints(points: Float32Array, count: number) {
+    if (count < 3) return;
+    const { ctx } = this;
+    ctx.beginPath();
+    ctx.moveTo(points[0], points[1]);
+    for (let i = 1; i < count; i++) ctx.lineTo(points[i * 2], points[i * 2 + 1]);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  strokePoints(points: Float32Array, count: number) {
+    if (count < 2) return;
+    const { ctx } = this;
+    ctx.beginPath();
+    ctx.moveTo(points[0], points[1]);
+    for (let i = 1; i < count; i++) ctx.lineTo(points[i * 2], points[i * 2 + 1]);
+    ctx.stroke();
+  }
+
   fillWave(x: number, y: number, w: number, h: number, samples: Float32Array) {
     const { ctx } = this;
 
