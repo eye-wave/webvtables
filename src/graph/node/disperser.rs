@@ -27,7 +27,7 @@ impl NodeLogic for DisperserNode {
     }
 
     fn default_params(&self) -> [Option<Param>; crate::graph::MAX_PARAMS] {
-        crate::params![Param::new_linear("Exponent", -10.0, 10.0)]
+        crate::params![Param::new_linear("Exponent", -10.0, 10.0).with_default_denorm(0.0)]
     }
 
     fn process(

@@ -13,6 +13,8 @@ const enum Op {
   StrokeArc = 10,
   FillPoints = 11,
   StrokePoints = 12,
+  FillPointsRef = 13,
+  StrokePointsRef = 14,
 }
 
 export interface Renderer {
@@ -160,13 +162,33 @@ export function executeDrawBuffer(
         break;
       }
       case Op.FillPoints: {
+        const count = view.getUint16(p, true);
+        p += 2;
+        const points = new Float32Array(count * 2);
+        for (let i = 0; i < points.length; i++, p += 4) {
+          points[i] = view.getFloat32(p, true);
+        }
+        r.fillPoints(points, count);
+        break;
+      }
+      case Op.StrokePoints: {
+        const count = view.getUint16(p, true);
+        p += 2;
+        const points = new Float32Array(count * 2);
+        for (let i = 0; i < points.length; i++, p += 4) {
+          points[i] = view.getFloat32(p, true);
+        }
+        r.strokePoints(points, count);
+        break;
+      }
+      case Op.FillPointsRef: {
         const ptr = view.getUint32(p, true);
         const count = view.getUint16(p + 4, true);
         p += 6;
         r.fillPoints(new Float32Array(mem.buffer, ptr, count * 2), count);
         break;
       }
-      case Op.StrokePoints: {
+      case Op.StrokePointsRef: {
         const ptr = view.getUint32(p, true);
         const count = view.getUint16(p + 4, true);
         p += 6;

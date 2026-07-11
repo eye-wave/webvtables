@@ -27,7 +27,7 @@ impl NodeLogic for SyncWarpNode {
         crate::params![
             Param::new_linear("Multiply", 0.0, 50.0)
                 .with_unit("x")
-                .with_default_denormf(1.0)
+                .with_default_denorm(1.0)
         ]
     }
 

@@ -302,7 +302,7 @@ impl Param {
         self
     }
 
-    pub fn with_default_denormf(mut self, v: f64) -> Self {
+    pub fn with_default_denorm(mut self, v: f64) -> Self {
         self.inner.set_denorm(v);
         self.default = self.inner.value();
         self

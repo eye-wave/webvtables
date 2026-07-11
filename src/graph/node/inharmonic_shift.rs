@@ -22,7 +22,7 @@ impl NodeLogic for InharmonicShiftNode {
     }
 
     fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
-        crate::params![Param::new_log("Shift", -20.0, 512.0).with_default_denormf(0.0)]
+        crate::params![Param::new_log("Shift", -20.0, 512.0).with_default_denorm(0.0)]
     }
 
     /*

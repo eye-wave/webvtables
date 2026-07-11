@@ -12,6 +12,7 @@ pub enum HitType {
     Link = 2,
     Btn = 3,
     Knob = 4,
+    Keyframe = 5,
 }
 
 impl HitType {
@@ -21,6 +22,7 @@ impl HitType {
             2 => Self::Link,
             3 => Self::Btn,
             4 => Self::Knob,
+            5 => Self::Knob,
             _ => Self::Empty,
         }
     }
@@ -61,6 +63,13 @@ impl HitResult {
             _sub_id: -1,
         }
     }
+    fn keyframe(id: u16, param_id: i8) -> Self {
+        Self {
+            kind: HitType::Keyframe,
+            id,
+            _sub_id: param_id,
+        }
+    }
     fn empty() -> Self {
         Self {
             kind: HitType::Empty,
@@ -82,18 +91,24 @@ impl HitResult {
     }
 }
 
-/// Node header-bar rect hit test. Shared by mouse-down and cursor-kind queries.
+/// Node header-bar rect hit test
 fn header_hit(n: &Node, x: f32, y: f32) -> bool {
     point_in_rect(x, y, n.x, n.y, Node::W, Node::HEADER_H)
 }
 
-/// Index of the param whose value box contains (x, y), if any. `p` here is a
-/// raw index into `n.params`, matching the convention used by
-/// `node_param_value` elsewhere - params are assumed packed with no gaps.
+/// Node param rect hit test
 fn param_hit(n: &Node, x: f32, y: f32) -> Option<usize> {
     (0..n.params.iter().flatten().count()).find(|&p| {
         let (bx, by, bw, bh) = n.param_value_rect(p);
         point_in_rect(x, y, bx, by, bw, bh)
+    })
+}
+
+/// Node param rect hit test
+fn keyframe_hit(n: &Node, x: f32, y: f32) -> Option<usize> {
+    (0..n.params.iter().flatten().count()).find(|&p| {
+        let (kx, ky, kw, kh) = n.keyframe_value_rect(p);
+        point_in_rect(x, y, kx, ky, kw, kh)
     })
 }
 
@@ -122,6 +137,12 @@ pub extern "C" fn on_mouse_down(sx: f32, sy: f32, button: i8, ctrl_key: bool) ->
         }
     }
 
+    if let Some(k) = keyframe_hit_test(s, x, y) {
+        s.dragging_keyframe = Some(k);
+
+        return HitResult::keyframe(k as u16, -1).into_u32();
+    }
+
     for i in 0..s.nodes.len() {
         let n = &s.nodes[i];
         for o in 0..n.kind.output_count() {
@@ -134,10 +155,18 @@ pub extern "C" fn on_mouse_down(sx: f32, sy: f32, button: i8, ctrl_key: bool) ->
         }
     }
 
-    for i in (0..s.nodes.len()).rev() {
-        let n = s.nodes[i];
+    for (i, n) in s.nodes.iter().enumerate() {
+        if !n.contains(x, y) {
+            continue;
+        }
 
-        if let Some(p) = param_hit(&n, x, y) {
+        if let Some(k) = keyframe_hit(n, x, y) {
+            on_keyframe_hit(i, k);
+
+            return HitResult::keyframe(i as u16, k as i8).into_u32();
+        }
+
+        if let Some(p) = param_hit(n, x, y) {
             let param = n.params[p].as_ref().unwrap();
 
             if ctrl_key {
@@ -157,15 +186,13 @@ pub extern "C" fn on_mouse_down(sx: f32, sy: f32, button: i8, ctrl_key: bool) ->
             return HitResult::node(i as u16, p as i8).into_u32();
         }
 
-        if header_hit(&n, x, y) {
+        if header_hit(n, x, y) {
             s.dragging_node = Some(i);
             s.drag_offset = (x - n.x, y - n.y);
             return HitResult::node(i as u16, -1).into_u32();
         }
 
-        if n.contains(x, y) {
-            return HitResult::node(i as u16, -1).into_u32();
-        }
+        return HitResult::node(i as u16, -1).into_u32();
     }
 
     if let Some(i) = find_hovered_link(s, x, y) {
@@ -176,7 +203,7 @@ pub extern "C" fn on_mouse_down(sx: f32, sy: f32, button: i8, ctrl_key: bool) ->
         return HitResult::link(i as u16).into_u32();
     }
 
-    if button == 0 {
+    if sy > HEADER_HEIGHT && sy < s.viewport.1 * KEYFRAME_POS_PERCENT && button == 0 {
         s.is_panning = true;
         s.last_pan = (sx, sy);
     }
@@ -199,11 +226,23 @@ pub extern "C" fn get_cursor_kind(sx: f32, sy: f32) -> CursorKind {
 
     let (x, y) = c.to_world(sx, sy);
 
-    if s.dragging_node.is_some() || s.dragging_param.is_some() || s.dragging_knob.is_some() {
+    if s.dragging_node.is_some() && (s.dragging_param.is_some() || s.dragging_knob.is_some()) {
         return CursorKind::Grabbing;
     }
 
+    if s.dragging_keyframe.is_some() {
+        return CursorKind::Grabbing;
+    }
+
+    if keyframe_hit_test(s, x, y).is_some() {
+        return CursorKind::Grab;
+    }
+
     for n in s.nodes.iter() {
+        if keyframe_hit(n, x, y).is_some() {
+            return CursorKind::Pointer;
+        }
+
         if header_hit(n, x, y) || param_hit(n, x, y).is_some() {
             return CursorKind::Grab;
         }
@@ -256,6 +295,12 @@ pub extern "C" fn on_mouse_move(sx: f32, sy: f32, alt_key: bool) {
 
     let (x, y) = c.to_world(sx, sy);
     s.mouse = (x, y);
+
+    if let Some(k) = s.dragging_keyframe {
+        move_keyframe(k, frame_from_world_x(s, x));
+        render();
+        return;
+    }
 
     if let Some(i) = s.dragging_node {
         s.nodes[i].x = x - s.drag_offset.0;
@@ -378,12 +423,21 @@ pub extern "C" fn on_mouse_up(sx: f32, sy: f32) {
         s.dragging_knob = None;
         ffi::release_mouse();
     }
+    if s.dragging_keyframe.is_some() {
+        s.dragging_keyframe = None;
+        ffi::release_mouse();
+    }
     render();
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn on_wheel(sx: f32, sy: f32, dx: f32, dy: f32, ctrl_key: bool) {
     let c = camera();
+    let s = state();
+
+    if sy < HEADER_HEIGHT || sy > s.viewport.1 * KEYFRAME_POS_PERCENT {
+        return;
+    }
 
     if ctrl_key {
         c.zoom_at(sx, sy, dy);

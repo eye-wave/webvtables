@@ -9,6 +9,10 @@
 //!   8  FillWave            f32 x, y, w, h, *const u8 ptr
 //!   9  StrokeLineRepeated  f32 x1, y1, x2, y2, u16 count, f32 gap, u8 direction
 //!  10  StrokeArc           f32 x, y, r, start_angle, end_angle
+//!  11  FillPoints          u16 count, [f32; count*2] xy (inline, copied into the drawbuf)
+//!  12  StrokePoints        u16 count, [f32; count*2] xy (inline, copied into the drawbuf)
+//!  13  FillPointsRef       u32 ptr, u16 count
+//!  14  StrokePointsRef     u32 ptr, u16 count
 //!
 
 use alloc::vec::Vec;
@@ -21,6 +25,7 @@ pub use camera::*;
 
 pub type Color = [u8; 3];
 
+#[allow(unused)]
 #[repr(u8)]
 enum Op {
     FillStyle = 1,
@@ -33,9 +38,12 @@ enum Op {
     FillWave = 8,
     StrokeLineRepeated = 9,
     StrokeArc = 10,
+    FillPoints = 11,
+    StrokePoints = 12,
+    FillPointsRef = 13,
+    StrokePointsRef = 14,
 }
 
-#[allow(unused)]
 #[repr(u8)]
 #[derive(Clone, Copy)]
 pub enum Direction {
@@ -52,6 +60,7 @@ pub struct DrawBuf {
     buf: Vec<u8>,
 }
 
+#[allow(unused)]
 impl DrawBuf {
     const fn new() -> Self {
         Self { buf: Vec::new() }
@@ -98,7 +107,6 @@ impl DrawBuf {
 
     pub fn fill_rect(&mut self, x: f32, y: f32, w: f32, h: f32, with_cam: bool) {
         self.push_u8(Op::FillRect as u8);
-
         self.push_f32(cam_x(x, with_cam));
         self.push_f32(cam_y(y, with_cam));
         self.push_f32(cam_s(w, with_cam));
@@ -188,6 +196,55 @@ impl DrawBuf {
         self.push_f32(end_angle);
     }
 
+    /// Shared by fill_points/stroke_points: copies `points` (interleaved
+    /// x,y) straight into the drawbuf, transforming each vertex on the way
+    /// in — same shape as `fill_text` copying its utf8 bytes inline. No
+    /// pointer into caller memory survives past this call.
+    fn push_points(&mut self, op: Op, points: &[f32], with_cam: bool) {
+        let count = (points.len() / 2).min(u16::MAX as usize);
+        self.push_u8(op as u8);
+        self.push_u16(count as u16);
+        for p in points[..count * 2].chunks_exact(2) {
+            self.push_f32(cam_x(p[0], with_cam));
+            self.push_f32(cam_y(p[1], with_cam));
+        }
+    }
+
+    /// Fills the polygon whose vertices are the (x,y) pairs in `points`.
+    /// Points are copied into the drawbuf; `points` need not outlive this call.
+    pub fn fill_points(&mut self, points: &[f32], with_cam: bool) {
+        self.push_points(Op::FillPoints, points, with_cam);
+    }
+
+    /// Strokes the open polyline through the (x,y) pairs in `points`.
+    /// Points are copied into the drawbuf; `points` need not outlive this call.
+    pub fn stroke_points(&mut self, points: &[f32], with_cam: bool) {
+        self.push_points(Op::StrokePoints, points, with_cam);
+    }
+
+    /// Shared by fill_points_ref/stroke_points_ref: pushes only a pointer +
+    /// count, no copy. `points` must stay alive and untouched until the
+    /// frame's drawbuf is consumed on the JS side. No camera transform is
+    /// applied — pass already-transformed coordinates if you need one.
+    fn push_points_ref(&mut self, op: Op, points: &[f32]) {
+        let count = (points.len() / 2).min(u16::MAX as usize) as u16;
+        self.push_u8(op as u8);
+        self.push_u32(points.as_ptr() as u32);
+        self.push_u16(count);
+    }
+
+    /// Ref variant of `fill_points`: no copy, just a pointer into `points`.
+    /// `points` must outlive this frame's draw and is used as-is (no camera transform).
+    pub fn fill_points_ref(&mut self, points: &[f32]) {
+        self.push_points_ref(Op::FillPointsRef, points);
+    }
+
+    /// Ref variant of `stroke_points`: no copy, just a pointer into `points`.
+    /// `points` must outlive this frame's draw and is used as-is (no camera transform).
+    pub fn stroke_points_ref(&mut self, points: &[f32]) {
+        self.push_points_ref(Op::StrokePointsRef, points);
+    }
+
     pub fn as_ptr_len(&self) -> (*const u8, usize) {
         (self.buf.as_ptr(), self.buf.len())
     }
@@ -206,28 +263,31 @@ pub fn camera() -> &'static mut Camera {
     unsafe { &mut EDITOR_CAM }
 }
 
+#[inline]
 pub fn cam_x(x: f32, with_cam: bool) -> f32 {
     if with_cam {
         let c = camera();
-        (x + c.x) * c.zoom
+        c.tx(x)
     } else {
         x
     }
 }
 
+#[inline]
 pub fn cam_y(y: f32, with_cam: bool) -> f32 {
     if with_cam {
         let c = camera();
-        (y + c.y) * c.zoom
+        c.ty(y)
     } else {
         y
     }
 }
 
+#[inline]
 pub fn cam_s(s: f32, with_cam: bool) -> f32 {
     if with_cam {
         let c = camera();
-        s * c.zoom
+        c.ts(s)
     } else {
         s
     }

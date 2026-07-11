@@ -40,52 +40,6 @@ impl Draw for Header {
     }
 }
 
-pub struct KeyframeRuler;
-
-pub const KEYFRAME_POS_PERCENT: f32 = 0.6;
-
-impl Draw for KeyframeRuler {
-    fn draw(&self, _i: usize, s: &super::GraphState, ctx: &mut crate::draw::DrawBuf) {
-        let view_h = s.viewport.1;
-        let y = view_h * KEYFRAME_POS_PERCENT;
-
-        ctx.fill_style([30, 30, 30]);
-        ctx.fill_rect(0.0, y, 2000.0, 25.0, false);
-    }
-}
-
-pub struct KeyframeLanes;
-
-const KEYFRAME_LANE_HEIGHT: f32 = 50.0;
-
-impl Draw for KeyframeLanes {
-    fn draw(&self, _i: usize, s: &super::GraphState, ctx: &mut crate::draw::DrawBuf) {
-        let view_h = s.viewport.1;
-        let y = view_h * KEYFRAME_POS_PERCENT + 25.0;
-
-        let gap = KEYFRAME_LANE_HEIGHT;
-
-        ctx.fill_style([20, 20, 20]);
-        ctx.fill_rect(0.0, y, s.viewport.0, s.viewport.1 - y, false);
-
-        ctx.fill_style([180, 50, 60]);
-        ctx.fill_rect(0.0, y, 200.0, s.viewport.1 - y, false);
-
-        ctx.line_width(1.0);
-        ctx.stroke_style([45, 45, 45]);
-        ctx.stroke_line_repeated(
-            0.0,
-            y + gap,
-            s.viewport.0,
-            y + gap,
-            8,
-            gap,
-            Direction::Vertical,
-            false,
-        );
-    }
-}
-
 #[derive(Clone)]
 pub struct Button {
     pub x: f32,

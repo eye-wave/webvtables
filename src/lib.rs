@@ -43,6 +43,11 @@ pub extern "C" fn init() {
 
     let _ = s.links.push(Link::new(0, 0, 1, 0));
 
+    let _ = s.lanes.push(KeyframeLane {
+        node_id: 0,
+        param_id: 0,
+    });
+
     let mut text = FixedStr::new();
     text.push_str("Play");
     let btn = Button {
@@ -126,6 +131,14 @@ pub extern "C" fn render() {
 
     KeyframeRuler.draw(0, s, ctx);
     KeyframeLanes.draw(0, s, ctx);
+
+    for (i, lane) in s.lanes.iter().enumerate() {
+        lane.draw(i, s, ctx);
+    }
+
+    for (i, keyframe) in s.keyframes.iter().enumerate() {
+        keyframe.draw(i, s, ctx);
+    }
 
     let (ptr, len) = ctx.as_ptr_len();
     ffi::draw_flush(ptr, len);

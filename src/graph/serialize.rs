@@ -69,8 +69,8 @@ impl SerializeGraph for GraphState {
             // Node {
             //   f32 x, y
             //   u8 node_type (name string index from dict)
-            //   u4 param_len (top nibble unused)
-            //   [f64] params (dense, Some values only)
+            //   u8 param_len
+            //   [f64;param_len] params
             // }
             buf.extend_from_slice(&node.x.to_le_bytes());
             buf.extend_from_slice(&node.y.to_le_bytes());

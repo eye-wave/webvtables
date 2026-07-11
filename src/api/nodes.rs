@@ -1,4 +1,4 @@
-use heapless::Vec;
+use heapless::Vec as HVec;
 
 use crate::console_print;
 use crate::draw::camera;
@@ -35,16 +35,6 @@ pub extern "C" fn graph_version() -> u32 {
     state().version
 }
 
-/// Where an index lands after `target` is removed from a contiguous list:
-/// gone if it *was* target, shifted down by one if it came after.
-fn reindex_after_removal(idx: usize, target: usize) -> Option<usize> {
-    match idx {
-        i if i == target => None,
-        i if i > target => Some(i - 1),
-        i => Some(i),
-    }
-}
-
 #[unsafe(no_mangle)]
 pub extern "C" fn remove_node(target_idx: usize) {
     let s = state();
@@ -53,9 +43,8 @@ pub extern "C" fn remove_node(target_idx: usize) {
         return;
     }
 
-    // Drop links touching the removed node, reindex the rest. `links` is now
-    // a dense Vec (no Option holes), so we rebuild it rather than nulling slots.
-    let old_links = core::mem::replace(&mut s.links, Vec::new());
+    // Drop links touching the removed node, reindex the rest.
+    let old_links = core::mem::replace(&mut s.links, HVec::new());
     for mut l in old_links {
         if l.from == target_idx || l.to == target_idx {
             continue;
@@ -66,22 +55,41 @@ pub extern "C" fn remove_node(target_idx: usize) {
         let _ = s.links.push(l);
     }
 
-    // shift the remaining nodes down to fill the gap, then drop the tail slot
+    // Lanes and keyframes both carry the (node_id, param_id) they belong to
+    // directly, so removing a node is the same "shift ids past target_idx
+    // down by one" pass as for links — no index remapping table needed.
+    let old_lanes = core::mem::replace(&mut s.lanes, HVec::new());
+    for mut lane in old_lanes {
+        if lane.node_id == target_idx as u16 {
+            continue;
+        }
+        if lane.node_id > target_idx as u16 {
+            lane.node_id -= 1;
+        }
+        let _ = s.lanes.push(lane);
+    }
+
+    let old_keyframes = core::mem::take(&mut s.keyframes);
+    for mut keyframe in old_keyframes {
+        if keyframe.lane.node_id == target_idx as u16 {
+            continue;
+        }
+        if keyframe.lane.node_id > target_idx as u16 {
+            keyframe.lane.node_id -= 1;
+        }
+        s.keyframes.push(keyframe);
+    }
+
+    // shift the remaining nodes down
     for i in target_idx..(s.nodes.len() - 1) {
         s.nodes[i] = s.nodes[i + 1];
     }
     s.nodes.pop();
 
-    // reindex (or drop) any in-flight interaction pointing at shifted nodes
-    s.dragging_node = s
-        .dragging_node
-        .and_then(|i| reindex_after_removal(i, target_idx));
-    s.dragging_param = s
-        .dragging_param
-        .and_then(|(i, p)| reindex_after_removal(i, target_idx).map(|i| (i, p)));
-    s.pending_link_from = s
-        .pending_link_from
-        .and_then(|(i, o)| reindex_after_removal(i, target_idx).map(|i| (i, o)));
+    s.dragging_node = None;
+    s.dragging_param = None;
+    s.dragging_keyframe = None;
+    s.pending_link_from = None;
 
     s.version += 1;
     render();

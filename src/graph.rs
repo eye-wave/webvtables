@@ -1,7 +1,10 @@
 use alloc::boxed::Box;
-use heapless::vec::Vec;
+use alloc::vec::Vec;
+
+use heapless::vec::Vec as HVec;
 
 mod buffer;
+mod keyframes;
 mod link;
 mod node;
 mod param;
@@ -10,6 +13,7 @@ mod socket;
 mod ui;
 
 pub use buffer::*;
+pub use keyframes::*;
 pub use link::*;
 pub use node::*;
 pub use param::*;
@@ -23,7 +27,7 @@ mod consts {
     pub const MAX_PARAMS: usize = 5;
     /// Per-node scratch state (e.g. a filter's IIR history) that must
     /// survive across process() calls instead of resetting every frame.
-    pub const MAX_NODE_STATE: usize = 4;
+    pub const MAX_NODE_STATE: usize = 12;
     pub const MAX_NODE_INPUTS: usize = 4;
 
     pub const SOCKET_R: f32 = 5.0;
@@ -34,15 +38,18 @@ mod consts {
 pub use consts::*;
 
 pub struct GraphState {
-    pub nodes: Vec<Node, MAX_NODES>,
-    pub links: Vec<Link, MAX_LINKS>,
+    pub nodes: HVec<Node, MAX_NODES>,
+    pub links: HVec<Link, MAX_LINKS>,
     pub dragging_node: Option<usize>,
     pub drag_offset: (f32, f32),
     pub dragging_param: Option<(usize, usize)>,
     pub drag_param_start_y: f32,
     pub drag_param_start_value: f64,
-    pub buttons: Vec<Button, 2>,
-    pub knobs: Vec<Knob, 2>,
+    pub buttons: HVec<Button, 2>,
+    pub knobs: HVec<Knob, 2>,
+    pub lanes: HVec<KeyframeLane, 10>,
+    pub keyframes: Vec<Keyframe>,
+    pub dragging_keyframe: Option<usize>,
     pub dragging_knob: Option<usize>,
     pub drag_knob_start_y: f32,
     pub drag_knob_start_value: f32,
@@ -64,15 +71,18 @@ pub struct GraphState {
 }
 
 static mut STATE: GraphState = GraphState {
-    nodes: Vec::new(),
-    links: Vec::new(),
+    nodes: HVec::new(),
+    links: HVec::new(),
     dragging_node: None,
     drag_offset: (0.0, 0.0),
     dragging_param: None,
     drag_param_start_y: 0.0,
     drag_param_start_value: 0.0,
-    buttons: Vec::new(),
-    knobs: Vec::new(),
+    buttons: HVec::new(),
+    knobs: HVec::new(),
+    lanes: HVec::new(),
+    keyframes: Vec::new(),
+    dragging_keyframe: None,
     dragging_knob: None,
     drag_knob_start_y: 0.0,
     drag_knob_start_value: 0.0,

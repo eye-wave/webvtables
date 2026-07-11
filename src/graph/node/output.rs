@@ -1,4 +1,4 @@
-use crate::draw::DrawBuf;
+use crate::draw::{DrawBuf, camera};
 use crate::ffi;
 use crate::graph::{BUFFER_LEN, GraphState, Node};
 use crate::graph::{MAX_PARAMS, Param};
@@ -97,24 +97,43 @@ impl NodeLogic for OutputNode {
 
         ctx.stroke_style([100, 220, 160]);
         ctx.line_width(1.0);
-        let steps = w as usize;
-        let mut prev: Option<(f32, f32)> = None;
-        for px in 0..=steps {
-            let t = px as f32 / steps.max(1) as f32;
+
+        static mut POINTS: [f32; BUFFER_LEN * 2] = [0.0; BUFFER_LEN * 2];
+
+        let cam = camera();
+
+        for i in 0..BUFFER_LEN {
+            let t = i as f32 / (BUFFER_LEN - 1) as f32;
+
             let bin = ffi::powf(bins as f32, t).clamp(1.0, (bins - 1) as f32);
             let k = bin as usize;
-            let c = spectrum[k];
-            let mag = ffi::sqrtf(c.re * c.re + c.im * c.im);
+
+            let mag = if k < bins / 2 && k < bins - 1 {
+                // interpolate
+                let fract = bin - k as f32;
+                let c1 = spectrum[k];
+                let c2 = spectrum[k + 1];
+                let mag1 = ffi::sqrtf(c1.re * c1.re + c1.im * c1.im);
+                let mag2 = ffi::sqrtf(c2.re * c2.re + c2.im * c2.im);
+
+                mag1 + fract * (mag2 - mag1)
+            } else {
+                let c = spectrum[k];
+                ffi::sqrtf(c.re * c.re + c.im * c.im)
+            };
+
             let db = 20.0 * ffi::log10f(mag.max(1e-6)) - db_floor;
 
-            let px_x = x + px as f32;
+            let px_x = x + (t * w);
             let px_y = db_to_y(db);
-            if let Some((lx, ly)) = prev {
-                ctx.stroke_line(lx, ly, px_x, px_y, true);
-            }
 
-            prev = Some((px_x, px_y));
+            unsafe {
+                POINTS[i * 2] = cam.tx(px_x);
+                POINTS[i * 2 + 1] = cam.ty(px_y);
+            }
         }
+
+        ctx.stroke_points_ref(unsafe { &POINTS });
 
         true
     }

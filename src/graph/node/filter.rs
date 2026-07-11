@@ -78,11 +78,11 @@ impl NodeLogic for FilterNode {
             ),
             Param::new_log("Freq", 1.0, BUFFER_LEN_F64)
                 .with_unit("bins")
-                .with_default_denormf(777.77),
+                .with_default_denorm(777.77),
             Param::new_linear("Gain", -30.0, 30.0)
                 .with_unit("dB")
                 .with_default_norm(0.5),
-            Param::new_linear("Q", 0.0, 10.0).with_default_denormf(1.0),
+            Param::new_linear("Q", 0.0, 10.0).with_default_denorm(1.0),
             Param::new_linear("Mix", 0.0, 100.0)
                 .with_unit("%")
                 .with_default_norm(1.0),

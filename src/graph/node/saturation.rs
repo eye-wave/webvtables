@@ -29,10 +29,10 @@ impl NodeLogic for SaturationNode {
             Param::new_enum("Shape", &["Soft clip", "Hard clip", "Lin warp", "Sin warp"]),
             Param::new_linear("In", -40.0, 60.0)
                 .with_unit("dB")
-                .with_default_denormf(0.0),
+                .with_default_denorm(0.0),
             Param::new_linear("Out", -40.0, 10.0)
                 .with_unit("dB")
-                .with_default_denormf(0.0),
+                .with_default_denorm(0.0),
             Param::new_linear("Mix", 0.0, 100.0)
                 .with_unit("%")
                 .with_default_norm(1.0),

@@ -38,6 +38,31 @@ impl<const N: usize> FixedStr<N> {
         self.len = end;
     }
 
+    pub fn push_str_with_len(&mut self, s: &str, max_len: usize) {
+        let bytes = s.as_bytes();
+
+        if bytes.len() > max_len {
+            let mut truncate_len = max_len.saturating_sub(1);
+
+            while truncate_len > 0 && !s.is_char_boundary(truncate_len) {
+                truncate_len -= 1;
+            }
+
+            let end1 = (self.len + truncate_len).min(N);
+            self.buf[self.len..end1].copy_from_slice(&bytes[..end1 - self.len]);
+            self.len = end1;
+
+            let ellipsis = "…".as_bytes();
+            let end2 = (self.len + ellipsis.len()).min(N);
+            self.buf[self.len..end2].copy_from_slice(&ellipsis[..end2 - self.len]);
+            self.len = end2;
+        } else {
+            let end = (self.len + bytes.len()).min(N);
+            self.buf[self.len..end].copy_from_slice(&bytes[..end - self.len]);
+            self.len = end;
+        }
+    }
+
     pub fn clear(&mut self) {
         self.len = 0;
     }

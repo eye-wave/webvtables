@@ -29,7 +29,7 @@ impl NodeLogic for WindowNode {
         crate::params![
             Param::new_linear("Size", 0.0, 50.0)
                 .with_unit("%")
-                .with_default_denormf(15.0),
+                .with_default_denorm(15.0),
             Param::new_enum(
                 "Type",
                 &[

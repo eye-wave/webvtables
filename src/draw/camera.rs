@@ -27,6 +27,16 @@ impl Camera {
         self.zoom = new_zoom;
     }
 
+    pub fn tx(&self, x: f32) -> f32 {
+        (x + self.x) * self.zoom
+    }
+    pub fn ty(&self, y: f32) -> f32 {
+        (y + self.y) * self.zoom
+    }
+    pub fn ts(&self, s: f32) -> f32 {
+        s * self.zoom
+    }
+
     pub fn to_world(&self, sx: f32, sy: f32) -> (f32, f32) {
         ((sx / self.zoom - self.x), (sy / self.zoom - self.y))
     }

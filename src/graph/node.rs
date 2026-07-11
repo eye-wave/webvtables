@@ -1,6 +1,7 @@
 use crate::FixedStr;
-use crate::draw::{Color, Draw, DrawBuf};
+use crate::draw::{Color, Draw, DrawBuf, camera};
 use crate::geom::Interactive;
+use crate::graph::keyframes::gen_diamond;
 use crate::graph::output_pos;
 
 use super::consts::*;
@@ -53,11 +54,13 @@ define_nodes!(
     Fm,
     Gain,
     HarmonicShift,
+    IirFilter,
     InharmonicShift,
     Invert,
     Output,
     Partials,
     PhaseShift,
+    Phaser,
     PulseWave,
     RingMod,
     Saturation,
@@ -244,6 +247,9 @@ impl Node {
     pub const WAVE_H: f32 = 34.0;
     pub const WIDGET_H: f32 = 40.0;
 
+    pub const KF_W: f32 = 8.0;
+    pub const KF_H: f32 = 12.0;
+
     pub const W: f32 = 180.0;
 
     /// Computes total dynamic height based on active elements
@@ -277,6 +283,14 @@ impl Node {
         (box_x, baseline_y - 11.0, box_w, Self::VALUE_BOX_H)
     }
 
+    /// Calculate rect using active sequential index, not the array index slot
+    pub fn keyframe_value_rect(&self, active_idx: usize) -> (f32, f32, f32, f32) {
+        let (bx, by, _, _) = self.param_value_rect(active_idx);
+        let cx = bx - 10.0;
+
+        (cx, by, Self::KF_W, Self::KF_H)
+    }
+
     /// Top-left y of the waveform preview strip, based on actual active parameters
     fn wave_y(&self) -> f32 {
         let param_count = self.params.iter().flatten().count();
@@ -304,14 +318,14 @@ impl Draw for Node {
         ctx.fill_style(self.kind.header_color());
         ctx.fill_rect(self.x, self.y, Self::W, Self::HEADER_H, true);
 
-        ctx.fill_style([230, 230, 230]);
+        ctx.fill_style([230; 3]);
         ctx.fill_text(self.kind.title(), 13.0, self.x + 6.0, self.y + 14.0, true);
 
         // Parameters
         let mut current_y = self.y + Self::HEADER_H + 12.0;
 
         for (active_idx, param) in self.params.iter().flatten().enumerate() {
-            ctx.fill_style([180, 180, 180]);
+            ctx.fill_style([180; 3]);
             ctx.fill_text(param.name(), 13.0, self.x + 8.0, current_y, true);
 
             let mut vbuf: FixedStr<16> = FixedStr::new();
@@ -320,6 +334,22 @@ impl Draw for Node {
             let (box_x, box_y, box_w, box_h) = self.param_value_rect(active_idx);
             ctx.fill_style([25, 26, 32]);
             ctx.fill_rect(box_x, box_y, box_w, box_h, true);
+
+            let (kx, ky, kw, kh) = self.keyframe_value_rect(active_idx);
+
+            let points = gen_diamond(kx, ky, kw, kh);
+            if s.lanes
+                .iter()
+                .find(|lane| lane.node_id == i as u16 && lane.param_id == active_idx as u8)
+                .is_some()
+            {
+                ctx.fill_style([230, 200, 50]);
+                ctx.fill_points(&points, true);
+            } else {
+                ctx.line_width(1.0 * camera().zoom);
+                ctx.stroke_style([230, 200, 50]);
+                ctx.stroke_points(&points, true);
+            }
 
             ctx.fill_style([140, 200, 140]);
             ctx.fill_text(
