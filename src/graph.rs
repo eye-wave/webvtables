@@ -50,6 +50,11 @@ pub struct GraphState {
     pub lanes: HVec<KeyframeLane, 10>,
     pub keyframes: Vec<Keyframe>,
     pub dragging_keyframe: Option<usize>,
+    /// (lane, timestamp) of the last keyframe-toggle mousedown, used to
+    /// debounce double/duplicate hits (e.g. a fast double-click or the
+    /// synthetic re-hit-test from `on_dbl_click`) that would otherwise
+    /// toggle the lane on and immediately back off.
+    pub last_keyframe_toggle: Option<(KeyframeLane, f64)>,
     pub dragging_knob: Option<usize>,
     pub drag_knob_start_y: f32,
     pub drag_knob_start_value: f32,
@@ -80,6 +85,7 @@ static mut STATE: GraphState = GraphState {
     lanes: HVec::new(),
     keyframes: Vec::new(),
     dragging_keyframe: None,
+    last_keyframe_toggle: None,
     dragging_knob: None,
     drag_knob_start_y: 0.0,
     drag_knob_start_value: 0.0,

@@ -121,6 +121,9 @@ const KEYFRAME_H: f32 = KEYFRAME_LANE_HEIGHT * 0.8;
 
 const KEYFRAME_HIT_PAD: f32 = 5.0;
 
+/// Minimum time between two toggles of the same lane
+const KEYFRAME_TOGGLE_DEBOUNCE_MS: f64 = 300.0;
+
 impl Keyframe {
     pub fn rect(&self, s: &super::GraphState) -> Option<(f32, f32, f32, f32)> {
         let row = s.lanes.iter().position(|l| *l == self.lane)?;
@@ -149,7 +152,7 @@ impl KeyframeLane {
 
         s.keyframes
             .iter()
-            .filter(|k| k.lane.node_id == self.node_id)
+            .filter(|k| k.lane.node_id == self.node_id && k.lane.param_id == self.param_id)
     }
 
     fn kind(&self) -> Option<NodeKind> {
@@ -227,6 +230,54 @@ pub fn gen_diamond(x: f32, y: f32, w: f32, h: f32) -> [f32; 10] {
     points
 }
 
+fn diamond_fill_points(x: f32, y: f32, w: f32, h: f32, value: f32) -> ([f32; 12], usize) {
+    let value = value.clamp(0.0, 1.0);
+    let hw = w / 2.0;
+    let hh = h / 2.0;
+
+    #[rustfmt::skip]
+    let verts = [
+        (x + hw, y),      // top
+        (x + w,  y + hh), // right
+        (x + hw, y + h),  // bottom
+        (x,      y + hh), // left
+    ];
+
+    let y_cut = y + h * (1.0 - value);
+
+    let mut out = [0.0f32; 12];
+    let mut n = 0usize;
+
+    for i in 0..4 {
+        let (cx, cy) = verts[i];
+        let (px, py) = verts[(i + 3) % 4];
+
+        let cur_in = cy >= y_cut;
+        let prev_in = py >= y_cut;
+
+        if cur_in != prev_in && (cy - py).abs() > f32::EPSILON {
+            let t = (y_cut - py) / (cy - py);
+            out[n * 2] = px + t * (cx - px);
+            out[n * 2 + 1] = y_cut;
+            n += 1;
+        }
+
+        if cur_in {
+            out[n * 2] = cx;
+            out[n * 2 + 1] = cy;
+            n += 1;
+        }
+    }
+
+    if n > 0 {
+        out[n * 2] = out[0];
+        out[n * 2 + 1] = out[1];
+        n += 1;
+    }
+
+    (out, n)
+}
+
 impl Draw for Keyframe {
     fn draw(&self, _i: usize, s: &super::GraphState, ctx: &mut crate::draw::DrawBuf) {
         let Some((x, y, w, h)) = self.rect(s) else {
@@ -234,9 +285,15 @@ impl Draw for Keyframe {
         };
 
         let points = gen_diamond(x, y, w, h);
+        ctx.line_width(1.5);
+        ctx.stroke_style([230, 200, 50]);
+        ctx.stroke_points(&points, false);
 
-        ctx.fill_style([200, 200, 120]);
-        ctx.fill_points(&points, false);
+        let (fill_pts, fill_n) = diamond_fill_points(x, y, w, h, self.value as f32);
+        if fill_n >= 3 {
+            ctx.fill_style([230, 200, 50]);
+            ctx.fill_points(&fill_pts[..fill_n * 2], false);
+        }
     }
 }
 
@@ -282,6 +339,33 @@ pub fn move_keyframe(idx: usize, new_frame: u8) {
     }
 }
 
+pub fn value_from_world_y(s: &super::GraphState, lane: KeyframeLane, world_y: f32) -> f64 {
+    let Some(row) = s.lanes.iter().position(|l| *l == lane) else {
+        return 0.5;
+    };
+
+    let lane_top = KEYFRAME_RULER_HEIGHT
+        + s.viewport.1 * KEYFRAME_POS_PERCENT
+        + row as f32 * KEYFRAME_LANE_HEIGHT;
+    let usable = KEYFRAME_LANE_HEIGHT - KEYFRAME_H;
+
+    if usable <= 0.0 {
+        return 0.5;
+    }
+
+    let t = ((world_y - lane_top) / usable).clamp(0.0, 1.0);
+    (1.0 - t) as f64
+}
+
+pub fn set_keyframe_value(idx: usize, new_value: f64) {
+    let s = state();
+    let Some(kf) = s.keyframes.get_mut(idx) else {
+        return;
+    };
+
+    kf.value = new_value.clamp(0.0, 1.0);
+}
+
 pub fn on_keyframe_hit(node_id: usize, param_id: usize) {
     let s = state();
 
@@ -294,6 +378,16 @@ pub fn on_keyframe_hit(node_id: usize, param_id: usize) {
     };
 
     let lane = KeyframeLane::new(node_id, param_id);
+
+    let now = ffi::perf_now();
+    if let Some((last_lane, last_time)) = s.last_keyframe_toggle
+        && last_lane == lane
+        && now - last_time < KEYFRAME_TOGGLE_DEBOUNCE_MS
+    {
+        return;
+    }
+    s.last_keyframe_toggle = Some((lane, now));
+
     if s.lanes.contains(&lane) {
         s.lanes.retain(|l| *l != lane);
         s.keyframes.retain(|k| k.lane != lane);

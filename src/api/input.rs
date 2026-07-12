@@ -302,6 +302,13 @@ pub extern "C" fn on_mouse_move(sx: f32, sy: f32, alt_key: bool) {
 
     if let Some(k) = s.dragging_keyframe {
         move_keyframe(k, frame_from_world_x(s, x));
+
+        if let Some(kf) = s.keyframes.get(k) {
+            let lane = kf.lane;
+            let value = value_from_world_y(s, lane, y);
+            set_keyframe_value(k, value);
+        }
+
         render();
         return;
     }
