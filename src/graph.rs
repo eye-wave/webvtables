@@ -61,9 +61,6 @@ pub struct GraphState {
     pub mouse: (f32, f32),
     pub last_pan: (f32, f32),
     pub is_panning: bool,
-    /// Bumped whenever link topology changes. Lets Host cheaply detect
-    /// if the audio graph need rebuilding.
-    pub version: u32,
     /// Each node's most recently computed single-cycle output frame.
     /// heap-allocated (see `init()`) instead of a static array, so
     /// it doesn't inflate the binary; `None` only before init() runs.
@@ -94,7 +91,6 @@ static mut STATE: GraphState = GraphState {
     mouse: (0.0, 0.0),
     last_pan: (0.0, 0.0),
     is_panning: false,
-    version: 0,
     buffers: None,
 };
 

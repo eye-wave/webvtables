@@ -44,7 +44,7 @@ impl NodeLogic for BitCrushNode {
         let shape = helpers::param(params, 0, 0.0) as u8;
         let strength = helpers::param(params, 1, 0.0) as f32;
         let shift = helpers::param(params, 2, 0.0) as f32;
-        let mix = helpers::param(params, 3, 100.0) as f32 / 100.0;
+        let mix = helpers::param(params, 3, 100.0) as f32 * 0.01;
 
         let src = helpers::input(inputs, 0);
 

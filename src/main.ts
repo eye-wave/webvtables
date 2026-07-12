@@ -103,6 +103,8 @@ async function init() {
         }
     },
 
+    perf_now: () => performance.now(),
+
     click_btn: async (id: usize) => {
       if (id === 0) {
         if (player.status === "uninitialized") {

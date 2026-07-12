@@ -52,6 +52,8 @@ wasm_imports! {
     fn log2f(x: f32) -> f32;
     fn log10f(x: f32) -> f32;
 
+    fn perf_now() -> f64;
+
     fn click_btn(id: usize);
     fn drag_knob(id:usize,value:f64);
 

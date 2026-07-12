@@ -1,4 +1,4 @@
-use crate::graph::*;
+use crate::{graph::*, process};
 
 // Was: a `PackPtr` trait + `SerializationResult`/`BufferFrame` structs, both
 // implementing it identically. Both call sites just want (ptr, len) packed
@@ -58,7 +58,10 @@ pub unsafe extern "C" fn patch_graph(buf_ptr: *mut u8, buf_len: usize) -> i8 {
     let _boxed_buffer = unsafe { alloc::boxed::Box::from_raw(bytes_slice) };
 
     let s = state();
-    s.patch_from_bytes(bytes_slice)
+    let status = s.patch_from_bytes(bytes_slice);
+    process();
+
+    status
 }
 
 #[unsafe(no_mangle)]

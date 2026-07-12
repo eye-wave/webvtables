@@ -164,20 +164,20 @@ export function executeDrawBuffer(
       case Op.FillPoints: {
         const count = view.getUint16(p, true);
         p += 2;
+        const byteLen = count * 8;
         const points = new Float32Array(count * 2);
-        for (let i = 0; i < points.length; i++, p += 4) {
-          points[i] = view.getFloat32(p, true);
-        }
+        new Uint8Array(points.buffer).set(bytes.subarray(p, p + byteLen));
+        p += byteLen;
         r.fillPoints(points, count);
         break;
       }
       case Op.StrokePoints: {
         const count = view.getUint16(p, true);
         p += 2;
+        const byteLen = count * 8;
         const points = new Float32Array(count * 2);
-        for (let i = 0; i < points.length; i++, p += 4) {
-          points[i] = view.getFloat32(p, true);
-        }
+        new Uint8Array(points.buffer).set(bytes.subarray(p, p + byteLen));
+        p += byteLen;
         r.strokePoints(points, count);
         break;
       }

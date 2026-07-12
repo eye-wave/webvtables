@@ -32,6 +32,8 @@ use graph::*;
 
 pub use str::*;
 
+use crate::draw::RENDER_STATS;
+
 #[unsafe(no_mangle)]
 pub extern "C" fn init() {
     let s = state();
@@ -46,6 +48,24 @@ pub extern "C" fn init() {
     let _ = s.lanes.push(KeyframeLane {
         node_id: 0,
         param_id: 0,
+    });
+
+    s.keyframes.push(Keyframe {
+        lane: KeyframeLane {
+            node_id: 0,
+            param_id: 0,
+        },
+        frame: 0,
+        value: 0.0,
+    });
+
+    s.keyframes.push(Keyframe {
+        lane: KeyframeLane {
+            node_id: 0,
+            param_id: 0,
+        },
+        frame: 200,
+        value: 1.0,
     });
 
     let mut text = FixedStr::new();
@@ -76,7 +96,15 @@ pub extern "C" fn init() {
         param: Param::new_log("", 10.0, 12000.0).with_unit("hz"),
     });
 
-    s.version += 1;
+    process();
+    render();
+}
+
+/// Runs node processing, recomputing each node's single-cycle
+/// output frame.
+#[unsafe(no_mangle)]
+pub extern "C" fn process() {
+    process_graph(state());
     render();
 }
 
@@ -89,8 +117,6 @@ pub extern "C" fn render() {
         s.viewport.0,
         s.viewport.1 * KEYFRAME_POS_PERCENT,
     );
-
-    process_graph(s);
 
     let ctx = drawbuf();
     ctx.begin_frame();
@@ -119,6 +145,7 @@ pub extern "C" fn render() {
     }
 
     CameraWidget.draw(0, s, ctx);
+    RendererWidget.draw(0, s, ctx);
     Header.draw(0, s, ctx);
 
     for (i, btn) in s.buttons.iter().enumerate() {
@@ -142,4 +169,8 @@ pub extern "C" fn render() {
 
     let (ptr, len) = ctx.as_ptr_len();
     ffi::draw_flush(ptr, len);
+
+    unsafe {
+        RENDER_STATS.refresh();
+    }
 }

@@ -250,7 +250,6 @@ impl SerializeGraph for GraphState {
             }
         }
 
-        self.version += 1;
         0
     }
 }

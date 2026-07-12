@@ -17,11 +17,14 @@
 
 use alloc::vec::Vec;
 
+use crate::ffi;
 use crate::graph::{BUFFER_LEN, GraphState};
 
 mod camera;
+mod stack;
 
 pub use camera::*;
+pub use stack::*;
 
 pub type Color = [u8; 3];
 
@@ -82,60 +85,75 @@ impl DrawBuf {
         self.buf.extend_from_slice(&v.to_le_bytes());
     }
 
+    fn push_rec<const N: usize>(&mut self, rec: Rec<N>) {
+        self.buf.extend_from_slice(&rec.bytes);
+    }
+
     pub fn begin_frame(&mut self) {
         self.buf.clear();
     }
 
     pub fn fill_style(&mut self, col: Color) {
-        self.push_u8(Op::FillStyle as u8);
-        self.push_u8(col[0]);
-        self.push_u8(col[1]);
-        self.push_u8(col[2]);
+        self.push_rec(
+            *Rec::<4>::new(Op::FillStyle as u8)
+                .u8(col[0])
+                .u8(col[1])
+                .u8(col[2]),
+        );
     }
 
     pub fn stroke_style(&mut self, col: Color) {
-        self.push_u8(Op::StrokeStyle as u8);
-        self.push_u8(col[0]);
-        self.push_u8(col[1]);
-        self.push_u8(col[2]);
+        self.push_rec(
+            *Rec::<4>::new(Op::StrokeStyle as u8)
+                .u8(col[0])
+                .u8(col[1])
+                .u8(col[2]),
+        );
     }
 
     pub fn line_width(&mut self, w: f32) {
-        self.push_u8(Op::LineWidth as u8);
-        self.push_f32(w);
+        self.push_rec(*Rec::<5>::new(Op::LineWidth as u8).f32(w));
     }
 
     pub fn fill_rect(&mut self, x: f32, y: f32, w: f32, h: f32, with_cam: bool) {
-        self.push_u8(Op::FillRect as u8);
-        self.push_f32(cam_x(x, with_cam));
-        self.push_f32(cam_y(y, with_cam));
-        self.push_f32(cam_s(w, with_cam));
-        self.push_f32(cam_s(h, with_cam));
+        self.push_rec(
+            *Rec::<17>::new(Op::FillRect as u8)
+                .f32(cam_x(x, with_cam))
+                .f32(cam_y(y, with_cam))
+                .f32(cam_s(w, with_cam))
+                .f32(cam_s(h, with_cam)),
+        );
     }
 
     pub fn fill_circle(&mut self, x: f32, y: f32, r: f32, with_cam: bool) {
-        self.push_u8(Op::FillCircle as u8);
-        self.push_f32(cam_x(x, with_cam));
-        self.push_f32(cam_y(y, with_cam));
-        self.push_f32(cam_s(r, with_cam));
+        self.push_rec(
+            *Rec::<13>::new(Op::FillCircle as u8)
+                .f32(cam_x(x, with_cam))
+                .f32(cam_y(y, with_cam))
+                .f32(cam_s(r, with_cam)),
+        );
     }
 
     pub fn stroke_line(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, with_cam: bool) {
-        self.push_u8(Op::StrokeLine as u8);
-        self.push_f32(cam_x(x1, with_cam));
-        self.push_f32(cam_y(y1, with_cam));
-        self.push_f32(cam_x(x2, with_cam));
-        self.push_f32(cam_y(y2, with_cam));
+        self.push_rec(
+            *Rec::<17>::new(Op::StrokeLine as u8)
+                .f32(cam_x(x1, with_cam))
+                .f32(cam_y(y1, with_cam))
+                .f32(cam_x(x2, with_cam))
+                .f32(cam_y(y2, with_cam)),
+        );
     }
 
     pub fn fill_text(&mut self, text: &str, size: f32, x: f32, y: f32, with_cam: bool) {
         let bytes = text.as_bytes();
         let len = bytes.len().min(u16::MAX as usize) as u16;
-        self.push_u8(Op::FillText as u8);
-        self.push_f32(cam_s(size, with_cam));
-        self.push_f32(cam_x(x, with_cam));
-        self.push_f32(cam_y(y, with_cam));
-        self.push_u16(len);
+        self.push_rec(
+            *Rec::<15>::new(Op::FillText as u8)
+                .f32(cam_s(size, with_cam))
+                .f32(cam_x(x, with_cam))
+                .f32(cam_y(y, with_cam))
+                .u16(len),
+        );
         self.buf.extend_from_slice(&bytes[..len as usize]);
     }
 
@@ -149,12 +167,14 @@ impl DrawBuf {
         with_cam: bool,
     ) {
         self.line_width(1.0);
-        self.push_u8(Op::FillWave as u8);
-        self.push_f32(cam_x(x, with_cam));
-        self.push_f32(cam_y(y, with_cam));
-        self.push_f32(cam_s(w, with_cam));
-        self.push_f32(cam_s(h, with_cam));
-        self.push_u32(buf.as_ptr() as u32);
+        self.push_rec(
+            *Rec::<21>::new(Op::FillWave as u8)
+                .f32(cam_x(x, with_cam))
+                .f32(cam_y(y, with_cam))
+                .f32(cam_s(w, with_cam))
+                .f32(cam_s(h, with_cam))
+                .u32(buf.as_ptr() as u32),
+        );
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -169,14 +189,16 @@ impl DrawBuf {
         direction: Direction,
         with_cam: bool,
     ) {
-        self.push_u8(Op::StrokeLineRepeated as u8);
-        self.push_f32(cam_x(x1, with_cam));
-        self.push_f32(cam_y(y1, with_cam));
-        self.push_f32(cam_x(x2, with_cam));
-        self.push_f32(cam_y(y2, with_cam));
-        self.push_u16(count);
-        self.push_f32(cam_s(gap, with_cam));
-        self.push_u8(direction as u8);
+        self.push_rec(
+            *Rec::<24>::new(Op::StrokeLineRepeated as u8)
+                .f32(cam_x(x1, with_cam))
+                .f32(cam_y(y1, with_cam))
+                .f32(cam_x(x2, with_cam))
+                .f32(cam_y(y2, with_cam))
+                .u16(count)
+                .f32(cam_s(gap, with_cam))
+                .u8(direction as u8),
+        );
     }
 
     pub fn stroke_arc(
@@ -188,18 +210,16 @@ impl DrawBuf {
         end_angle: f32,
         with_cam: bool,
     ) {
-        self.push_u8(Op::StrokeArc as u8);
-        self.push_f32(cam_x(x, with_cam));
-        self.push_f32(cam_y(y, with_cam));
-        self.push_f32(cam_s(r, with_cam));
-        self.push_f32(start_angle);
-        self.push_f32(end_angle);
+        self.push_rec(
+            *Rec::<21>::new(Op::StrokeArc as u8)
+                .f32(cam_x(x, with_cam))
+                .f32(cam_y(y, with_cam))
+                .f32(cam_s(r, with_cam))
+                .f32(start_angle)
+                .f32(end_angle),
+        );
     }
 
-    /// Shared by fill_points/stroke_points: copies `points` (interleaved
-    /// x,y) straight into the drawbuf, transforming each vertex on the way
-    /// in — same shape as `fill_text` copying its utf8 bytes inline. No
-    /// pointer into caller memory survives past this call.
     fn push_points(&mut self, op: Op, points: &[f32], with_cam: bool) {
         let count = (points.len() / 2).min(u16::MAX as usize);
         self.push_u8(op as u8);
@@ -210,37 +230,29 @@ impl DrawBuf {
         }
     }
 
-    /// Fills the polygon whose vertices are the (x,y) pairs in `points`.
-    /// Points are copied into the drawbuf; `points` need not outlive this call.
     pub fn fill_points(&mut self, points: &[f32], with_cam: bool) {
         self.push_points(Op::FillPoints, points, with_cam);
     }
 
-    /// Strokes the open polyline through the (x,y) pairs in `points`.
-    /// Points are copied into the drawbuf; `points` need not outlive this call.
     pub fn stroke_points(&mut self, points: &[f32], with_cam: bool) {
         self.push_points(Op::StrokePoints, points, with_cam);
     }
 
-    /// Shared by fill_points_ref/stroke_points_ref: pushes only a pointer +
-    /// count, no copy. `points` must stay alive and untouched until the
-    /// frame's drawbuf is consumed on the JS side. No camera transform is
-    /// applied — pass already-transformed coordinates if you need one.
+    /// pointer + count, `points` must stay alive until the drawbuf is
+    /// consumed on the JS side. No camera transform is applied
     fn push_points_ref(&mut self, op: Op, points: &[f32]) {
         let count = (points.len() / 2).min(u16::MAX as usize) as u16;
-        self.push_u8(op as u8);
-        self.push_u32(points.as_ptr() as u32);
-        self.push_u16(count);
+        self.push_rec(
+            *Rec::<7>::new(op as u8)
+                .u32(points.as_ptr() as u32)
+                .u16(count),
+        );
     }
 
-    /// Ref variant of `fill_points`: no copy, just a pointer into `points`.
-    /// `points` must outlive this frame's draw and is used as-is (no camera transform).
     pub fn fill_points_ref(&mut self, points: &[f32]) {
         self.push_points_ref(Op::FillPointsRef, points);
     }
 
-    /// Ref variant of `stroke_points`: no copy, just a pointer into `points`.
-    /// `points` must outlive this frame's draw and is used as-is (no camera transform).
     pub fn stroke_points_ref(&mut self, points: &[f32]) {
         self.push_points_ref(Op::StrokePointsRef, points);
     }
@@ -292,3 +304,26 @@ pub fn cam_s(s: f32, with_cam: bool) -> f32 {
         s
     }
 }
+
+pub struct RenderStats {
+    prev_timestamp: f64,
+    pub delta: i32,
+}
+
+impl RenderStats {
+    pub const fn new() -> Self {
+        Self {
+            prev_timestamp: 0.0,
+            delta: 0,
+        }
+    }
+
+    pub fn refresh(&mut self) {
+        let time = ffi::perf_now();
+
+        self.delta = (time - self.prev_timestamp) as i32;
+        self.prev_timestamp = time;
+    }
+}
+
+pub static mut RENDER_STATS: RenderStats = RenderStats::new();

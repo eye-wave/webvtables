@@ -84,7 +84,8 @@ export class Canvas2DRenderer implements Renderer {
     const { ctx } = this;
     ctx.beginPath();
     ctx.moveTo(points[0], points[1]);
-    for (let i = 1; i < count; i++) ctx.lineTo(points[i * 2], points[i * 2 + 1]);
+    for (let i = 1; i < count; i++)
+      ctx.lineTo(points[i * 2], points[i * 2 + 1]);
     ctx.closePath();
     ctx.fill();
   }
@@ -94,7 +95,8 @@ export class Canvas2DRenderer implements Renderer {
     const { ctx } = this;
     ctx.beginPath();
     ctx.moveTo(points[0], points[1]);
-    for (let i = 1; i < count; i++) ctx.lineTo(points[i * 2], points[i * 2 + 1]);
+    for (let i = 1; i < count; i++)
+      ctx.lineTo(points[i * 2], points[i * 2 + 1]);
     ctx.stroke();
   }
 

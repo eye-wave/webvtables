@@ -37,11 +37,18 @@ pub fn point_segment_dist2(px: f32, py: f32, x1: f32, y1: f32, x2: f32, y2: f32)
 /// b is (x1,y1,x2,y2)
 pub fn is_out_of_bounds(x1: f32, y1: f32, x2: f32, y2: f32) -> bool {
     let c = camera();
-    let s = state();
-    let b = s.viewport_bounds;
+    let b = state().viewport_bounds;
 
-    let (sx, sy) = c.to_screen(x1, y1);
-    let (sx2, sy2) = c.to_screen(x2, y2);
+    let (w_xmin, w_xmax) = (x1.min(x2), x1.max(x2));
+    let (w_ymin, w_ymax) = (y1.min(y2), y1.max(y2));
 
-    sx2 < b.0 || sx > b.2 || sy2 < b.1 || sy > b.3
+    let (sx1, sy1) = c.to_screen(w_xmin, w_ymin);
+    let (sx2, sy2) = c.to_screen(w_xmax, w_ymax);
+
+    let s_xmin = sx1.min(sx2);
+    let s_xmax = sx1.max(sx2);
+    let s_ymin = sy1.min(sy2);
+    let s_ymax = sy1.max(sy2);
+
+    s_xmax < b.0 || s_xmin > b.2 || s_ymax < b.1 || s_ymin > b.3
 }

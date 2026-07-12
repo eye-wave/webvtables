@@ -4,6 +4,7 @@ pub struct Camera {
     pub x: f32,
     pub y: f32,
     pub zoom: f32,
+    inv_zoom: f32,
 }
 
 impl Camera {
@@ -15,6 +16,7 @@ impl Camera {
             x: 0.0,
             y: 0.0,
             zoom: 1.0,
+            inv_zoom: 1.0,
         }
     }
 
@@ -22,8 +24,10 @@ impl Camera {
         let (wx, wy) = self.to_world(sx, sy);
         let new_zoom = (self.zoom * ffi::expf(-dy * 0.01)).clamp(Self::MIN_ZOOM, Self::MAX_ZOOM);
 
-        self.x = sx / new_zoom - wx;
-        self.y = sy / new_zoom - wy;
+        self.inv_zoom = 1.0 / new_zoom;
+
+        self.x = sx * self.inv_zoom - wx;
+        self.y = sy * self.inv_zoom - wy;
         self.zoom = new_zoom;
     }
 
@@ -38,7 +42,7 @@ impl Camera {
     }
 
     pub fn to_world(&self, sx: f32, sy: f32) -> (f32, f32) {
-        ((sx / self.zoom - self.x), (sy / self.zoom - self.y))
+        (sx * self.inv_zoom - self.x, sy * self.inv_zoom - self.y)
     }
 
     pub fn to_screen(&self, wx: f32, wy: f32) -> (f32, f32) {
@@ -46,12 +50,12 @@ impl Camera {
     }
 
     pub fn pan(&mut self, dx: f32, dy: f32) {
-        self.x -= dx / self.zoom;
-        self.y -= dy / self.zoom;
+        self.x -= dx * self.inv_zoom;
+        self.y -= dy * self.inv_zoom;
     }
 
     pub fn pan_by_drag(&mut self, dx: f32, dy: f32) {
-        self.x += dx / self.zoom;
-        self.y += dy / self.zoom;
+        self.x += dx * self.inv_zoom;
+        self.y += dy * self.inv_zoom;
     }
 }

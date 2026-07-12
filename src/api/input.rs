@@ -1,7 +1,7 @@
 use crate::api::nodes::pack_f32_pair;
 use crate::draw::{cam_s, camera};
 use crate::geom::{Interactive, dist2, point_in_rect};
-use crate::{console_print, graph::*};
+use crate::{console_print, graph::*, process};
 use crate::{ffi, render};
 
 #[repr(u8)]
@@ -198,8 +198,10 @@ pub extern "C" fn on_mouse_down(sx: f32, sy: f32, button: i8, ctrl_key: bool) ->
     if let Some(i) = find_hovered_link(s, x, y) {
         s.links.remove(i);
         s.hovered_link = None;
-        s.version += 1;
+
+        process();
         console_print!("removed link ", i);
+
         return HitResult::link(i as u16).into_u32();
     }
 
@@ -281,6 +283,8 @@ pub extern "C" fn on_mouse_move(sx: f32, sy: f32, alt_key: bool) {
         return;
     }
 
+    let mut should_rerender = false;
+
     if let Some(idx) = s.dragging_knob
         && let Some(knob) = s.knobs.get_mut(idx)
     {
@@ -305,16 +309,24 @@ pub extern "C" fn on_mouse_move(sx: f32, sy: f32, alt_key: bool) {
     if let Some(i) = s.dragging_node {
         s.nodes[i].x = x - s.drag_offset.0;
         s.nodes[i].y = y - s.drag_offset.1;
+
+        should_rerender = true;
     }
 
     if let Some((i, p)) = s.dragging_param {
         let delta = s.drag_param_start_y - y;
         if let Some(param) = s.nodes[i].params[p].as_mut() {
             param.drag_from(s.drag_param_start_value, delta as f64, alt_key);
+            process()
         }
     }
 
     let mouse_over_any_node = s.nodes.iter().any(|n| n.contains(x, y));
+
+    should_rerender |= s.hovered_socket.is_some()
+        || s.hovered_link.is_some()
+        || s.dragging_param.is_some()
+        || s.pending_link_from.is_some();
 
     s.hovered_link =
         if s.dragging_node.is_none() && s.pending_link_from.is_none() && !mouse_over_any_node {
@@ -329,7 +341,9 @@ pub extern "C" fn on_mouse_move(sx: f32, sy: f32, alt_key: bool) {
         None
     };
 
-    render();
+    if should_rerender {
+        render();
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -351,7 +365,6 @@ pub extern "C" fn on_dbl_click(x: f32, y: f32, button: i8) {
             param.reset_to_default();
             s.dragging_param = None;
 
-            s.version += 1;
             render();
             return;
         }
@@ -364,7 +377,6 @@ pub extern "C" fn on_dbl_click(x: f32, y: f32, button: i8) {
         s.dragging_knob = None;
         ffi::release_mouse();
 
-        s.version += 1;
         render();
         return;
     }
@@ -386,36 +398,41 @@ pub extern "C" fn on_mouse_up(sx: f32, sy: f32) {
     s.is_panning = false;
 
     if let Some((from, from_socket)) = s.pending_link_from {
-        'search: for j in 0..s.nodes.len() {
-            let n = &s.nodes[j];
-            for to_socket in 0..n.kind.input_count() {
+        let target_socket = s.nodes.iter().enumerate().find_map(|(j, n)| {
+            (0..n.kind.input_count()).find_map(|to_socket| {
                 let (ix, iy) = input_pos(n, to_socket);
                 if dist2(x, y, ix, iy) <= SOCKET_HIT_R2 {
-                    if is_valid_target(s, from, j) {
-                        s.links.retain(|l| !(l.to == j && l.to_socket == to_socket));
-
-                        if s.links
-                            .push(Link {
-                                from,
-                                from_socket,
-                                to: j,
-                                to_socket,
-                            })
-                            .is_ok()
-                        {
-                            s.version += 1;
-                            console_print!("linked node ", from, " -> ", j);
-                        } else {
-                            console_print!("link capacity reached");
-                        }
-                    } else {
-                        console_print!("rejected link ", from, " -> ", j);
-                    }
-                    break 'search;
+                    Some((j, to_socket))
+                } else {
+                    None
                 }
+            })
+        });
+
+        if let Some((j, to_socket)) = target_socket {
+            if !is_valid_target(s, from, j) {
+                console_print!("rejected link ", from, " -> ", j);
+                return;
+            }
+
+            s.links.retain(|l| !(l.to == j && l.to_socket == to_socket));
+
+            let new_link = Link {
+                from,
+                from_socket,
+                to: j,
+                to_socket,
+            };
+
+            if s.links.push(new_link).is_ok() {
+                console_print!("linked node ", from, " -> ", j);
+                process();
+            } else {
+                console_print!("link capacity reached");
             }
         }
     }
+
     s.pending_link_from = None;
     s.dragging_node = None;
     s.dragging_param = None;

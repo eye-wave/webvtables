@@ -3,6 +3,7 @@ use heapless::Vec as HVec;
 use crate::console_print;
 use crate::draw::camera;
 use crate::graph::*;
+use crate::process;
 use crate::render;
 
 #[unsafe(no_mangle)]
@@ -28,11 +29,6 @@ pub extern "C" fn node_param_value(i: usize, p: usize) -> f64 {
 #[unsafe(no_mangle)]
 pub extern "C" fn max_links() -> usize {
     MAX_LINKS
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn graph_version() -> u32 {
-    state().version
 }
 
 #[unsafe(no_mangle)]
@@ -91,7 +87,6 @@ pub extern "C" fn remove_node(target_idx: usize) {
     s.dragging_keyframe = None;
     s.pending_link_from = None;
 
-    s.version += 1;
     render();
 }
 
@@ -108,7 +103,6 @@ pub extern "C" fn remove_all_nodes() {
     s.hovered_link = None;
     s.hovered_socket = None;
 
-    s.version = 0;
     render();
 }
 
@@ -155,7 +149,6 @@ pub unsafe extern "C" fn add_node(x: f32, y: f32, name_ptr: *const u8, name_len:
         return -1;
     }
 
-    s.version += 1;
     render();
 
     new_idx as isize
@@ -177,8 +170,10 @@ pub extern "C" fn average_node_pos() {
         .map(|n| (n.x, n.y))
         .fold((0.0, 0.0, 0), |(sx, sy, n), (x, y)| (sx + x, sy + y, n + 1));
 
-    c.x = sx / n as f32;
-    c.y = sy / n as f32 - 260.0;
+    let inv_n = 1.0 / (n as f32);
+
+    c.x = sx * inv_n;
+    c.y = sy * inv_n - 260.0;
     c.zoom = 1.0;
 
     render();
@@ -205,6 +200,7 @@ pub extern "C" fn set_node_value(node_id: usize, param_id: usize, val_denorm: f6
     };
 
     param.set_value_denorm(val_denorm);
+    process();
     render();
 }
 

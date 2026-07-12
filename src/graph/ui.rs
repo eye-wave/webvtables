@@ -1,5 +1,5 @@
 use crate::FixedStr;
-use crate::draw::{Color, Direction, Draw, camera};
+use crate::draw::{Color, Direction, Draw, RENDER_STATS, camera};
 use crate::ffi::{cosf, sinf};
 use crate::geom::Interactive;
 use crate::graph::Param;
@@ -8,6 +8,7 @@ use core::f32::consts::PI;
 pub const HEADER_HEIGHT: f32 = 45.0;
 
 pub struct CameraWidget;
+pub struct RendererWidget;
 
 impl Draw for CameraWidget {
     fn draw(&self, _i: usize, _s: &super::GraphState, ctx: &mut crate::draw::DrawBuf) {
@@ -15,7 +16,7 @@ impl Draw for CameraWidget {
 
         let mut vbuf = FixedStr::<32>::new();
 
-        ctx.fill_style([50, 50, 50]);
+        ctx.fill_style([50; 3]);
         ctx.fill_rect(0.0, HEADER_HEIGHT, 200.0, 20.0, false);
 
         ctx.fill_style([150, 150, 150]);
@@ -28,6 +29,24 @@ impl Draw for CameraWidget {
         vbuf.push_fixed2(c.zoom as f64);
 
         ctx.fill_text(vbuf.as_str(), 13.0, 5.0, 12.0 + HEADER_HEIGHT, false);
+    }
+}
+
+impl Draw for RendererWidget {
+    fn draw(&self, _i: usize, s: &super::GraphState, ctx: &mut crate::draw::DrawBuf) {
+        let mut vbuf = FixedStr::<32>::new();
+        let w = 80.0;
+        let x = s.viewport.0 - w;
+
+        ctx.fill_style([50; 3]);
+        ctx.fill_rect(x, HEADER_HEIGHT, w, 20.0, false);
+
+        ctx.fill_style([150, 150, 150]);
+
+        vbuf.push_int(unsafe { RENDER_STATS.delta });
+        vbuf.push_str(" ms");
+
+        ctx.fill_text(vbuf.as_str(), 13.0, x + 5.0, 12.0 + HEADER_HEIGHT, false);
     }
 }
 

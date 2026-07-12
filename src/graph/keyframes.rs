@@ -5,7 +5,7 @@ use crate::{FixedStr, ffi, render};
 
 pub struct KeyframeRuler;
 
-pub const KEYFRAME_RULER_HEIGHT: f32 = 25.0;
+pub const KEYFRAME_RULER_HEIGHT: f32 = 28.0;
 pub const KEYFRAME_POS_PERCENT: f32 = 0.6;
 
 impl Draw for KeyframeRuler {
@@ -20,19 +20,32 @@ impl Draw for KeyframeRuler {
         for (n, h_mul) in [(16.0, 0.6), (32.0, 0.3), (256.0, 0.1)].iter() {
             let gap = w / n;
 
+            const MARGIN: f32 = 6.0;
+
             ctx.line_width(1.0);
-            ctx.stroke_style([50; 3]);
+            ctx.stroke_style([90; 3]);
             ctx.stroke_line_repeated(
                 KEYFRAME_LANE_WIDTH,
-                y,
+                y + MARGIN,
                 KEYFRAME_LANE_WIDTH,
-                y + KEYFRAME_RULER_HEIGHT * h_mul,
+                y + KEYFRAME_RULER_HEIGHT * h_mul + MARGIN,
                 256,
                 gap,
                 Direction::Horizontal,
                 false,
             );
         }
+
+        ctx.line_width(1.0);
+        ctx.stroke_style([80; 3]);
+        ctx.stroke_line(KEYFRAME_LANE_WIDTH, y, s.viewport.0, y, false);
+
+        ctx.line_width(2.0);
+        ctx.stroke_style([100, 220, 160]);
+        ctx.stroke_line(KEYFRAME_LANE_WIDTH, y, s.viewport.0 / 2.0, y, false);
+
+        ctx.fill_style([100, 220, 160]);
+        ctx.fill_circle(s.viewport.0 / 2.0, y, 4.0, false);
     }
 }
 
@@ -44,7 +57,7 @@ const KEYFRAME_LANE_WIDTH: f32 = 180.0;
 impl Draw for KeyframeLanes {
     fn draw(&self, _i: usize, s: &super::GraphState, ctx: &mut crate::draw::DrawBuf) {
         let view_h = s.viewport.1;
-        let y = view_h * KEYFRAME_POS_PERCENT + 25.0;
+        let y = view_h * KEYFRAME_POS_PERCENT + KEYFRAME_RULER_HEIGHT;
 
         let gap = KEYFRAME_LANE_HEIGHT;
 
@@ -92,9 +105,6 @@ pub struct KeyframeLane {
 
 #[derive(Clone, Copy)]
 pub struct Keyframe {
-    /// Which (node, param) lane this belongs to — the lane itself, not a
-    /// position in `s.lanes`, so it never needs remapping when lanes are
-    /// added, removed, or reordered.
     pub lane: KeyframeLane,
     pub frame: u8,
     pub value: f64,
@@ -106,18 +116,12 @@ impl PartialEq for Keyframe {
     }
 }
 
-/// Diamond width used both for drawing and hit-testing, so they can never
-/// drift apart.
-const KEYFRAME_W: f32 = 8.0;
-const KEYFRAME_H: f32 = 20.0;
-/// Extra margin added only for hit-testing — the 8px-wide diamond alone is
-/// too small a target to reliably grab.
+const KEYFRAME_W: f32 = 12.0;
+const KEYFRAME_H: f32 = KEYFRAME_LANE_HEIGHT * 0.8;
+
 const KEYFRAME_HIT_PAD: f32 = 5.0;
 
 impl Keyframe {
-    /// This keyframe's diamond bounding box in world space, or `None` if
-    /// its lane isn't currently shown (shouldn't normally happen — a lane
-    /// removal also removes its keyframes).
     pub fn rect(&self, s: &super::GraphState) -> Option<(f32, f32, f32, f32)> {
         let row = s.lanes.iter().position(|l| *l == self.lane)?;
 
@@ -138,6 +142,14 @@ impl KeyframeLane {
             node_id: nid as u16,
             param_id: pid as u8,
         }
+    }
+
+    fn keyframes(&self) -> impl Iterator<Item = &Keyframe> + Clone {
+        let s = state();
+
+        s.keyframes
+            .iter()
+            .filter(|k| k.lane.node_id == self.node_id)
     }
 
     fn kind(&self) -> Option<NodeKind> {
@@ -181,6 +193,21 @@ impl Draw for KeyframeLane {
 
         ctx.fill_style([200; 3]);
         ctx.fill_text(vbuf.as_str(), 14.0, 2.0, y + 15.0, false);
+
+        let mut prev = None;
+        let w = s.viewport.0 - KEYFRAME_LANE_WIDTH;
+
+        ctx.stroke_style([90, 80, 60]);
+        for k in self.keyframes() {
+            let x = (k.frame as f32 / 256.0 * w) + KEYFRAME_LANE_WIDTH;
+            let y = y + (1.0 - k.value) as f32 * KEYFRAME_LANE_HEIGHT;
+
+            if let Some((px, py)) = prev {
+                ctx.stroke_line(px, py, x, y, false);
+            }
+
+            prev = Some((x, y));
+        }
     }
 }
 
@@ -213,7 +240,6 @@ impl Draw for Keyframe {
     }
 }
 
-/// World-space frame axis is one keyframe slot at a time; the keyframe
 /// snaps to whichever frame the mouse is nearest.
 pub fn frame_from_world_x(s: &super::GraphState, world_x: f32) -> u8 {
     let step_x = (s.viewport.0 - KEYFRAME_LANE_WIDTH) / 256.0;
@@ -221,7 +247,6 @@ pub fn frame_from_world_x(s: &super::GraphState, world_x: f32) -> u8 {
     ((ffi::roundf(world_x - KEYFRAME_LANE_WIDTH) / step_x).clamp(0.0, 255.0)) as u8
 }
 
-/// Index into `s.keyframes` of the diamond under `(x, y)`, if any.
 pub fn keyframe_hit_test(s: &super::GraphState, x: f32, y: f32) -> Option<usize> {
     s.keyframes.iter().position(|k| {
         let Some((rx, ry, rw, rh)) = k.rect(s) else {
@@ -239,9 +264,6 @@ pub fn keyframe_hit_test(s: &super::GraphState, x: f32, y: f32) -> Option<usize>
     })
 }
 
-/// Moves keyframe `idx` to `new_frame`, unless another keyframe already
-/// occupies that frame in the same lane (only one keyframe per frame per
-/// lane, ever).
 pub fn move_keyframe(idx: usize, new_frame: u8) {
     let s = state();
 
