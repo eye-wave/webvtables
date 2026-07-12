@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use crate::draw::{Direction, Draw};
 use crate::geom::point_in_rect;
 use crate::graph::{NodeKind, NodeLogic, state};
@@ -40,12 +42,14 @@ impl Draw for KeyframeRuler {
         ctx.stroke_style([80; 3]);
         ctx.stroke_line(KEYFRAME_LANE_WIDTH, y, s.viewport.0, y, false);
 
+        let playhead_x = frame_to_screen_x(s, s.current_frame);
+
         ctx.line_width(2.0);
         ctx.stroke_style([100, 220, 160]);
-        ctx.stroke_line(KEYFRAME_LANE_WIDTH, y, s.viewport.0 / 2.0, y, false);
+        ctx.stroke_line(KEYFRAME_LANE_WIDTH, y, playhead_x, y, false);
 
         ctx.fill_style([100, 220, 160]);
-        ctx.fill_circle(s.viewport.0 / 2.0, y, 4.0, false);
+        ctx.fill_circle(playhead_x, y, 4.0, false);
     }
 }
 
@@ -121,7 +125,12 @@ const KEYFRAME_H: f32 = KEYFRAME_LANE_HEIGHT * 0.8;
 
 const KEYFRAME_HIT_PAD: f32 = 5.0;
 
-/// Minimum time between two toggles of the same lane
+/// Minimum time between two toggles of the *same* lane before the second
+/// one is honored. A single physical click can legitimately produce more
+/// than one `on_keyframe_hit()` call in a row (e.g. `on_dbl_click` re-runs
+/// the hit test, or a fast double-click sends two mousedowns), which was
+/// toggling the lane straight back off. 300ms comfortably covers those
+/// duplicate hits while still allowing a deliberate, separate click.
 const KEYFRAME_TOGGLE_DEBOUNCE_MS: f64 = 300.0;
 
 impl Keyframe {
@@ -200,8 +209,11 @@ impl Draw for KeyframeLane {
         let mut prev = None;
         let w = s.viewport.0 - KEYFRAME_LANE_WIDTH;
 
+        let mut sorted: Vec<&Keyframe> = self.keyframes().collect();
+        sorted.sort_by_key(|k| k.frame);
+
         ctx.stroke_style([90, 80, 60]);
-        for k in self.keyframes() {
+        for k in sorted {
             let x = (k.frame as f32 / 256.0 * w) + KEYFRAME_LANE_WIDTH;
             let y = y + (1.0 - k.value) as f32 * KEYFRAME_LANE_HEIGHT;
 
@@ -243,6 +255,7 @@ fn diamond_fill_points(x: f32, y: f32, w: f32, h: f32, value: f32) -> ([f32; 12]
         (x,      y + hh), // left
     ];
 
+    // Fill from the bottom up: value 0 -> nothing, value 1 -> everything.
     let y_cut = y + h * (1.0 - value);
 
     let mut out = [0.0f32; 12];
@@ -284,11 +297,14 @@ impl Draw for Keyframe {
             return;
         };
 
+        // Always show the full diamond outline...
         let points = gen_diamond(x, y, w, h);
         ctx.line_width(1.5);
         ctx.stroke_style([230, 200, 50]);
         ctx.stroke_points(&points, false);
 
+        // ...then fill only the bottom `value` fraction of it, so the
+        // diamond doubles as a little gauge for the keyframe's value.
         let (fill_pts, fill_n) = diamond_fill_points(x, y, w, h, self.value as f32);
         if fill_n >= 3 {
             ctx.fill_style([230, 200, 50]);
@@ -297,22 +313,43 @@ impl Draw for Keyframe {
     }
 }
 
-/// snaps to whichever frame the mouse is nearest.
-pub fn frame_from_world_x(s: &super::GraphState, world_x: f32) -> u8 {
+pub fn frame_from_screen_x(s: &super::GraphState, screen_x: f32) -> u8 {
     let step_x = (s.viewport.0 - KEYFRAME_LANE_WIDTH) / 256.0;
 
-    ((ffi::roundf(world_x - KEYFRAME_LANE_WIDTH) / step_x).clamp(0.0, 255.0)) as u8
+    ((ffi::roundf(screen_x - KEYFRAME_LANE_WIDTH) / step_x).clamp(0.0, 255.0)) as u8
 }
 
-pub fn keyframe_hit_test(s: &super::GraphState, x: f32, y: f32) -> Option<usize> {
+pub fn frame_to_screen_x(s: &super::GraphState, frame: u8) -> f32 {
+    let step_x = (s.viewport.0 - KEYFRAME_LANE_WIDTH) / 256.0;
+
+    frame as f32 * step_x + KEYFRAME_LANE_WIDTH
+}
+
+const PLAYHEAD_HIT_R2: f32 = 8.0 * 8.0;
+
+/// Takes raw screen coordinates (see `frame_from_screen_x`), not world
+/// coordinates — the ruler doesn't move with camera pan/zoom.
+pub fn playhead_hit_test(s: &super::GraphState, sx: f32, sy: f32) -> bool {
+    let ruler_y = s.viewport.1 * KEYFRAME_POS_PERCENT;
+    let px = frame_to_screen_x(s, s.current_frame);
+
+    let dx = sx - px;
+    let dy = sy - ruler_y;
+
+    dx * dx + dy * dy <= PLAYHEAD_HIT_R2
+}
+
+/// Takes raw screen coordinates (see `frame_from_screen_x`), not world
+/// coordinates — the lane diamonds don't move with camera pan/zoom.
+pub fn keyframe_hit_test(s: &super::GraphState, sx: f32, sy: f32) -> Option<usize> {
     s.keyframes.iter().position(|k| {
         let Some((rx, ry, rw, rh)) = k.rect(s) else {
             return false;
         };
 
         point_in_rect(
-            x,
-            y,
+            sx,
+            sy,
             rx - KEYFRAME_HIT_PAD,
             ry - KEYFRAME_HIT_PAD,
             rw + KEYFRAME_HIT_PAD * 2.0,
@@ -339,7 +376,11 @@ pub fn move_keyframe(idx: usize, new_frame: u8) {
     }
 }
 
-pub fn value_from_world_y(s: &super::GraphState, lane: KeyframeLane, world_y: f32) -> f64 {
+/// Maps a raw screen-space y coordinate (see `frame_from_screen_x`) to a
+/// keyframe value (0.0..=1.0) for the given lane, 1.0 at the top of the
+/// lane's row and 0.0 at the bottom. Mirrors `Keyframe::rect()`'s
+/// vertical placement so dragging tracks the cursor exactly.
+pub fn value_from_screen_y(s: &super::GraphState, lane: KeyframeLane, screen_y: f32) -> f64 {
     let Some(row) = s.lanes.iter().position(|l| *l == lane) else {
         return 0.5;
     };
@@ -353,7 +394,7 @@ pub fn value_from_world_y(s: &super::GraphState, lane: KeyframeLane, world_y: f3
         return 0.5;
     }
 
-    let t = ((world_y - lane_top) / usable).clamp(0.0, 1.0);
+    let t = ((screen_y - lane_top) / usable).clamp(0.0, 1.0);
     (1.0 - t) as f64
 }
 
@@ -366,6 +407,11 @@ pub fn set_keyframe_value(idx: usize, new_value: f64) {
     kf.value = new_value.clamp(0.0, 1.0);
 }
 
+/// Node keyframe-diamond button. Empty by default; clicking it when
+/// empty drops a keyframe at the graph's current frame (creating the
+/// lane first if this is the param's first keyframe). Clicking it when
+/// full (a keyframe already sits at the current frame) removes just
+/// that keyframe — and the lane too, if that was its last one.
 pub fn on_keyframe_hit(node_id: usize, param_id: usize) {
     let s = state();
 
@@ -388,13 +434,27 @@ pub fn on_keyframe_hit(node_id: usize, param_id: usize) {
     }
     s.last_keyframe_toggle = Some((lane, now));
 
-    if s.lanes.contains(&lane) {
-        s.lanes.retain(|l| *l != lane);
-        s.keyframes.retain(|k| k.lane != lane);
-    } else if s.lanes.push(lane).is_ok() {
+    let frame = s.current_frame;
+
+    if let Some(existing) = s
+        .keyframes
+        .iter()
+        .position(|k| k.lane == lane && k.frame == frame)
+    {
+        s.keyframes.remove(existing);
+
+        // No keyframes left on this lane -> drop the lane too.
+        if !s.keyframes.iter().any(|k| k.lane == lane) {
+            s.lanes.retain(|l| *l != lane);
+        }
+    } else {
+        if !s.lanes.contains(&lane) && s.lanes.push(lane).is_err() {
+            return;
+        }
+
         s.keyframes.push(Keyframe {
             lane,
-            frame: 0,
+            frame,
             value: param.value(),
         });
     }

@@ -13,6 +13,7 @@ pub enum HitType {
     Btn = 3,
     Knob = 4,
     Keyframe = 5,
+    Playhead = 6,
 }
 
 impl HitType {
@@ -22,7 +23,8 @@ impl HitType {
             2 => Self::Link,
             3 => Self::Btn,
             4 => Self::Knob,
-            5 => Self::Knob,
+            5 => Self::Keyframe,
+            6 => Self::Playhead,
             _ => Self::Empty,
         }
     }
@@ -68,6 +70,13 @@ impl HitResult {
             kind: HitType::Keyframe,
             id,
             _sub_id: param_id,
+        }
+    }
+    fn playhead() -> Self {
+        Self {
+            kind: HitType::Playhead,
+            id: 0,
+            _sub_id: -1,
         }
     }
     fn empty() -> Self {
@@ -137,7 +146,12 @@ pub extern "C" fn on_mouse_down(sx: f32, sy: f32, button: i8, ctrl_key: bool) ->
         }
     }
 
-    if let Some(k) = keyframe_hit_test(s, x, y) {
+    if playhead_hit_test(s, sx, sy) {
+        s.dragging_playhead = true;
+        return HitResult::playhead().into_u32();
+    }
+
+    if let Some(k) = keyframe_hit_test(s, sx, sy) {
         s.dragging_keyframe = Some(k);
 
         return HitResult::keyframe(k as u16, -1).into_u32();
@@ -232,11 +246,11 @@ pub extern "C" fn get_cursor_kind(sx: f32, sy: f32) -> CursorKind {
         return CursorKind::Grabbing;
     }
 
-    if s.dragging_keyframe.is_some() {
+    if s.dragging_keyframe.is_some() || s.dragging_playhead {
         return CursorKind::Grabbing;
     }
 
-    if keyframe_hit_test(s, x, y).is_some() {
+    if keyframe_hit_test(s, sx, sy).is_some() || playhead_hit_test(s, sx, sy) {
         return CursorKind::Grab;
     }
 
@@ -300,12 +314,18 @@ pub extern "C" fn on_mouse_move(sx: f32, sy: f32, alt_key: bool) {
     let (x, y) = c.to_world(sx, sy);
     s.mouse = (x, y);
 
+    if s.dragging_playhead {
+        s.current_frame = frame_from_screen_x(s, sx);
+        render();
+        return;
+    }
+
     if let Some(k) = s.dragging_keyframe {
-        move_keyframe(k, frame_from_world_x(s, x));
+        move_keyframe(k, frame_from_screen_x(s, sx));
 
         if let Some(kf) = s.keyframes.get(k) {
             let lane = kf.lane;
-            let value = value_from_world_y(s, lane, y);
+            let value = value_from_screen_y(s, lane, sy);
             set_keyframe_value(k, value);
         }
 
@@ -324,7 +344,17 @@ pub extern "C" fn on_mouse_move(sx: f32, sy: f32, alt_key: bool) {
         let delta = s.drag_param_start_y - y;
         if let Some(param) = s.nodes[i].params[p].as_mut() {
             param.drag_from(s.drag_param_start_value, delta as f64, alt_key);
-            process()
+            let value = param.value();
+            process();
+
+            let lane = KeyframeLane::new(i, p);
+            if let Some(kf) = s
+                .keyframes
+                .iter_mut()
+                .find(|k| k.lane == lane && k.frame == s.current_frame)
+            {
+                kf.value = value;
+            }
         }
     }
 
@@ -443,6 +473,7 @@ pub extern "C" fn on_mouse_up(sx: f32, sy: f32) {
     s.pending_link_from = None;
     s.dragging_node = None;
     s.dragging_param = None;
+    s.dragging_playhead = false;
     if s.dragging_knob.is_some() {
         s.dragging_knob = None;
         ffi::release_mouse();

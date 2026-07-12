@@ -55,6 +55,10 @@ pub struct GraphState {
     /// synthetic re-hit-test from `on_dbl_click`) that would otherwise
     /// toggle the lane on and immediately back off.
     pub last_keyframe_toggle: Option<(KeyframeLane, f64)>,
+    /// Global playhead position (0..255), shown as the draggable green
+    /// dot in the keyframe ruler.
+    pub current_frame: u8,
+    pub dragging_playhead: bool,
     pub dragging_knob: Option<usize>,
     pub drag_knob_start_y: f32,
     pub drag_knob_start_value: f32,
@@ -86,6 +90,8 @@ static mut STATE: GraphState = GraphState {
     keyframes: Vec::new(),
     dragging_keyframe: None,
     last_keyframe_toggle: None,
+    current_frame: 0,
+    dragging_playhead: false,
     dragging_knob: None,
     drag_knob_start_y: 0.0,
     drag_knob_start_value: 0.0,

@@ -338,11 +338,13 @@ impl Draw for Node {
             let (kx, ky, kw, kh) = self.keyframe_value_rect(active_idx);
 
             let points = gen_diamond(kx, ky, kw, kh);
-            if s.lanes
-                .iter()
-                .find(|lane| lane.node_id == i as u16 && lane.param_id == active_idx as u8)
-                .is_some()
-            {
+            let has_keyframe_here = s.keyframes.iter().any(|k| {
+                k.lane.node_id == i as u16
+                    && k.lane.param_id == active_idx as u8
+                    && k.frame == s.current_frame
+            });
+
+            if has_keyframe_here {
                 ctx.fill_style([230, 200, 50]);
                 ctx.fill_points(&points, true);
             } else {
