@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 
 use crate::draw::{Direction, Draw};
 use crate::geom::point_in_rect;
-use crate::graph::{NodeKind, NodeLogic, state};
+use crate::graph::{NodeKind, NodeLogic, bake_wavetable, state};
 use crate::{FixedStr, ffi, render};
 
 pub struct KeyframeRuler;
@@ -168,6 +168,37 @@ impl KeyframeLane {
         let s = state();
 
         s.nodes.get(self.node_id as usize).map(|n| n.kind)
+    }
+
+    /// Linear-interpolated value of this lane at an arbitrary frame,
+    /// flat-extrapolated before the first / after the last keyframe.
+    /// `None` if the lane has no keyframes (caller should keep the
+    /// param's own live value in that case).
+    pub fn value_at_frame(&self, frame: u8) -> Option<f64> {
+        let mut sorted: Vec<&Keyframe> = self.keyframes().collect();
+        if sorted.is_empty() {
+            return None;
+        }
+        sorted.sort_by_key(|k| k.frame);
+
+        if frame <= sorted[0].frame {
+            return Some(sorted[0].value);
+        }
+        if frame >= sorted[sorted.len() - 1].frame {
+            return Some(sorted[sorted.len() - 1].value);
+        }
+
+        let pair = sorted.windows(2).find(|w| {
+            let (a, b) = (w[0], w[1]);
+            frame >= a.frame && frame <= b.frame
+        })?;
+        let (a, b) = (pair[0], pair[1]);
+        if a.frame == b.frame {
+            return Some(b.value);
+        }
+
+        let t = (frame - a.frame) as f64 / (b.frame - a.frame) as f64;
+        Some(a.value + (b.value - a.value) * t)
     }
 }
 
@@ -459,5 +490,6 @@ pub fn on_keyframe_hit(node_id: usize, param_id: usize) {
         });
     }
 
+    bake_wavetable(s);
     render();
 }

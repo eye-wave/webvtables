@@ -470,6 +470,12 @@ pub extern "C" fn on_mouse_up(sx: f32, sy: f32) {
         }
     }
 
+    // Full 256-frame wavetable rebuild happens once per gesture, here on
+    // release — not on every mousemove tick above, where only the cheap
+    // single-frame `process()` preview runs.
+    let rebake =
+        s.dragging_param.is_some() || s.dragging_knob.is_some() || s.dragging_keyframe.is_some();
+
     s.pending_link_from = None;
     s.dragging_node = None;
     s.dragging_param = None;
@@ -481,6 +487,10 @@ pub extern "C" fn on_mouse_up(sx: f32, sy: f32) {
     if s.dragging_keyframe.is_some() {
         s.dragging_keyframe = None;
         ffi::release_mouse();
+    }
+
+    if rebake {
+        bake_wavetable(s);
     }
     render();
 }

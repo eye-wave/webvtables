@@ -20,6 +20,21 @@ impl<const N: usize> FixedStr<N> {
         }
     }
 
+    pub const fn from_str(input: &str) -> Self {
+        let mut buf = [0; N];
+        let bytes = input.as_bytes();
+
+        let len = if bytes.len() < N { bytes.len() } else { N };
+
+        let mut i = 0;
+        while i < len {
+            buf[i] = bytes[i];
+            i += 1;
+        }
+
+        Self { buf, len }
+    }
+
     pub fn as_str(&self) -> &str {
         core::str::from_utf8(&self.buf[..self.len]).unwrap_or("")
     }

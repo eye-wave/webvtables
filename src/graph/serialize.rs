@@ -204,6 +204,15 @@ impl SerializeGraph for GraphState {
                 slot.set_value_norm(f64::from_le_bytes(read_bytes!(pos, 8).try_into().unwrap()));
             }
 
+            if kind == NodeKind::Output && self.has_output_node() {
+                // Legacy/edited save has a second Output node — drop it
+                // rather than failing the whole load; the graph's
+                // single-sink invariant matters more than round-tripping
+                // a save that never should've had two.
+                console_print!("Skipping duplicate Output node on load");
+                continue;
+            }
+
             if self.nodes.push(node).is_err() {
                 console_print!("Internal nodes buffer overflow");
                 return -1;

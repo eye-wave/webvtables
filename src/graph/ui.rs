@@ -2,7 +2,7 @@ use crate::FixedStr;
 use crate::draw::{Color, Direction, Draw, RENDER_STATS, camera};
 use crate::ffi::{cosf, sinf};
 use crate::geom::Interactive;
-use crate::graph::Param;
+use crate::graph::{KEYFRAME_POS_PERCENT, Param};
 use core::f32::consts::PI;
 
 pub const HEADER_HEIGHT: f32 = 45.0;
@@ -67,7 +67,7 @@ pub struct Button {
     pub h: f32,
     pub color: Color,
     pub txt_color: Color,
-    pub text: FixedStr<12>,
+    pub text: FixedStr<5>,
 }
 
 impl Interactive for Button {
@@ -200,5 +200,24 @@ impl Draw for Background {
             Direction::Vertical,
             true,
         );
+    }
+}
+
+pub struct WavetableWidget;
+
+impl WavetableWidget {
+    pub const WIDTH: f32 = 310.0;
+    pub const HEIGHT: f32 = 220.0;
+}
+
+impl Draw for WavetableWidget {
+    fn draw(&self, _i: usize, s: &super::GraphState, ctx: &mut crate::draw::DrawBuf) {
+        let x = s.viewport.0 - Self::WIDTH;
+        let y = s.viewport.1 * KEYFRAME_POS_PERCENT - Self::HEIGHT;
+
+        ctx.fill_style([20; 3]);
+        ctx.fill_rect(x, y, Self::WIDTH, Self::HEIGHT, false);
+
+        // ctx.draw_wavetable(x, y, Self::WIDTH, Self::HEIGHT, false);
     }
 }

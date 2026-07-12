@@ -155,7 +155,7 @@ impl ParamWidgetType {
 }
 
 impl Param {
-    pub fn new_linear(name: &'static str, r_min: f64, r_max: f64) -> Self {
+    pub const fn new_linear(name: &'static str, r_min: f64, r_max: f64) -> Self {
         Self {
             default: 0.0,
             inner: ParamTypes::Linear(LinearParam {
@@ -181,7 +181,20 @@ impl Param {
         }
     }
 
-    pub fn new_int(name: &'static str, r_min: i32, r_max: i32) -> Self {
+    pub const fn new_log_const(name: &'static str, log_min: f64, log_max: f64) -> Self {
+        Self {
+            default: 0.0,
+            inner: ParamTypes::Log(LogParam {
+                name,
+                value: 0.0,
+                log_min,
+                log_max,
+            }),
+            unit: None,
+        }
+    }
+
+    pub const fn new_int(name: &'static str, r_min: i32, r_max: i32) -> Self {
         Self {
             default: 0.0,
             inner: ParamTypes::Int(IntParam {
@@ -194,7 +207,7 @@ impl Param {
         }
     }
 
-    pub fn new_enum(name: &'static str, data: &'static [&'static str]) -> Self {
+    pub const fn new_enum(name: &'static str, data: &'static [&'static str]) -> Self {
         Self {
             default: 0.0,
             inner: ParamTypes::Enum(EnumParam {
@@ -286,7 +299,7 @@ impl Param {
         };
     }
 
-    pub fn with_unit(mut self, unit: &'static str) -> Self {
+    pub const fn with_unit(mut self, unit: &'static str) -> Self {
         self.unit = Some(unit);
         self
     }

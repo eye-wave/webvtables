@@ -29,6 +29,8 @@ mod consts {
     /// survive across process() calls instead of resetting every frame.
     pub const MAX_NODE_STATE: usize = 12;
     pub const MAX_NODE_INPUTS: usize = 4;
+    /// Wavetable morph axis: one rendered frame per keyframe-ruler position.
+    pub const MAX_FRAMES: usize = 256;
 
     pub const SOCKET_R: f32 = 5.0;
     pub const SOCKET_HIT_R2: f32 = 10.0 * 10.0;
@@ -36,6 +38,8 @@ mod consts {
 }
 
 pub use consts::*;
+
+use crate::FixedStr;
 
 pub struct GraphState {
     pub nodes: HVec<Node, MAX_NODES>,
@@ -45,8 +49,8 @@ pub struct GraphState {
     pub dragging_param: Option<(usize, usize)>,
     pub drag_param_start_y: f32,
     pub drag_param_start_value: f64,
-    pub buttons: HVec<Button, 2>,
-    pub knobs: HVec<Knob, 2>,
+    pub buttons: [Button; 1],
+    pub knobs: [Knob; 2],
     pub lanes: HVec<KeyframeLane, 10>,
     pub keyframes: Vec<Keyframe>,
     pub dragging_keyframe: Option<usize>,
@@ -74,7 +78,15 @@ pub struct GraphState {
     /// heap-allocated (see `init()`) instead of a static array, so
     /// it doesn't inflate the binary; `None` only before init() runs.
     pub buffers: Option<Box<[Buffer]>>,
+    /// Baked wavetable: `MAX_FRAMES` single-cycle frames, one per morph
+    /// position, each `BUFFER_LEN` samples. Heap-allocated in `init()`
+    /// like `buffers`. Only rebuilt on `bake_wavetable()`, not on every
+    /// param drag tick — see that function's doc comment.
+    pub wavetable: Option<Box<[Buffer]>>,
 }
+
+pub const SYM_LOG_10: f64 = 2.3978952727983707;
+pub const SYM_LOG_12000: f64 = 9.392745258631441;
 
 static mut STATE: GraphState = GraphState {
     nodes: HVec::new(),
@@ -84,8 +96,31 @@ static mut STATE: GraphState = GraphState {
     dragging_param: None,
     drag_param_start_y: 0.0,
     drag_param_start_value: 0.0,
-    buttons: HVec::new(),
-    knobs: HVec::new(),
+    buttons: [Button {
+        x: 5.0,
+        y: 10.0,
+        w: 50.0,
+        h: 20.0,
+        color: [240, 80, 90],
+        txt_color: [255, 255, 255],
+        text: FixedStr::from_str("Play"),
+    }],
+    knobs: [
+        Knob {
+            x: 90.0,
+            y: 15.0,
+            r: 13.0,
+            color: [140, 200, 140],
+            param: Param::new_linear("", 0.0, 100.0).with_unit("%"),
+        },
+        Knob {
+            x: 160.0,
+            y: 15.0,
+            r: 13.0,
+            color: [140, 200, 200],
+            param: Param::new_log_const("", SYM_LOG_10, SYM_LOG_12000).with_unit("hz"),
+        },
+    ],
     lanes: HVec::new(),
     keyframes: Vec::new(),
     dragging_keyframe: None,
@@ -104,6 +139,7 @@ static mut STATE: GraphState = GraphState {
     last_pan: (0.0, 0.0),
     is_panning: false,
     buffers: None,
+    wavetable: None,
 };
 
 pub fn state() -> &'static mut GraphState {
@@ -139,6 +175,13 @@ pub fn is_valid_target(s: &GraphState, from: usize, to: usize) -> bool {
 }
 
 impl GraphState {
+    /// At most one `Output` node may exist in the graph — it's the single
+    /// sink `bake_wavetable()` reads from. Enforced at every node-creation
+    /// site (`add_node`, graph deserialize).
+    pub fn has_output_node(&self) -> bool {
+        self.nodes.iter().any(|n| n.kind == NodeKind::Output)
+    }
+
     pub fn auto_layout(&mut self) {
         let num_nodes = self.nodes.len();
         if num_nodes == 0 {

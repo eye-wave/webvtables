@@ -143,6 +143,11 @@ pub unsafe extern "C" fn add_node(x: f32, y: f32, name_ptr: *const u8, name_len:
         }
     };
 
+    if kind == NodeKind::Output && s.has_output_node() {
+        console_print!("Error: Only one Output node is allowed.");
+        return -1;
+    }
+
     let new_idx = s.nodes.len();
     if s.nodes.push(Node::new(kind, x, y)).is_err() {
         console_print!("Error: Maximum node capacity reached.");
@@ -152,6 +157,11 @@ pub unsafe extern "C" fn add_node(x: f32, y: f32, name_ptr: *const u8, name_len:
     render();
 
     new_idx as isize
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn output_node_present() -> bool {
+    state().has_output_node()
 }
 
 pub fn pack_f32_pair(a: f32, b: f32) -> u64 {

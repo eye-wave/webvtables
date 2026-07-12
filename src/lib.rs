@@ -39,6 +39,7 @@ pub extern "C" fn init() {
     let s = state();
 
     s.buffers = Some(alloc::vec![ZERO_BUFFER; MAX_NODES].into_boxed_slice());
+    s.wavetable = Some(alloc::vec![ZERO_BUFFER; MAX_FRAMES].into_boxed_slice());
 
     let _ = s.nodes.push(Node::new(NodeKind::BasicShapes, 240.0, 240.0));
     let _ = s.nodes.push(Node::new(NodeKind::Output, 500.0, 240.0));
@@ -68,35 +69,8 @@ pub extern "C" fn init() {
         value: 1.0,
     });
 
-    let mut text = FixedStr::new();
-    text.push_str("Play");
-    let btn = Button {
-        x: 5.0,
-        y: 10.0,
-        w: 50.0,
-        h: 20.0,
-        color: [240, 80, 90],
-        txt_color: [255, 255, 255],
-        text,
-    };
-
-    let _ = s.buttons.push(btn);
-    let _ = s.knobs.push(Knob {
-        x: 90.0,
-        y: 15.0,
-        r: 13.0,
-        color: [140, 200, 140],
-        param: Param::new_linear("", 0.0, 100.0).with_unit("%"),
-    });
-    let _ = s.knobs.push(Knob {
-        x: 160.0,
-        y: 15.0,
-        r: 13.0,
-        color: [140, 200, 200],
-        param: Param::new_log("", 10.0, 12000.0).with_unit("hz"),
-    });
-
     process();
+    bake_wavetable(s);
     render();
 }
 
@@ -166,6 +140,8 @@ pub extern "C" fn render() {
     for (i, keyframe) in s.keyframes.iter().enumerate() {
         keyframe.draw(i, s, ctx);
     }
+
+    WavetableWidget.draw(0, s, ctx);
 
     let (ptr, len) = ctx.as_ptr_len();
     ffi::draw_flush(ptr, len);
