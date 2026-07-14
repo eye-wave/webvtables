@@ -83,11 +83,9 @@ impl<const N: usize> FixedStr<N> {
     }
 
     pub fn push_raw(&mut self, bytes: &[u8]) {
-        for (i, b) in bytes.iter().take(N).enumerate() {
-            self.buf[i] = *b;
-        }
-
-        self.len = bytes.len();
+        let len = bytes.len().min(N);
+        self.buf[..len].copy_from_slice(&bytes[..len]);
+        self.len = len;
     }
 
     pub fn push_int(&mut self, mut v: i32) {
