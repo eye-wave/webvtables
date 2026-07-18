@@ -34,7 +34,7 @@ impl NodeLogic for DisperserNode {
         &self,
         inputs: &[&crate::graph::Buffer],
         params: &[Option<Param>; crate::graph::MAX_PARAMS],
-        _state: &mut super::NodeState,
+
         out: &mut crate::graph::Buffer,
     ) {
         let exp = helpers::param(params, 0, 0.0) as f32;

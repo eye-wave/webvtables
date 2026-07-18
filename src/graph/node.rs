@@ -7,8 +7,6 @@ use crate::graph::output_pos;
 use super::consts::*;
 use super::{Buffer, GraphState, Param, SocketKind, ZERO_BUFFER, input_pos, is_valid_target};
 
-pub type NodeState = [f32; MAX_NODE_STATE];
-
 mod helpers;
 
 macro_rules! define_nodes {
@@ -57,10 +55,12 @@ define_nodes!(
     IirFilter,
     InharmonicShift,
     Invert,
+    Noise,
     Output,
     Partials,
     PhaseShift,
     Phaser,
+    PhaseCopy,
     PulseWave,
     RingMod,
     Saturation,
@@ -151,13 +151,7 @@ pub trait NodeLogic {
         false
     }
 
-    fn process(
-        &self,
-        inputs: &[&Buffer],
-        _params: &[Option<Param>; MAX_PARAMS],
-        _state: &mut NodeState,
-        out: &mut Buffer,
-    ) {
+    fn process(&self, inputs: &[&Buffer], _params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
         match inputs.first() {
             Some(&buf) => *out = *buf,
             None => *out = ZERO_BUFFER,
@@ -205,14 +199,8 @@ impl NodeLogic for NodeKind {
         self.as_node().has_widget()
     }
 
-    fn process(
-        &self,
-        inputs: &[&Buffer],
-        params: &[Option<Param>; MAX_PARAMS],
-        state: &mut NodeState,
-        out: &mut Buffer,
-    ) {
-        self.as_node().process(inputs, params, state, out);
+    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
+        self.as_node().process(inputs, params, out);
     }
 
     fn draw_widget(
@@ -233,7 +221,6 @@ pub struct Node {
     pub y: f32,
     pub kind: NodeKind,
     pub params: [Option<Param>; MAX_PARAMS],
-    pub state: NodeState,
 }
 
 impl Node {
@@ -271,7 +258,6 @@ impl Node {
             y,
             kind,
             params: kind.default_params(),
-            state: [0.0; MAX_NODE_STATE],
         }
     }
 

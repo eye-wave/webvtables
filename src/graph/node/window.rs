@@ -4,7 +4,7 @@ use crate::ffi;
 use crate::graph::BUFFER_LEN_F32;
 use crate::graph::NodeCategory;
 use crate::graph::node::helpers::PI32;
-use crate::graph::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeState, Param};
+use crate::graph::{BUFFER_LEN, Buffer, MAX_PARAMS, Param};
 
 pub struct WindowNode;
 
@@ -39,13 +39,7 @@ impl NodeLogic for WindowNode {
         ]
     }
 
-    fn process(
-        &self,
-        inputs: &[&Buffer],
-        params: &[Option<Param>; MAX_PARAMS],
-        _state: &mut NodeState,
-        out: &mut Buffer,
-    ) {
+    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
         let win_size = helpers::param(params, 0, 15.0) as f32 / 100.0;
         let win_type = helpers::param(params, 1, 0.0) as u8;
 

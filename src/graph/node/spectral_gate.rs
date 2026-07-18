@@ -1,8 +1,8 @@
 use crate::ffi;
 use crate::graph::{BUFFER_LEN, Buffer, NodeCategory, Param, consts::*};
 
+use super::NodeLogic;
 use super::helpers;
-use super::{NodeLogic, NodeState};
 
 pub struct SpectralGateNode;
 
@@ -34,13 +34,7 @@ impl NodeLogic for SpectralGateNode {
         ]
     }
 
-    fn process(
-        &self,
-        inputs: &[&Buffer],
-        params: &[Option<Param>; MAX_PARAMS],
-        _state: &mut NodeState,
-        out: &mut Buffer,
-    ) {
+    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
         let threshold_db = helpers::param(params, 0, 0.0) as f32;
         let threshold = ffi::powf(10.0, threshold_db / 20.0);
 

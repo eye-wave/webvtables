@@ -3,7 +3,7 @@ use crate::{
     graph::{BUFFER_LEN, Buffer, Param, consts::MAX_PARAMS, node::helpers},
 };
 
-use super::{NodeLogic, NodeState};
+use super::NodeLogic;
 
 pub struct AddNode;
 
@@ -31,13 +31,7 @@ impl NodeLogic for AddNode {
         ]
     }
 
-    fn process(
-        &self,
-        inputs: &[&Buffer],
-        params: &[Option<Param>; MAX_PARAMS],
-        _state: &mut NodeState,
-        out: &mut Buffer,
-    ) {
+    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
         let normalize = helpers::param_bool(params, 0, false);
         let crossfade = helpers::param(params, 1, 0.0) as f32;
 

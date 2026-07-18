@@ -1,8 +1,8 @@
 use crate::ffi;
 use crate::graph::{BUFFER_LEN, Buffer, NodeCategory, Param, consts::*};
 
+use super::NodeLogic;
 use super::helpers;
-use super::{NodeLogic, NodeState};
 
 pub struct BitCrushNode;
 
@@ -34,13 +34,7 @@ impl NodeLogic for BitCrushNode {
         ]
     }
 
-    fn process(
-        &self,
-        inputs: &[&Buffer],
-        params: &[Option<Param>; MAX_PARAMS],
-        _state: &mut NodeState,
-        out: &mut Buffer,
-    ) {
+    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
         let shape = helpers::param(params, 0, 0.0) as u8;
         let strength = helpers::param(params, 1, 0.0) as f32;
         let shift = helpers::param(params, 2, 0.0) as f32;

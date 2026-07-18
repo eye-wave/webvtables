@@ -1,7 +1,7 @@
 use crate::graph::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, Param, consts::*};
 
+use super::NodeLogic;
 use super::helpers;
-use super::{NodeLogic, NodeState};
 
 pub struct PulseWaveNode;
 
@@ -29,13 +29,7 @@ impl NodeLogic for PulseWaveNode {
         ]
     }
 
-    fn process(
-        &self,
-        _inputs: &[&Buffer],
-        params: &[Option<Param>; MAX_PARAMS],
-        _state: &mut NodeState,
-        out: &mut Buffer,
-    ) {
+    fn process(&self, _inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
         let pwm = helpers::param(params, 0, 0.0);
         let repeats = helpers::param(params, 1, 1.0).max(1.0);
 

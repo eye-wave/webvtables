@@ -2,8 +2,8 @@ use crate::ffi;
 use crate::graph::node::helpers::PI32;
 use crate::graph::{BUFFER_LEN, Buffer, NodeCategory, Param, consts::*};
 
+use super::NodeLogic;
 use super::helpers;
-use super::{NodeLogic, NodeState};
 
 pub struct SaturationNode;
 
@@ -39,13 +39,7 @@ impl NodeLogic for SaturationNode {
         ]
     }
 
-    fn process(
-        &self,
-        inputs: &[&Buffer],
-        params: &[Option<Param>; MAX_PARAMS],
-        _state: &mut NodeState,
-        out: &mut Buffer,
-    ) {
+    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
         let shape = helpers::param(params, 0, 0.0) as u8;
         let gain_in = helpers::param_db(params, 1, 0.0) as f32;
         let gain_out = helpers::param_db(params, 2, 0.0) as f32;

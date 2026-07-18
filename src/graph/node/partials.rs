@@ -2,8 +2,8 @@ use crate::ffi;
 use crate::graph::node::helpers::PI32;
 use crate::graph::{BUFFER_LEN_F32, Buffer, Param, consts::*};
 
+use super::NodeLogic;
 use super::helpers;
-use super::{NodeLogic, NodeState};
 
 pub struct PartialsNode;
 
@@ -28,13 +28,7 @@ impl NodeLogic for PartialsNode {
         crate::params![Param::new_int("Count", 1, 48), Param::new_int("Gap", 0, 48),]
     }
 
-    fn process(
-        &self,
-        _inputs: &[&Buffer],
-        params: &[Option<Param>; MAX_PARAMS],
-        _state: &mut NodeState,
-        out: &mut Buffer,
-    ) {
+    fn process(&self, _inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
         let count = helpers::param(params, 0, 0.0) as u16;
         let gap = helpers::param(params, 1, 0.0) as u16;
 

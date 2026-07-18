@@ -30,11 +30,10 @@ impl NodeLogic for FmNode {
         &self,
         inputs: &[&crate::graph::Buffer],
         params: &[Option<Param>; MAX_PARAMS],
-        state: &mut super::NodeState,
         out: &mut crate::graph::Buffer,
     ) {
         let amount = helpers::param(params, 0, 0.0) as f32;
-        let mut phase = state[0];
+        let mut phase = 0.0;
 
         let base_freqs = helpers::input(inputs, 0);
         let modulators = helpers::input(inputs, 1);
@@ -52,7 +51,5 @@ impl NodeLogic for FmNode {
 
             out[i] = phase * 2.0 - 1.0;
         }
-
-        state[0] = phase;
     }
 }

@@ -27,7 +27,7 @@ impl NodeLogic for AmNode {
         &self,
         inputs: &[&crate::graph::Buffer],
         params: &[Option<Param>; MAX_PARAMS],
-        _state: &mut super::NodeState,
+
         out: &mut crate::graph::Buffer,
     ) {
         let depth = helpers::param(params, 0, 1.0) as f32;

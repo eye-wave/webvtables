@@ -1,7 +1,7 @@
 use crate::graph::{BUFFER_LEN, Buffer, Param, consts::*};
 
+use super::NodeLogic;
 use super::helpers;
-use super::{NodeLogic, NodeState};
 
 pub struct CombNode;
 
@@ -29,13 +29,7 @@ impl NodeLogic for CombNode {
         ]
     }
 
-    fn process(
-        &self,
-        inputs: &[&Buffer],
-        params: &[Option<Param>; MAX_PARAMS],
-        _state: &mut NodeState,
-        out: &mut Buffer,
-    ) {
+    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
         let delay = helpers::param(params, 0, 0.0) as usize;
         let iter = helpers::param(params, 1, 0.0) as usize;
 

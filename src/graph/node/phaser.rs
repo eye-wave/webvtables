@@ -2,8 +2,8 @@ use crate::draw::DrawBuf;
 use crate::ffi;
 use crate::graph::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, GraphState, Node, Param, consts::*};
 
+use super::NodeLogic;
 use super::helpers::{self, PI32, TAU32};
-use super::{NodeLogic, NodeState};
 
 const MAX_STAGES: usize = 10;
 
@@ -60,13 +60,7 @@ impl NodeLogic for PhaserNode {
         ]
     }
 
-    fn process(
-        &self,
-        inputs: &[&Buffer],
-        params: &[Option<Param>; MAX_PARAMS],
-        state: &mut NodeState,
-        out: &mut Buffer,
-    ) {
+    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
         let base = helpers::param(params, 0, 80.0).max(1.0) as f32;
         let peaks = (helpers::param(params, 1, 4.0) as usize).clamp(1, MAX_STAGES);
         let feedback = (helpers::param(params, 2, 30.0) / 100.0) as f32 * 0.95;
@@ -77,8 +71,7 @@ impl NodeLogic for PhaserNode {
         let a_coef = Self::stage_coefs(base, spacing, peaks);
 
         let mut stage_state = [0f32; MAX_STAGES];
-        stage_state.copy_from_slice(&state[..MAX_STAGES]);
-        let mut fb_state = state[MAX_STAGES];
+        let mut fb_state = 0.0;
 
         for i in 0..BUFFER_LEN {
             let x = src[i];
@@ -99,9 +92,6 @@ impl NodeLogic for PhaserNode {
             fb_state = if wet.is_finite() { wet } else { 0.0 };
             out[i] = x * (1.0 - mix) + wet.clamp(-1e6, 1e6) * mix;
         }
-
-        state[..MAX_STAGES].copy_from_slice(&stage_state);
-        state[MAX_STAGES] = fb_state;
     }
 
     fn has_widget(&self) -> bool {

@@ -2,7 +2,7 @@ use super::NodeLogic;
 use super::helpers;
 use crate::ffi;
 use crate::graph::NodeCategory;
-use crate::graph::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeState, Param};
+use crate::graph::{BUFFER_LEN, Buffer, MAX_PARAMS, Param};
 
 pub struct SyncWarpNode;
 
@@ -31,13 +31,7 @@ impl NodeLogic for SyncWarpNode {
         ]
     }
 
-    fn process(
-        &self,
-        inputs: &[&Buffer],
-        params: &[Option<Param>; MAX_PARAMS],
-        _state: &mut NodeState,
-        out: &mut Buffer,
-    ) {
+    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
         let src = helpers::input(inputs, 0);
         let multiply = helpers::param(params, 0, 1.0);
 

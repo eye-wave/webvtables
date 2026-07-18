@@ -17,6 +17,19 @@ pub fn param(params: &[Option<Param>; MAX_PARAMS], idx: usize, default: f64) -> 
 }
 
 #[inline]
+pub fn normalize_buffer(out: &mut crate::graph::Buffer) {
+    let peak = out.iter().fold(0.0f32, |max, &x| max.max(x.abs()));
+
+    if peak > 0.0 {
+        let gain = 1.0 / peak;
+
+        for x in out.iter_mut() {
+            *x *= gain;
+        }
+    }
+}
+
+#[inline]
 pub fn param_bool(params: &[Option<Param>; MAX_PARAMS], idx: usize, default: bool) -> bool {
     param(params, idx, if default { 1.0 } else { 0.0 }) as u8 == 1
 }
@@ -77,6 +90,11 @@ macro_rules! params {
 #[inline(always)]
 pub fn magnitude(c: &Complex32) -> f32 {
     ffi::sqrtf(c.re * c.re + c.im * c.im)
+}
+
+#[inline(always)]
+pub fn phase(c: &Complex32) -> f32 {
+    ffi::atan2f(c.im, c.re)
 }
 
 #[inline(always)]

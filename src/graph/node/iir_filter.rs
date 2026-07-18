@@ -2,8 +2,8 @@ use crate::draw::DrawBuf;
 use crate::ffi;
 use crate::graph::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, GraphState, Node, Param, consts::*};
 
+use super::NodeLogic;
 use super::helpers::{self, PI32, TAU32};
-use super::{NodeLogic, NodeState};
 
 pub struct IirFilterNode;
 
@@ -140,13 +140,7 @@ impl NodeLogic for IirFilterNode {
         ]
     }
 
-    fn process(
-        &self,
-        inputs: &[&Buffer],
-        params: &[Option<Param>; MAX_PARAMS],
-        state: &mut NodeState,
-        out: &mut Buffer,
-    ) {
+    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
         let shape = helpers::param(params, 0, 0.0) as u8;
         let freq = (helpers::param(params, 1, 1000.0) as f32).max(1.0);
         let gain_db = helpers::param(params, 2, 0.0) as f32;
@@ -157,8 +151,8 @@ impl NodeLogic for IirFilterNode {
         let w0 = (TAU32 * freq / BUFFER_LEN as f32).min(PI32 * 0.999);
         let (b0, b1, b2, a1, a2) = Self::coeffs(shape, w0, q, gain_db);
 
-        let mut z1 = state[0];
-        let mut z2 = state[1];
+        let mut z1 = 0.0;
+        let mut z2 = 0.0;
 
         for i in 0..BUFFER_LEN {
             let x = src[i];
@@ -173,9 +167,6 @@ impl NodeLogic for IirFilterNode {
             }
             out[i] = x * (1.0 - mix) + y.clamp(-1e6, 1e6) * mix;
         }
-
-        state[0] = z1;
-        state[1] = z2;
     }
 
     fn has_widget(&self) -> bool {

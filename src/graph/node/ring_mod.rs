@@ -23,7 +23,7 @@ impl NodeLogic for RingModNode {
         &self,
         inputs: &[&crate::graph::Buffer],
         _params: &[Option<Param>; MAX_PARAMS],
-        _state: &mut super::NodeState,
+
         out: &mut crate::graph::Buffer,
     ) {
         helpers::map2(inputs, out, |a, b| a * b);

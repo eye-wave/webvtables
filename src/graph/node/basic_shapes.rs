@@ -2,8 +2,8 @@ use crate::ffi;
 use crate::graph::node::helpers::PI32;
 use crate::graph::{BUFFER_LEN_F32, Buffer, Param, consts::*};
 
+use super::NodeLogic;
 use super::helpers;
-use super::{NodeLogic, NodeState};
 
 pub struct BasicShapesNode;
 
@@ -31,13 +31,7 @@ impl NodeLogic for BasicShapesNode {
         ]
     }
 
-    fn process(
-        &self,
-        _inputs: &[&Buffer],
-        params: &[Option<Param>; MAX_PARAMS],
-        _state: &mut NodeState,
-        out: &mut Buffer,
-    ) {
+    fn process(&self, _inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
         let shape = helpers::param(params, 0, 0.0) as u8;
         let freq = helpers::param(params, 1, 1.0) as f32;
 

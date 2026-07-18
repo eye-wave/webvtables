@@ -1,7 +1,7 @@
 use super::NodeLogic;
 use super::helpers;
 use crate::graph::BUFFER_LEN_F64;
-use crate::graph::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeState, Param};
+use crate::graph::{BUFFER_LEN, Buffer, MAX_PARAMS, Param};
 
 pub struct PhaseShiftNode;
 
@@ -26,13 +26,7 @@ impl NodeLogic for PhaseShiftNode {
         crate::params![Param::new_linear("Shift", 0.0, 360.0).with_unit("°")]
     }
 
-    fn process(
-        &self,
-        inputs: &[&Buffer],
-        params: &[Option<Param>; MAX_PARAMS],
-        _state: &mut NodeState,
-        out: &mut Buffer,
-    ) {
+    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
         let src = match inputs.first() {
             Some(&buf) => buf,
             None => return,

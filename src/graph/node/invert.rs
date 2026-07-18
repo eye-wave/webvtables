@@ -1,7 +1,7 @@
 use crate::graph::{Buffer, Param, consts::*};
 
+use super::NodeLogic;
 use super::helpers;
-use super::{NodeLogic, NodeState};
 
 pub struct InvertNode;
 
@@ -22,13 +22,7 @@ impl NodeLogic for InvertNode {
         1
     }
 
-    fn process(
-        &self,
-        inputs: &[&Buffer],
-        _params: &[Option<Param>; MAX_PARAMS],
-        _state: &mut NodeState,
-        out: &mut Buffer,
-    ) {
+    fn process(&self, inputs: &[&Buffer], _params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
         helpers::map1(inputs, out, |x| -x);
     }
 }

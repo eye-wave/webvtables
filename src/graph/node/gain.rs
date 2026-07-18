@@ -1,7 +1,7 @@
 use crate::graph::{Buffer, Param, consts::*};
 
+use super::NodeLogic;
 use super::helpers;
-use super::{NodeLogic, NodeState};
 
 pub struct GainNode;
 
@@ -30,13 +30,7 @@ impl NodeLogic for GainNode {
         ]
     }
 
-    fn process(
-        &self,
-        inputs: &[&Buffer],
-        params: &[Option<Param>; MAX_PARAMS],
-        _state: &mut NodeState,
-        out: &mut Buffer,
-    ) {
+    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
         let gain = helpers::param_db(params, 0, 0.0) as f32;
         helpers::map1(inputs, out, |x| x * gain);
     }

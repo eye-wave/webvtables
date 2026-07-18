@@ -4,8 +4,8 @@ use crate::graph::{
     BUFFER_LEN, BUFFER_LEN_F64, Buffer, GraphState, Node, NodeCategory, Param, consts::*,
 };
 
+use super::NodeLogic;
 use super::helpers;
-use super::{NodeLogic, NodeState};
 
 pub struct FilterNode;
 
@@ -89,13 +89,7 @@ impl NodeLogic for FilterNode {
         ]
     }
 
-    fn process(
-        &self,
-        inputs: &[&Buffer],
-        params: &[Option<Param>; MAX_PARAMS],
-        _state: &mut NodeState,
-        out: &mut Buffer,
-    ) {
+    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
         let shape = helpers::param(params, 0, 0.0) as u8;
         let freq = helpers::param(params, 1, 1000.0) as f32;
         let gain_db = helpers::param(params, 2, 0.0) as f32;

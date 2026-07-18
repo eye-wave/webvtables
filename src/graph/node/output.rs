@@ -33,7 +33,7 @@ impl NodeLogic for OutputNode {
         &self,
         inputs: &[&crate::graph::Buffer],
         params: &[Option<Param>; MAX_PARAMS],
-        _state: &mut super::NodeState,
+
         out: &mut crate::graph::Buffer,
     ) {
         let use_hard_clip = helpers::param_bool(params, 0, true);
