@@ -177,6 +177,7 @@ pub extern "C" fn on_mouse_down(sx: f32, sy: f32, button: i8, ctrl_key: bool) ->
         if let Some(k) = keyframe_hit(n, x, y) {
             on_keyframe_hit(i, k);
 
+            let _kf = s.keyframes.first();
             return HitResult::keyframe(i as u16, k as i8).into_u32();
         }
 
@@ -323,12 +324,6 @@ pub extern "C" fn on_mouse_move(sx: f32, sy: f32, alt_key: bool) {
     if let Some(k) = s.dragging_keyframe {
         move_keyframe(k, frame_from_screen_x(s, sx));
 
-        if let Some(kf) = s.keyframes.get(k) {
-            let lane = kf.lane;
-            let value = value_from_screen_y(s, lane, sy);
-            set_keyframe_value(k, value);
-        }
-
         render();
         return;
     }
@@ -470,12 +465,6 @@ pub extern "C" fn on_mouse_up(sx: f32, sy: f32) {
         }
     }
 
-    // Full 256-frame wavetable rebuild happens once per gesture, here on
-    // release — not on every mousemove tick above, where only the cheap
-    // single-frame `process()` preview runs.
-    let rebake =
-        s.dragging_param.is_some() || s.dragging_knob.is_some() || s.dragging_keyframe.is_some();
-
     s.pending_link_from = None;
     s.dragging_node = None;
     s.dragging_param = None;
@@ -489,9 +478,6 @@ pub extern "C" fn on_mouse_up(sx: f32, sy: f32) {
         ffi::release_mouse();
     }
 
-    if rebake {
-        bake_wavetable(s);
-    }
     render();
 }
 

@@ -2,13 +2,14 @@ use alloc::vec::Vec;
 
 use crate::draw::{Direction, Draw};
 use crate::geom::point_in_rect;
-use crate::graph::{NodeKind, NodeLogic, bake_wavetable, state};
+use crate::graph::{NodeKind, NodeLogic, state};
 use crate::{FixedStr, ffi, render};
 
 pub struct KeyframeRuler;
 
 pub const KEYFRAME_RULER_HEIGHT: f32 = 28.0;
 pub const KEYFRAME_POS_PERCENT: f32 = 0.6;
+pub const RIGHT_MARGIN: f32 = 20.0;
 
 impl Draw for KeyframeRuler {
     fn draw(&self, _i: usize, s: &super::GraphState, ctx: &mut crate::draw::DrawBuf) {
@@ -18,18 +19,19 @@ impl Draw for KeyframeRuler {
         ctx.fill_style([30; 3]);
         ctx.fill_rect(0.0, y, 2000.0, KEYFRAME_RULER_HEIGHT, false);
 
-        let w = s.viewport.0 - KEYFRAME_LANE_WIDTH;
+        let w = s.viewport.0 - KEYFRAME_LANE_WIDTH - RIGHT_MARGIN;
         for (n, h_mul) in [(16.0, 0.6), (32.0, 0.3), (256.0, 0.1)].iter() {
             let gap = w / n;
 
             const MARGIN: f32 = 6.0;
+            const MARGIN_LEFT: f32 = KEYFRAME_W / 2.0;
 
             ctx.line_width(1.0);
             ctx.stroke_style([90; 3]);
             ctx.stroke_line_repeated(
-                KEYFRAME_LANE_WIDTH,
+                KEYFRAME_LANE_WIDTH + MARGIN_LEFT,
                 y + MARGIN,
-                KEYFRAME_LANE_WIDTH,
+                KEYFRAME_LANE_WIDTH + MARGIN_LEFT,
                 y + KEYFRAME_RULER_HEIGHT * h_mul + MARGIN,
                 256,
                 gap,
@@ -76,7 +78,7 @@ impl Draw for KeyframeLanes {
         ctx.stroke_line_repeated(
             0.0,
             y + gap,
-            s.viewport.0,
+            s.viewport.0 - RIGHT_MARGIN,
             y + gap,
             8,
             gap,
@@ -168,37 +170,6 @@ impl KeyframeLane {
         let s = state();
 
         s.nodes.get(self.node_id as usize).map(|n| n.kind)
-    }
-
-    /// Linear-interpolated value of this lane at an arbitrary frame,
-    /// flat-extrapolated before the first / after the last keyframe.
-    /// `None` if the lane has no keyframes (caller should keep the
-    /// param's own live value in that case).
-    pub fn value_at_frame(&self, frame: u8) -> Option<f64> {
-        let mut sorted: Vec<&Keyframe> = self.keyframes().collect();
-        if sorted.is_empty() {
-            return None;
-        }
-        sorted.sort_by_key(|k| k.frame);
-
-        if frame <= sorted[0].frame {
-            return Some(sorted[0].value);
-        }
-        if frame >= sorted[sorted.len() - 1].frame {
-            return Some(sorted[sorted.len() - 1].value);
-        }
-
-        let pair = sorted.windows(2).find(|w| {
-            let (a, b) = (w[0], w[1]);
-            frame >= a.frame && frame <= b.frame
-        })?;
-        let (a, b) = (pair[0], pair[1]);
-        if a.frame == b.frame {
-            return Some(b.value);
-        }
-
-        let t = (frame - a.frame) as f64 / (b.frame - a.frame) as f64;
-        Some(a.value + (b.value - a.value) * t)
     }
 }
 
@@ -407,37 +378,6 @@ pub fn move_keyframe(idx: usize, new_frame: u8) {
     }
 }
 
-/// Maps a raw screen-space y coordinate (see `frame_from_screen_x`) to a
-/// keyframe value (0.0..=1.0) for the given lane, 1.0 at the top of the
-/// lane's row and 0.0 at the bottom. Mirrors `Keyframe::rect()`'s
-/// vertical placement so dragging tracks the cursor exactly.
-pub fn value_from_screen_y(s: &super::GraphState, lane: KeyframeLane, screen_y: f32) -> f64 {
-    let Some(row) = s.lanes.iter().position(|l| *l == lane) else {
-        return 0.5;
-    };
-
-    let lane_top = KEYFRAME_RULER_HEIGHT
-        + s.viewport.1 * KEYFRAME_POS_PERCENT
-        + row as f32 * KEYFRAME_LANE_HEIGHT;
-    let usable = KEYFRAME_LANE_HEIGHT - KEYFRAME_H;
-
-    if usable <= 0.0 {
-        return 0.5;
-    }
-
-    let t = ((screen_y - lane_top) / usable).clamp(0.0, 1.0);
-    (1.0 - t) as f64
-}
-
-pub fn set_keyframe_value(idx: usize, new_value: f64) {
-    let s = state();
-    let Some(kf) = s.keyframes.get_mut(idx) else {
-        return;
-    };
-
-    kf.value = new_value.clamp(0.0, 1.0);
-}
-
 /// Node keyframe-diamond button. Empty by default; clicking it when
 /// empty drops a keyframe at the graph's current frame (creating the
 /// lane first if this is the param's first keyframe). Clicking it when
@@ -490,6 +430,5 @@ pub fn on_keyframe_hit(node_id: usize, param_id: usize) {
         });
     }
 
-    bake_wavetable(s);
     render();
 }

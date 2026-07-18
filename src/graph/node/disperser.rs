@@ -1,9 +1,9 @@
 use crate::ffi;
-use crate::graph::NodeCategory;
 use crate::graph::{
     BUFFER_LEN, BUFFER_LEN_F32, Param,
     node::helpers::{self, TAU32},
 };
+use crate::graph::{Buffer, NodeCategory};
 
 use super::NodeLogic;
 
@@ -34,9 +34,9 @@ impl NodeLogic for DisperserNode {
         &self,
         inputs: &[&crate::graph::Buffer],
         params: &[Option<Param>; crate::graph::MAX_PARAMS],
-
-        out: &mut crate::graph::Buffer,
+        outs: &mut [Buffer],
     ) {
+        let out = &mut outs[0];
         let exp = helpers::param(params, 0, 0.0) as f32;
         let src = helpers::input(inputs, 0);
 

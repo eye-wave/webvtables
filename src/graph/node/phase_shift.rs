@@ -26,7 +26,13 @@ impl NodeLogic for PhaseShiftNode {
         crate::params![Param::new_linear("Shift", 0.0, 360.0).with_unit("°")]
     }
 
-    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
+    fn process(
+        &self,
+        inputs: &[&Buffer],
+        params: &[Option<Param>; MAX_PARAMS],
+        outs: &mut [Buffer],
+    ) {
+        let out = &mut outs[0];
         let src = match inputs.first() {
             Some(&buf) => buf,
             None => return,

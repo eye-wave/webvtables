@@ -29,7 +29,13 @@ impl NodeLogic for PulseWaveNode {
         ]
     }
 
-    fn process(&self, _inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
+    fn process(
+        &self,
+        _inputs: &[&Buffer],
+        params: &[Option<Param>; MAX_PARAMS],
+        outs: &mut [Buffer],
+    ) {
+        let out = &mut outs[0];
         let pwm = helpers::param(params, 0, 0.0);
         let repeats = helpers::param(params, 1, 1.0).max(1.0);
 

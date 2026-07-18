@@ -31,7 +31,13 @@ impl NodeLogic for AddNode {
         ]
     }
 
-    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
+    fn process(
+        &self,
+        inputs: &[&Buffer],
+        params: &[Option<Param>; MAX_PARAMS],
+        outs: &mut [Buffer],
+    ) {
+        let out = &mut outs[0];
         let normalize = helpers::param_bool(params, 0, false);
         let crossfade = helpers::param(params, 1, 0.0) as f32;
 

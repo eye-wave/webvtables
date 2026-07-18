@@ -39,7 +39,13 @@ impl NodeLogic for WindowNode {
         ]
     }
 
-    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
+    fn process(
+        &self,
+        inputs: &[&Buffer],
+        params: &[Option<Param>; MAX_PARAMS],
+        outs: &mut [Buffer],
+    ) {
+        let out = &mut outs[0];
         let win_size = helpers::param(params, 0, 15.0) as f32 / 100.0;
         let win_type = helpers::param(params, 1, 0.0) as u8;
 

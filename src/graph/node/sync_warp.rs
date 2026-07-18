@@ -31,7 +31,13 @@ impl NodeLogic for SyncWarpNode {
         ]
     }
 
-    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
+    fn process(
+        &self,
+        inputs: &[&Buffer],
+        params: &[Option<Param>; MAX_PARAMS],
+        outs: &mut [Buffer],
+    ) {
+        let out = &mut outs[0];
         let src = helpers::input(inputs, 0);
         let multiply = helpers::param(params, 0, 1.0);
 

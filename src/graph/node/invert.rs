@@ -22,7 +22,13 @@ impl NodeLogic for InvertNode {
         1
     }
 
-    fn process(&self, inputs: &[&Buffer], _params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
+    fn process(
+        &self,
+        inputs: &[&Buffer],
+        _params: &[Option<Param>; MAX_PARAMS],
+        outs: &mut [Buffer],
+    ) {
+        let out = &mut outs[0];
         helpers::map1(inputs, out, |x| -x);
     }
 }

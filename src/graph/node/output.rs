@@ -1,10 +1,8 @@
 use crate::draw::{DrawBuf, camera};
 use crate::ffi;
-use crate::graph::{BUFFER_LEN, GraphState, Node};
-use crate::graph::{MAX_PARAMS, Param};
+use crate::graph::{BUFFER_LEN, Buffer, GraphState, Node, ZERO_BUFFER};
 
 use super::NodeLogic;
-use super::helpers;
 
 pub struct OutputNode;
 
@@ -25,43 +23,6 @@ impl NodeLogic for OutputNode {
         0
     }
 
-    fn default_params(&self) -> [Option<crate::graph::Param>; crate::graph::MAX_PARAMS] {
-        crate::params![Param::new_bool("Peaks", true, Some(&["Normalize", "Clip"]))]
-    }
-
-    fn process(
-        &self,
-        inputs: &[&crate::graph::Buffer],
-        params: &[Option<Param>; MAX_PARAMS],
-
-        out: &mut crate::graph::Buffer,
-    ) {
-        let use_hard_clip = helpers::param_bool(params, 0, true);
-
-        *out = *helpers::input(inputs, 0);
-
-        if use_hard_clip {
-            for sample in out.iter_mut() {
-                *sample = sample.clamp(-1.0, 1.0);
-            }
-        } else {
-            let mut max_peak: f32 = 0.0;
-            for sample in out.iter() {
-                let abs_sample = sample.abs();
-                if abs_sample > max_peak {
-                    max_peak = abs_sample;
-                }
-            }
-
-            if max_peak > 0.0 {
-                let scale_factor = 1.0 / max_peak;
-                for sample in out.iter_mut() {
-                    *sample *= scale_factor;
-                }
-            }
-        }
-    }
-
     fn has_widget(&self) -> bool {
         true
     }
@@ -76,7 +37,12 @@ impl NodeLogic for OutputNode {
     ) -> bool {
         let (x, y, w, h) = rect;
 
-        let mut samples: crate::graph::Buffer = s.buffers.as_ref().unwrap()[i];
+        let src = s.links.iter().find(|l| l.to == i && l.to_socket == 0);
+        let mut samples: Buffer = match src {
+            Some(l) => s.buffers.as_ref().unwrap()[l.from][l.from_socket],
+            None => ZERO_BUFFER,
+        };
+
         let spectrum = microfft::real::rfft_2048(&mut samples);
         let bins = BUFFER_LEN / 2;
 

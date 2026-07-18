@@ -34,7 +34,13 @@ impl NodeLogic for BitCrushNode {
         ]
     }
 
-    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
+    fn process(
+        &self,
+        inputs: &[&Buffer],
+        params: &[Option<Param>; MAX_PARAMS],
+        outs: &mut [Buffer],
+    ) {
+        let out = &mut outs[0];
         let shape = helpers::param(params, 0, 0.0) as u8;
         let strength = helpers::param(params, 1, 0.0) as f32;
         let shift = helpers::param(params, 2, 0.0) as f32;

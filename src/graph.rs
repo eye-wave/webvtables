@@ -25,10 +25,9 @@ mod consts {
     pub const MAX_NODES: usize = 100;
     pub const MAX_LINKS: usize = 100;
     pub const MAX_PARAMS: usize = 5;
-    /// Per-node scratch state (e.g. a filter's IIR history) that must
-    /// survive across process() calls instead of resetting every frame.
-    pub const MAX_NODE_STATE: usize = 12;
     pub const MAX_NODE_INPUTS: usize = 4;
+    pub const MAX_NODE_OUTPUTS: usize = 4;
+
     /// Wavetable morph axis: one rendered frame per keyframe-ruler position.
     pub const MAX_FRAMES: usize = 256;
 
@@ -77,7 +76,7 @@ pub struct GraphState {
     /// Each node's most recently computed single-cycle output frame.
     /// heap-allocated (see `init()`) instead of a static array, so
     /// it doesn't inflate the binary; `None` only before init() runs.
-    pub buffers: Option<Box<[Buffer]>>,
+    pub buffers: Option<Box<[[Buffer; MAX_NODE_OUTPUTS]]>>,
     /// Baked wavetable: `MAX_FRAMES` single-cycle frames, one per morph
     /// position, each `BUFFER_LEN` samples. Heap-allocated in `init()`
     /// like `buffers`. Only rebuilt on `bake_wavetable()`, not on every

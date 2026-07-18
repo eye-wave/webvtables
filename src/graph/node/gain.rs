@@ -30,7 +30,13 @@ impl NodeLogic for GainNode {
         ]
     }
 
-    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
+    fn process(
+        &self,
+        inputs: &[&Buffer],
+        params: &[Option<Param>; MAX_PARAMS],
+        outs: &mut [Buffer],
+    ) {
+        let out = &mut outs[0];
         let gain = helpers::param_db(params, 0, 0.0) as f32;
         helpers::map1(inputs, out, |x| x * gain);
     }

@@ -1,4 +1,4 @@
-use crate::graph::{MAX_PARAMS, NodeLogic, Param, node::helpers};
+use crate::graph::{Buffer, MAX_PARAMS, NodeLogic, Param, node::helpers};
 
 pub struct AmNode;
 
@@ -27,9 +27,9 @@ impl NodeLogic for AmNode {
         &self,
         inputs: &[&crate::graph::Buffer],
         params: &[Option<Param>; MAX_PARAMS],
-
-        out: &mut crate::graph::Buffer,
+        outs: &mut [Buffer],
     ) {
+        let out = &mut outs[0];
         let depth = helpers::param(params, 0, 1.0) as f32;
         helpers::map2(inputs, out, |carrier, modulator| {
             carrier * (1.0 + modulator * depth)

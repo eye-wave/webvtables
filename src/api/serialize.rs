@@ -70,14 +70,14 @@ pub extern "C" fn get_generated_frame() -> u64 {
 
     for (i, node) in s.nodes.iter().enumerate() {
         if let NodeKind::Output = node.kind {
-            if let Some(ref bufs) = s.buffers
-                && i < bufs.len()
+            let src = s.links.iter().find(|l| l.to == i && l.to_socket == 0);
+
+            if let Some(l) = src
+                && let Some(ref bufs) = s.buffers
+                && l.from < bufs.len()
             {
-                let buffer_slice = bufs[i].as_slice();
-                return pack_ptr_len(
-                    buffer_slice.as_ptr() as u64,
-                    core::mem::size_of_val(buffer_slice),
-                );
+                let buffer: &Buffer = &bufs[l.from][l.from_socket];
+                return pack_ptr_len(buffer.as_ptr() as u64, core::mem::size_of_val(buffer));
             }
             break;
         }

@@ -28,7 +28,13 @@ impl NodeLogic for PartialsNode {
         crate::params![Param::new_int("Count", 1, 48), Param::new_int("Gap", 0, 48),]
     }
 
-    fn process(&self, _inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
+    fn process(
+        &self,
+        _inputs: &[&Buffer],
+        params: &[Option<Param>; MAX_PARAMS],
+        outs: &mut [Buffer],
+    ) {
+        let out = &mut outs[0];
         let count = helpers::param(params, 0, 0.0) as u16;
         let gap = helpers::param(params, 1, 0.0) as u16;
 

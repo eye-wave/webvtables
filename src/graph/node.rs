@@ -2,10 +2,10 @@ use crate::FixedStr;
 use crate::draw::{Color, Draw, DrawBuf, camera};
 use crate::geom::Interactive;
 use crate::graph::keyframes::gen_diamond;
-use crate::graph::output_pos;
+use crate::graph::{ZERO_BUFFER, output_pos};
 
 use super::consts::*;
-use super::{Buffer, GraphState, Param, SocketKind, ZERO_BUFFER, input_pos, is_valid_target};
+use super::{Buffer, GraphState, Param, SocketKind, input_pos, is_valid_target};
 
 mod helpers;
 
@@ -46,6 +46,7 @@ define_nodes!(
     Am,
     BasicShapes,
     BitCrush,
+    BandSplit,
     Comb,
     Disperser,
     Filter,
@@ -151,11 +152,12 @@ pub trait NodeLogic {
         false
     }
 
-    fn process(&self, inputs: &[&Buffer], _params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
-        match inputs.first() {
-            Some(&buf) => *out = *buf,
-            None => *out = ZERO_BUFFER,
-        }
+    fn process(
+        &self,
+        _inputs: &[&Buffer],
+        _params: &[Option<Param>; MAX_PARAMS],
+        _outs: &mut [Buffer],
+    ) {
     }
 
     /// Optional bespoke control drawn in the node's widget strip (e.g. a
@@ -199,8 +201,13 @@ impl NodeLogic for NodeKind {
         self.as_node().has_widget()
     }
 
-    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
-        self.as_node().process(inputs, params, out);
+    fn process(
+        &self,
+        inputs: &[&Buffer],
+        params: &[Option<Param>; MAX_PARAMS],
+        outs: &mut [Buffer],
+    ) {
+        self.as_node().process(inputs, params, outs);
     }
 
     fn draw_widget(
@@ -361,7 +368,17 @@ impl Draw for Node {
             ctx.fill_style([20, 20, 24]);
             ctx.fill_rect(x, y, w, h, true);
 
-            let samples = &s.buffers.as_ref().unwrap()[i];
+            let samples = match self.kind {
+                NodeKind::Output => {
+                    let src = s.links.iter().find(|l| l.to == i && l.to_socket == 0);
+                    match src {
+                        Some(l) => &s.buffers.as_ref().unwrap()[l.from][l.from_socket],
+                        None => &ZERO_BUFFER,
+                    }
+                }
+                _ => &s.buffers.as_ref().unwrap()[i][0],
+            };
+
             ctx.fill_wave(x, y, w, h, samples, true);
         }
 

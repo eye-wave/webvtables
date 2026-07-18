@@ -34,7 +34,13 @@ impl NodeLogic for SpectralGateNode {
         ]
     }
 
-    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
+    fn process(
+        &self,
+        inputs: &[&Buffer],
+        params: &[Option<Param>; MAX_PARAMS],
+        outs: &mut [Buffer],
+    ) {
+        let out = &mut outs[0];
         let threshold_db = helpers::param(params, 0, 0.0) as f32;
         let threshold = ffi::powf(10.0, threshold_db / 20.0);
 

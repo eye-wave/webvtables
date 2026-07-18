@@ -32,7 +32,13 @@ impl NodeLogic for SpectralSubtractNode {
         ]
     }
 
-    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
+    fn process(
+        &self,
+        inputs: &[&Buffer],
+        params: &[Option<Param>; MAX_PARAMS],
+        outs: &mut [Buffer],
+    ) {
+        let out = &mut outs[0];
         let mix = (helpers::param(params, 0, 100.0) / 100.0) as f32;
         let a = helpers::input(inputs, 0);
         let b = helpers::input(inputs, 1);

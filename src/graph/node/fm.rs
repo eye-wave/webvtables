@@ -1,5 +1,5 @@
 use crate::graph::{
-    BUFFER_LEN_F32, MAX_PARAMS, NodeLogic, Param,
+    BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeLogic, Param,
     node::helpers::{self},
 };
 
@@ -30,8 +30,9 @@ impl NodeLogic for FmNode {
         &self,
         inputs: &[&crate::graph::Buffer],
         params: &[Option<Param>; MAX_PARAMS],
-        out: &mut crate::graph::Buffer,
+        outs: &mut [Buffer],
     ) {
+        let out = &mut outs[0];
         let amount = helpers::param(params, 0, 0.0) as f32;
         let mut phase = 0.0;
 

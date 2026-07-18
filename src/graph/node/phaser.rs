@@ -60,7 +60,13 @@ impl NodeLogic for PhaserNode {
         ]
     }
 
-    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
+    fn process(
+        &self,
+        inputs: &[&Buffer],
+        params: &[Option<Param>; MAX_PARAMS],
+        outs: &mut [Buffer],
+    ) {
+        let out = &mut outs[0];
         let base = helpers::param(params, 0, 80.0).max(1.0) as f32;
         let peaks = (helpers::param(params, 1, 4.0) as usize).clamp(1, MAX_STAGES);
         let feedback = (helpers::param(params, 2, 30.0) / 100.0) as f32 * 0.95;

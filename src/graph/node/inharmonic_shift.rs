@@ -32,7 +32,13 @@ impl NodeLogic for InharmonicShiftNode {
      * Original license: GNU General Public License v3.0
      * Original author: Matt Tytel
      */
-    fn process(&self, inputs: &[&Buffer], params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
+    fn process(
+        &self,
+        inputs: &[&Buffer],
+        params: &[Option<Param>; MAX_PARAMS],
+        outs: &mut [Buffer],
+    ) {
+        let out = &mut outs[0];
         let shift = helpers::param(params, 0, 0.0);
         let mult = (1.0 + shift * 0.05).max(1e-6);
 

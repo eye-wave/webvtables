@@ -6,7 +6,38 @@ extern crate alloc;
 
 #[cfg(all(target_arch = "wasm32", not(test)))]
 #[panic_handler]
-fn panic(_: &core::panic::PanicInfo) -> ! {
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    struct FixedBuf<'a> {
+        buf: &'a mut [u8],
+        pos: usize,
+    }
+
+    impl<'a> core::fmt::Write for FixedBuf<'a> {
+        fn write_str(&mut self, s: &str) -> core::fmt::Result {
+            let bytes = s.as_bytes();
+            let remaining = self.buf.len() - self.pos;
+            let n = bytes.len().min(remaining);
+            self.buf[self.pos..self.pos + n].copy_from_slice(&bytes[..n]);
+            self.pos += n;
+            Ok(())
+        }
+    }
+
+    use core::fmt::Write;
+
+    let mut buf = [0u8; 256];
+    let pos = {
+        let mut w = FixedBuf {
+            buf: &mut buf,
+            pos: 0,
+        };
+        let _ = write!(w, "{}", info);
+        w.pos
+    };
+
+    let msg = core::str::from_utf8(&buf[..pos]).unwrap_or("panic (invalid utf8)");
+    console_print!(msg);
+
     core::arch::wasm32::unreachable()
 }
 
@@ -38,7 +69,7 @@ use crate::draw::RENDER_STATS;
 pub extern "C" fn init() {
     let s = state();
 
-    s.buffers = Some(alloc::vec![ZERO_BUFFER; MAX_NODES].into_boxed_slice());
+    s.buffers = Some(alloc::vec![[ZERO_BUFFER;MAX_NODE_OUTPUTS]; MAX_NODES].into_boxed_slice());
     s.wavetable = Some(alloc::vec![ZERO_BUFFER; MAX_FRAMES].into_boxed_slice());
 
     let _ = s.nodes.push(Node::new(NodeKind::BasicShapes, 240.0, 240.0));
@@ -51,26 +82,7 @@ pub extern "C" fn init() {
         param_id: 0,
     });
 
-    s.keyframes.push(Keyframe {
-        lane: KeyframeLane {
-            node_id: 0,
-            param_id: 0,
-        },
-        frame: 0,
-        value: 0.0,
-    });
-
-    s.keyframes.push(Keyframe {
-        lane: KeyframeLane {
-            node_id: 0,
-            param_id: 0,
-        },
-        frame: 200,
-        value: 1.0,
-    });
-
     process();
-    bake_wavetable(s);
     render();
 }
 

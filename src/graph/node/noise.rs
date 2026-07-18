@@ -1,5 +1,6 @@
 pub struct NoiseNode;
 
+use crate::graph::Buffer;
 use crate::graph::NodeCategory;
 use crate::graph::Param;
 
@@ -51,8 +52,9 @@ impl NodeLogic for NoiseNode {
         &self,
         inputs: &[&crate::graph::Buffer],
         params: &[Option<Param>; crate::graph::MAX_PARAMS],
-        out: &mut crate::graph::Buffer,
+        outs: &mut [Buffer],
     ) {
+        let out = &mut outs[0];
         let alg = helpers::param(params, 0, 0.0) as u8;
         let color = helpers::param(params, 1, 0.0) as u8;
         let mut seed = helpers::param(params, 2, 0.0) as u64;

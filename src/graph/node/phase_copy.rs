@@ -24,7 +24,13 @@ impl NodeLogic for PhaseCopyNode {
         1
     }
 
-    fn process(&self, inputs: &[&Buffer], _params: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) {
+    fn process(
+        &self,
+        inputs: &[&Buffer],
+        _params: &[Option<Param>; MAX_PARAMS],
+        outs: &mut [Buffer],
+    ) {
+        let out = &mut outs[0];
         let a = helpers::input(inputs, 0);
         let b = helpers::input(inputs, 1);
         let bins = BUFFER_LEN / 2;
