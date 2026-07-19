@@ -9,9 +9,7 @@ import {
   unpackHitResult,
   type WasmExports,
 } from "./wasm";
-import { executeDrawBuffer, type Renderer } from "./renderer/renderer";
-import { Canvas2DRenderer } from "./renderer/canvas2d-renderer";
-import { WebGL2Renderer } from "./renderer/webgl2-renderer";
+import type { Renderer } from "./renderer/renderer";
 import { registerContextMenu } from "./context-menu";
 import { registerNodePicker } from "./node-picker";
 import { player } from "./audio/engine";
@@ -29,11 +27,15 @@ declare const webgl_warning: HTMLDivElement;
 
 const CURSORS = ["default", "grab", "grabbing", "pointer"];
 
-function createRenderer(canvas: HTMLCanvasElement): Renderer {
+async function createRenderer(canvas: HTMLCanvasElement): Promise<Renderer> {
   const gl = canvas.getContext("webgl2");
-  if (gl) return new WebGL2Renderer(gl);
+  if (gl) {
+    const { WebGL2Renderer } = await import("./renderer/webgl2-renderer");
+    return new WebGL2Renderer(gl);
+  }
 
   webgl_warning.style.display = "";
+  const { Canvas2DRenderer } = await import("./renderer/canvas2d-renderer");
 
   const ctx2d = canvas.getContext("2d");
   if (!ctx2d) throw "Failed to get a rendering context";
@@ -41,7 +43,8 @@ function createRenderer(canvas: HTMLCanvasElement): Renderer {
 }
 
 async function init() {
-  const renderer = createRenderer(canvas_graph);
+  const renderer = await createRenderer(canvas_graph);
+  const { executeDrawBuffer } = await import("./renderer/renderer");
 
   let logBuffer = "";
   let readStr: (ptr: number, len: number) => string;
