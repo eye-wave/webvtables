@@ -160,10 +160,6 @@ pub trait NodeLogic {
     ) {
     }
 
-    /// Optional bespoke control drawn in the node's widget strip (e.g. a
-    /// filter's frequency/gain pad) instead of relying purely on the plain
-    /// param rows. Returns whether it drew anything; the default draws
-    /// nothing and leaves the strip blank.
     fn draw_widget(
         &self,
         _node: &Node,
@@ -171,8 +167,7 @@ pub trait NodeLogic {
         _s: &GraphState,
         _ctx: &mut DrawBuf,
         _rect: (f32, f32, f32, f32),
-    ) -> bool {
-        false
+    ) {
     }
 }
 
@@ -217,8 +212,17 @@ impl NodeLogic for NodeKind {
         s: &GraphState,
         ctx: &mut DrawBuf,
         rect: (f32, f32, f32, f32),
-    ) -> bool {
+    ) {
         self.as_node().draw_widget(node, i, s, ctx, rect)
+    }
+}
+
+bitflags::bitflags! {
+    #[derive(Debug, Clone, Copy)]
+    pub struct NodeFlags: u8 {
+        const NORMALIZE = 1 << 0;
+        const REMOVE_DC = 1 << 1;
+        const HARD_CLIP = 1 << 2;
     }
 }
 
@@ -227,6 +231,7 @@ pub struct Node {
     pub x: f32,
     pub y: f32,
     pub kind: NodeKind,
+    pub flags: NodeFlags,
     pub params: [Option<Param>; MAX_PARAMS],
 }
 
@@ -264,6 +269,7 @@ impl Node {
             x,
             y,
             kind,
+            flags: NodeFlags::empty(),
             params: kind.default_params(),
         }
     }

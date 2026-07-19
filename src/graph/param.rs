@@ -219,24 +219,6 @@ impl Param {
         }
     }
 
-    pub fn new_bool(
-        name: &'static str,
-        value: bool,
-        data: Option<&'static [&'static str; 2]>,
-    ) -> Self {
-        const DEFAULT_NAMES: &[&str; 2] = &["No", "Yes"];
-
-        Self {
-            default: 0.0,
-            inner: ParamTypes::Enum(EnumParam {
-                name,
-                value: value as u8,
-                data: data.unwrap_or(DEFAULT_NAMES),
-            }),
-            unit: None,
-        }
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub fn open_param_widget(
         &self,

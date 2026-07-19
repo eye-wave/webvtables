@@ -1,9 +1,8 @@
 use alloc::vec;
 use alloc::vec::Vec;
 
-use crate::graph::MAX_NODE_OUTPUTS;
-
-use super::{GraphState, MAX_NODE_INPUTS, MAX_NODES, NodeLogic};
+use super::consts::*;
+use super::{GraphState, NodeFlags, NodeLogic};
 
 pub const BUFFER_LEN: usize = 2048;
 pub const BUFFER_LEN_F32: f32 = BUFFER_LEN as f32;
@@ -50,5 +49,45 @@ fn eval_node(s: &mut GraphState, idx: usize, done: &mut [bool; MAX_NODES]) {
     let node = &mut s.nodes[idx];
     node.kind
         .process(&input_refs, &node.params, &mut outs[..output_count]);
+
+    let flags = node.flags;
+    for buf in outs[..output_count].iter_mut() {
+        if flags.contains(NodeFlags::REMOVE_DC) {
+            remove_dc(buf);
+        }
+        if flags.contains(NodeFlags::NORMALIZE) {
+            normalize(buf);
+        }
+        if flags.contains(NodeFlags::HARD_CLIP) {
+            hard_clip(buf);
+        }
+    }
+
     s.buffers.as_mut().unwrap()[idx] = outs;
+}
+
+fn remove_dc(buf: &mut [f32]) {
+    let sum = buf.iter().sum::<f32>();
+    let dc = sum * (1.0 / buf.len() as f32);
+
+    for sample in buf.iter_mut() {
+        *sample -= dc;
+    }
+}
+
+fn normalize(buf: &mut [f32]) {
+    let peak = buf.iter().fold(0.0f32, |max, &x| max.max(x.abs()));
+    if peak > 0.0 {
+        let gain = 1.0 / peak;
+
+        for x in buf.iter_mut() {
+            *x *= gain;
+        }
+    }
+}
+
+fn hard_clip(buf: &mut [f32]) {
+    for sample in buf.iter_mut() {
+        *sample = sample.clamp(-1.0, 1.0)
+    }
 }

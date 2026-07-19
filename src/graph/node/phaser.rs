@@ -111,7 +111,7 @@ impl NodeLogic for PhaserNode {
         _s: &GraphState,
         ctx: &mut DrawBuf,
         rect: (f32, f32, f32, f32),
-    ) -> bool {
+    ) {
         let (x, y, w, h) = rect;
         let params = &node.params;
         let base = helpers::param(params, 0, 80.0).max(1.0) as f32;
@@ -173,7 +173,5 @@ impl NodeLogic for PhaserNode {
             }
             prev = Some((px_x, px_y));
         }
-
-        true
     }
 }

@@ -30,11 +30,6 @@ pub fn normalize_buffer(out: &mut crate::graph::Buffer) {
 }
 
 #[inline]
-pub fn param_bool(params: &[Option<Param>; MAX_PARAMS], idx: usize, default: bool) -> bool {
-    param(params, idx, if default { 1.0 } else { 0.0 }) as u8 == 1
-}
-
-#[inline]
 pub fn param_db(params: &[Option<Param>; MAX_PARAMS], idx: usize, default: f64) -> f64 {
     let v = param(params, idx, default);
     db_to_value(v)

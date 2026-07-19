@@ -34,7 +34,7 @@ impl NodeLogic for OutputNode {
         s: &GraphState,
         ctx: &mut DrawBuf,
         rect: (f32, f32, f32, f32),
-    ) -> bool {
+    ) {
         let (x, y, w, h) = rect;
 
         let src = s.links.iter().find(|l| l.to == i && l.to_socket == 0);
@@ -100,7 +100,5 @@ impl NodeLogic for OutputNode {
         }
 
         ctx.stroke_points_ref(unsafe { &POINTS });
-
-        true
     }
 }

@@ -133,7 +133,7 @@ impl NodeLogic for FilterNode {
         _s: &GraphState,
         ctx: &mut DrawBuf,
         rect: (f32, f32, f32, f32),
-    ) -> bool {
+    ) {
         let (x, y, w, h) = rect;
         let params = &node.params;
         let shape = helpers::param(params, 0, 0.0) as u8;
@@ -181,7 +181,5 @@ impl NodeLogic for FilterNode {
             }
             prev = Some((px_x, px_y));
         }
-
-        true
     }
 }

@@ -25,10 +25,7 @@ impl NodeLogic for AddNode {
     }
 
     fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
-        crate::params![
-            Param::new_bool("Normalize", false, None),
-            Param::new_linear("Crossfade", -1.0, 1.0).with_default_denorm(0.0)
-        ]
+        crate::params![Param::new_linear("Crossfade", -1.0, 1.0).with_default_denorm(0.0)]
     }
 
     fn process(
@@ -38,8 +35,7 @@ impl NodeLogic for AddNode {
         outs: &mut [Buffer],
     ) {
         let out = &mut outs[0];
-        let normalize = helpers::param_bool(params, 0, false);
-        let crossfade = helpers::param(params, 1, 0.0) as f32;
+        let crossfade = helpers::param(params, 0, 0.0) as f32;
 
         let mix = (crossfade + 1.0) * 0.5;
         let gain0 = 1.0 - mix;
@@ -54,24 +50,6 @@ impl NodeLogic for AddNode {
 
             out[i] = (s0 * gain0) + (s1 * gain1);
         }
-
-        if normalize {
-            let mut max_peak: f32 = 0.0;
-
-            for sample in out.iter_mut() {
-                let abs_val = sample.abs();
-                if abs_val > max_peak {
-                    max_peak = abs_val;
-                }
-            }
-
-            if max_peak > 0.0 {
-                let gain = 1.0 / max_peak;
-                for sample in out.iter_mut() {
-                    *sample *= gain;
-                }
-            }
-        }
     }
 
     fn has_widget(&self) -> bool {
@@ -85,7 +63,7 @@ impl NodeLogic for AddNode {
         _s: &crate::graph::GraphState,
         ctx: &mut crate::draw::DrawBuf,
         rect: (f32, f32, f32, f32),
-    ) -> bool {
+    ) {
         const M: f32 = 10.0;
         const S: f32 = 18.0;
 
@@ -118,7 +96,5 @@ impl NodeLogic for AddNode {
         let px = cx + value * gap;
         ctx.fill_style([100, 220, 160]);
         ctx.fill_circle(px, cy, 5.0, true);
-
-        true
     }
 }
