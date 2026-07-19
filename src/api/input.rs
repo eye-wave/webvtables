@@ -105,10 +105,37 @@ fn header_hit(n: &Node, x: f32, y: f32) -> bool {
     point_in_rect(x, y, n.x, n.y, Node::W, Node::HEADER_H)
 }
 
+/// Toggles flag `flag_idx` on node `node_id` and reprocesses the graph.
+/// Re-fetches state (like `on_keyframe_hit`) so it can run while the
+/// caller still holds a `&Node` borrowed from `s.nodes.iter()`. Debounced
+/// the same way keyframe toggles are, via `debounce_toggle`.
+fn on_flag_hit(node_id: usize, flag_idx: usize) {
+    let s = state();
+
+    if debounce_toggle(&mut s.last_flag_toggle, (node_id, flag_idx)) {
+        return;
+    }
+
+    let Some(node) = s.nodes.get_mut(node_id) else {
+        return;
+    };
+
+    node.flags.toggle(FLAG_BITS[flag_idx]);
+    process();
+}
+
 /// Node param rect hit test
 fn param_hit(n: &Node, x: f32, y: f32) -> Option<usize> {
     (0..n.params.iter().flatten().count()).find(|&p| {
         let (bx, by, bw, bh) = n.param_value_rect(p);
+        point_in_rect(x, y, bx, by, bw, bh)
+    })
+}
+
+/// Node flag-toggle row hit test
+fn flag_hit(n: &Node, x: f32, y: f32) -> Option<usize> {
+    (0..FLAG_LABELS.len()).find(|&f| {
+        let (bx, by, bw, bh) = n.flag_rect(f);
         point_in_rect(x, y, bx, by, bw, bh)
     })
 }
@@ -179,6 +206,11 @@ pub extern "C" fn on_mouse_down(sx: f32, sy: f32, button: i8, ctrl_key: bool) ->
 
             let _kf = s.keyframes.first();
             return HitResult::keyframe(i as u16, k as i8).into_u32();
+        }
+
+        if let Some(f) = flag_hit(n, x, y) {
+            on_flag_hit(i, f);
+            return HitResult::node(i as u16, -1).into_u32();
         }
 
         if let Some(p) = param_hit(n, x, y) {
@@ -256,7 +288,7 @@ pub extern "C" fn get_cursor_kind(sx: f32, sy: f32) -> CursorKind {
     }
 
     for n in s.nodes.iter() {
-        if keyframe_hit(n, x, y).is_some() {
+        if keyframe_hit(n, x, y).is_some() || flag_hit(n, x, y).is_some() {
             return CursorKind::Pointer;
         }
 

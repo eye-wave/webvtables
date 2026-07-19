@@ -77,11 +77,6 @@ pub extern "C" fn init() {
 
     let _ = s.links.push(Link::new(0, 0, 1, 0));
 
-    let _ = s.lanes.push(KeyframeLane {
-        node_id: 0,
-        param_id: 0,
-    });
-
     process();
     render();
 }

@@ -38,7 +38,7 @@ mod consts {
 
 pub use consts::*;
 
-use crate::FixedStr;
+use crate::{FixedStr, ffi};
 
 pub struct GraphState {
     pub nodes: HVec<Node, MAX_NODES>,
@@ -58,6 +58,10 @@ pub struct GraphState {
     /// synthetic re-hit-test from `on_dbl_click`) that would otherwise
     /// toggle the lane on and immediately back off.
     pub last_keyframe_toggle: Option<(KeyframeLane, f64)>,
+    /// (node id, flag idx) + timestamp of the last flag-button toggle,
+    /// used to debounce duplicate hits the same way `last_keyframe_toggle`
+    /// does — see `debounce_toggle`.
+    pub last_flag_toggle: Option<((usize, usize), f64)>,
     /// Global playhead position (0..255), shown as the draggable green
     /// dot in the keyframe ruler.
     pub current_frame: u8,
@@ -124,6 +128,7 @@ static mut STATE: GraphState = GraphState {
     keyframes: Vec::new(),
     dragging_keyframe: None,
     last_keyframe_toggle: None,
+    last_flag_toggle: None,
     current_frame: 0,
     dragging_playhead: false,
     dragging_knob: None,
@@ -143,6 +148,31 @@ static mut STATE: GraphState = GraphState {
 
 pub fn state() -> &'static mut GraphState {
     unsafe { &mut STATE }
+}
+
+/// Shared UI-interaction debounce window (ms). A single fast click can
+/// otherwise register as two hits (e.g. a genuine double-click, or the
+/// synthetic re-hit-test `on_dbl_click` runs), toggling something on and
+/// immediately back off.
+pub const TOGGLE_DEBOUNCE_MS: f64 = 300.0;
+
+/// Returns `true` if `key` was already toggled within `TOGGLE_DEBOUNCE_MS`
+/// and this hit should be debounced (ignored); otherwise records `key` as
+/// the latest toggle in `last` and returns `false`. Shared by any
+/// per-item click-to-toggle (keyframes, node flags, ...) that needs to
+/// guard against duplicate hits on the same target.
+pub fn debounce_toggle<T: PartialEq + Copy>(last: &mut Option<(T, f64)>, key: T) -> bool {
+    let now = ffi::perf_now();
+
+    if let Some((last_key, last_time)) = *last
+        && last_key == key
+        && now - last_time < TOGGLE_DEBOUNCE_MS
+    {
+        return true;
+    }
+
+    *last = Some((key, now));
+    false
 }
 
 pub fn creates_cycle(s: &GraphState, from: usize, to: usize) -> bool {

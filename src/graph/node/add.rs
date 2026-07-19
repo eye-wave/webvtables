@@ -68,16 +68,13 @@ impl NodeLogic for AddNode {
         const S: f32 = 18.0;
 
         let params = &node.params;
-        let value = helpers::param(params, 1, 0.0) as f32;
+        let value = helpers::param(params, 0, 0.0) as f32;
 
-        let (x, y, w, h) = rect;
+        let (x, _, w, _) = rect;
         let ty = rect.1 + rect.3 / 2.0 + S / 3.0;
 
         let cx = rect.0 + rect.2 / 2.0;
         let cy = rect.1 + rect.3 / 2.0;
-
-        ctx.fill_style([16, 16, 20]);
-        ctx.fill_rect(x, y, w, h, true);
 
         ctx.fill_style([200; 3]);
         ctx.fill_text("A", S, x + M, ty, true);

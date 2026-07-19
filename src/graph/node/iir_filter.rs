@@ -199,9 +199,6 @@ impl NodeLogic for IirFilterNode {
         let (b0, b1, b2, a1, a2) = Self::coeffs(shape, w0, q, gain_db);
         let bins = BUFFER_LEN / 2;
 
-        ctx.fill_style([18, 18, 22]);
-        ctx.fill_rect(x, y, w, h, true);
-
         let db_min = -30.0f32;
         let db_max = 30.0f32;
         let db_to_y =

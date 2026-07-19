@@ -8,6 +8,10 @@ use crate::graph::{BUFFER_LEN, Buffer, MAX_PARAMS, Param};
 
 pub struct WindowNode;
 
+pub(super) const WINDOW_TYPES: &[&str] = &[
+    "Hann", "Hamming", "Blackman", "BH", "Bartlett", "Welch", "Sine",
+];
+
 impl NodeLogic for WindowNode {
     fn title(&self) -> &'static str {
         "Window"
@@ -30,12 +34,7 @@ impl NodeLogic for WindowNode {
             Param::new_linear("Size", 0.0, 50.0)
                 .with_unit("%")
                 .with_default_denorm(15.0),
-            Param::new_enum(
-                "Type",
-                &[
-                    "Hann", "Hamming", "Blackman", "BH", "Bartlett", "Welch", "Sine"
-                ],
-            ),
+            Param::new_enum("Type", WINDOW_TYPES),
         ]
     }
 
@@ -74,7 +73,7 @@ impl NodeLogic for WindowNode {
     }
 }
 
-fn edge_gain(i: usize, taper_len: usize, len: usize, win_fn: fn(f32) -> f32) -> f32 {
+pub(super) fn edge_gain(i: usize, taper_len: usize, len: usize, win_fn: fn(f32) -> f32) -> f32 {
     if taper_len == 0 {
         return 1.0;
     }
@@ -88,37 +87,37 @@ fn edge_gain(i: usize, taper_len: usize, len: usize, win_fn: fn(f32) -> f32) -> 
 }
 
 #[inline]
-fn hann(x: f32) -> f32 {
+pub(super) fn hann(x: f32) -> f32 {
     0.5 * (1.0 - ffi::cosf(x * PI32))
 }
 
 #[inline]
-fn hamming(x: f32) -> f32 {
+pub(super) fn hamming(x: f32) -> f32 {
     0.54 - 0.46 * ffi::cosf(x * PI32)
 }
 
 #[inline]
-fn blackman(x: f32) -> f32 {
+pub(super) fn blackman(x: f32) -> f32 {
     0.42 - 0.5 * ffi::cosf(x * PI32) + 0.08 * ffi::cosf(2.0 * PI32 * x)
 }
 
 #[inline]
-fn blackman_harris(x: f32) -> f32 {
+pub(super) fn blackman_harris(x: f32) -> f32 {
     0.35875 - 0.48829 * ffi::cosf(PI32 * x) + 0.14128 * ffi::cosf(2.0 * PI32 * x)
         - 0.01168 * ffi::cosf(3.0 * PI32 * x)
 }
 
 #[inline]
-fn bartlett(x: f32) -> f32 {
+pub(super) fn bartlett(x: f32) -> f32 {
     x
 }
 
 #[inline]
-fn welch(x: f32) -> f32 {
+pub(super) fn welch(x: f32) -> f32 {
     1.0 - (1.0 - x) * (1.0 - x)
 }
 
 #[inline]
-fn sine(x: f32) -> f32 {
+pub(super) fn sine(x: f32) -> f32 {
     ffi::sinf(0.5 * PI32 * x)
 }

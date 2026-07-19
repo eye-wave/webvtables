@@ -147,9 +147,6 @@ impl NodeLogic for FilterNode {
         let spectrum = microfft::real::rfft_2048(&mut impulse);
         let bins = BUFFER_LEN / 2;
 
-        ctx.fill_style([18, 18, 22]);
-        ctx.fill_rect(x, y, w, h, true);
-
         let db_min = -30.0f32;
         let db_max = 30.0f32;
         let db_to_y =

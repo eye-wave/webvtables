@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 
 use crate::draw::{Direction, Draw};
 use crate::geom::point_in_rect;
-use crate::graph::{NodeKind, NodeLogic, state};
+use crate::graph::{NodeKind, NodeLogic, debounce_toggle, state};
 use crate::{FixedStr, ffi, render};
 
 pub struct KeyframeRuler;
@@ -126,14 +126,6 @@ const KEYFRAME_W: f32 = 12.0;
 const KEYFRAME_H: f32 = KEYFRAME_LANE_HEIGHT * 0.8;
 
 const KEYFRAME_HIT_PAD: f32 = 5.0;
-
-/// Minimum time between two toggles of the *same* lane before the second
-/// one is honored. A single physical click can legitimately produce more
-/// than one `on_keyframe_hit()` call in a row (e.g. `on_dbl_click` re-runs
-/// the hit test, or a fast double-click sends two mousedowns), which was
-/// toggling the lane straight back off. 300ms comfortably covers those
-/// duplicate hits while still allowing a deliberate, separate click.
-const KEYFRAME_TOGGLE_DEBOUNCE_MS: f64 = 300.0;
 
 impl Keyframe {
     pub fn rect(&self, s: &super::GraphState) -> Option<(f32, f32, f32, f32)> {
@@ -396,14 +388,9 @@ pub fn on_keyframe_hit(node_id: usize, param_id: usize) {
 
     let lane = KeyframeLane::new(node_id, param_id);
 
-    let now = ffi::perf_now();
-    if let Some((last_lane, last_time)) = s.last_keyframe_toggle
-        && last_lane == lane
-        && now - last_time < KEYFRAME_TOGGLE_DEBOUNCE_MS
-    {
+    if debounce_toggle(&mut s.last_keyframe_toggle, lane) {
         return;
     }
-    s.last_keyframe_toggle = Some((lane, now));
 
     let frame = s.current_frame;
 

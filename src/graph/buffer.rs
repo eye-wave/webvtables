@@ -67,7 +67,7 @@ fn eval_node(s: &mut GraphState, idx: usize, done: &mut [bool; MAX_NODES]) {
 }
 
 fn remove_dc(buf: &mut [f32]) {
-    let sum = buf.iter().sum::<f32>();
+    let sum = buf.iter().filter(|x| x.is_finite()).sum::<f32>();
     let dc = sum * (1.0 / buf.len() as f32);
 
     for sample in buf.iter_mut() {

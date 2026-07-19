@@ -60,7 +60,6 @@ define_nodes!(
     Output,
     Partials,
     PhaseShift,
-    Phaser,
     PhaseCopy,
     PulseWave,
     RingMod,
@@ -226,6 +225,16 @@ bitflags::bitflags! {
     }
 }
 
+/// 3-letter labels for the flag toggle row, in bit order (matches
+/// `Node::flag_rect` / `flag_hit` indexing 0..3).
+pub const FLAG_LABELS: [&str; 3] = ["Norm", "rem DC", "Clip"];
+
+pub const FLAG_BITS: [NodeFlags; 3] = [
+    NodeFlags::NORMALIZE,
+    NodeFlags::REMOVE_DC,
+    NodeFlags::HARD_CLIP,
+];
+
 #[derive(Clone, Copy)]
 pub struct Node {
     pub x: f32,
@@ -243,19 +252,29 @@ impl Node {
     const VALUE_PAD: f32 = 6.0;
     const VALUE_BOX_H: f32 = 14.0;
 
+    const WIDGET_MARGIN: f32 = 4.0;
     pub const WAVE_H: f32 = 34.0;
     pub const WIDGET_H: f32 = 40.0;
+    pub const FLAGS_H: f32 = 22.0;
+
+    const FLAGS_PAD: f32 = 4.0;
 
     pub const KF_W: f32 = 8.0;
     pub const KF_H: f32 = 12.0;
 
     pub const W: f32 = 180.0;
 
+    fn param_count(&self) -> usize {
+        self.params.iter().flatten().count()
+    }
+
     /// Computes total dynamic height based on active elements
     pub fn height(&self) -> f32 {
-        let param_count = self.params.iter().flatten().count();
-        let mut total_h =
-            Self::HEADER_H + (param_count as f32 * Self::PARAM_H) + Self::WAVE_H + 10.0;
+        let mut total_h = Self::HEADER_H
+            + (self.param_count() as f32 * Self::PARAM_H)
+            + Self::FLAGS_H
+            + Self::WAVE_H
+            + 10.0;
 
         if self.kind.has_widget() {
             total_h += Self::WIDGET_H;
@@ -274,12 +293,23 @@ impl Node {
         }
     }
 
+    /// Text baseline for param row `active_idx`. Single source of truth —
+    /// draw() and param_value_rect() both read from here instead of each
+    /// tracking the row offset separately.
+    const fn param_baseline_y(&self, active_idx: usize) -> f32 {
+        self.y + Self::HEADER_H + 12.0 + (active_idx as f32 * Self::PARAM_H)
+    }
+
     /// Calculate rect using active sequential index, not the array index slot
-    pub fn param_value_rect(&self, active_idx: usize) -> (f32, f32, f32, f32) {
-        let baseline_y = self.y + Self::HEADER_H + 12.0 + (active_idx as f32 * Self::PARAM_H);
+    pub const fn param_value_rect(&self, active_idx: usize) -> (f32, f32, f32, f32) {
         let box_x = self.x + Self::VALUE_X;
         let box_w = Self::W - Self::VALUE_X - 8.0;
-        (box_x, baseline_y - 11.0, box_w, Self::VALUE_BOX_H)
+        (
+            box_x,
+            self.param_baseline_y(active_idx) - 11.0,
+            box_w,
+            Self::VALUE_BOX_H,
+        )
     }
 
     /// Calculate rect using active sequential index, not the array index slot
@@ -290,10 +320,27 @@ impl Node {
         (cx, by, Self::KF_W, Self::KF_H)
     }
 
+    /// Top-left y of the flag toggle row, just below the param rows.
+    fn flags_y(&self) -> f32 {
+        self.y + Self::HEADER_H + (self.param_count() as f32 * Self::PARAM_H) + 4.0
+    }
+
+    /// Rect for flag button `idx` (0..3), evenly spaced across the node width.
+    pub fn flag_rect(&self, idx: usize) -> (f32, f32, f32, f32) {
+        let n = FLAG_LABELS.len() as f32;
+        let total_pad = Self::FLAGS_PAD * (n + 1.0);
+        let btn_w = (Self::W - total_pad) / n;
+        let btn_h = Self::FLAGS_H - Self::FLAGS_PAD;
+
+        let x = self.x + Self::FLAGS_PAD + (idx as f32 * (btn_w + Self::FLAGS_PAD));
+        let y = self.flags_y();
+
+        (x, y, btn_w, btn_h)
+    }
+
     /// Top-left y of the waveform preview strip, based on actual active parameters
     fn wave_y(&self) -> f32 {
-        let param_count = self.params.iter().flatten().count();
-        self.y + Self::HEADER_H + (param_count as f32 * Self::PARAM_H) + 6.0
+        self.flags_y() + Self::FLAGS_H
     }
 }
 
@@ -321,11 +368,11 @@ impl Draw for Node {
         ctx.fill_text(self.kind.title(), 13.0, self.x + 6.0, self.y + 14.0, true);
 
         // Parameters
-        let mut current_y = self.y + Self::HEADER_H + 12.0;
-
         for (active_idx, param) in self.params.iter().flatten().enumerate() {
+            let baseline_y = self.param_baseline_y(active_idx);
+
             ctx.fill_style([180; 3]);
-            ctx.fill_text(param.name(), 13.0, self.x + 8.0, current_y, true);
+            ctx.fill_text(param.name(), 13.0, self.x + 8.0, baseline_y, true);
 
             let mut vbuf: FixedStr<16> = FixedStr::new();
             param.format_value(&mut vbuf);
@@ -357,18 +404,33 @@ impl Draw for Node {
                 vbuf.as_str(),
                 13.0,
                 box_x + Self::VALUE_PAD,
-                current_y,
+                baseline_y,
                 true,
             );
+        }
 
-            current_y += Self::PARAM_H;
+        // Flag toggles
+        for (idx, &label) in FLAG_LABELS.iter().enumerate() {
+            let (bx, by, bw, bh) = self.flag_rect(idx);
+            let active = self.flags.contains(FLAG_BITS[idx]);
+
+            if active {
+                ctx.fill_style([90, 160, 220]);
+            } else {
+                ctx.fill_style([25, 26, 32]);
+            }
+            ctx.fill_rect(bx, by, bw, bh, true);
+
+            let len = label.len() as f32 * 3.33;
+            ctx.fill_style(if active { [20, 20, 24] } else { [160; 3] });
+            ctx.fill_text(label, 11.0, bx + bw * 0.5 - len, by + bh * 0.5 + 4.0, true);
         }
 
         // Waveform preview
         {
-            let x = self.x + 4.0;
+            let x = self.x + Self::WIDGET_MARGIN;
             let y = self.wave_y();
-            let w = Self::W - 8.0;
+            let w = Self::W - Self::WIDGET_MARGIN * 2.0;
             let h = Self::WAVE_H - 6.0;
 
             ctx.fill_style([20, 20, 24]);
@@ -390,13 +452,15 @@ impl Draw for Node {
 
         // Widget
         if self.kind.has_widget() {
-            let widget_rect = (
-                self.x,
-                self.wave_y() + Self::WAVE_H,
-                Self::W,
-                Self::WIDGET_H,
-            );
-            self.kind.draw_widget(self, i, s, ctx, widget_rect);
+            let x = self.x + Self::WIDGET_MARGIN;
+            let y = self.wave_y() + Self::WAVE_H;
+            let w = Self::W - Self::WIDGET_MARGIN * 2.0;
+            let h = Self::WIDGET_H;
+
+            ctx.fill_style([16, 16, 20]);
+            ctx.fill_rect(x, y, w, h, true);
+
+            self.kind.draw_widget(self, i, s, ctx, (x, y, w, h));
         }
 
         // Input Sockets

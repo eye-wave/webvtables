@@ -46,9 +46,6 @@ impl NodeLogic for OutputNode {
         let spectrum = microfft::real::rfft_2048(&mut samples);
         let bins = BUFFER_LEN / 2;
 
-        ctx.fill_style([16, 16, 20]);
-        ctx.fill_rect(x, y, w, h, true);
-
         let db_min = -60.0f32;
         let db_max = 0.0f32;
 

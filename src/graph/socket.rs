@@ -32,20 +32,20 @@ pub fn find_hovered_socket(s: &GraphState, x: f32, y: f32) -> Option<SocketRef> 
     None
 }
 
+fn evenly(idx: usize, count: usize, main: f32) -> f32 {
+    main * (idx + 1) as f32 / (count + 1) as f32
+}
+
 pub fn input_pos(node: &Node, idx: usize) -> (f32, f32) {
-    let x = node.x;
-
-    let dynamic_h = node.height();
-    let y = node.y + (dynamic_h * (idx + 1) as f32 / (node.kind.input_count() + 1) as f32);
-
-    (x, y)
+    (
+        node.x,
+        node.y + evenly(idx, node.kind.input_count(), node.height()),
+    )
 }
 
 pub fn output_pos(node: &Node, idx: usize) -> (f32, f32) {
-    let x = node.x + Node::W;
-
-    let dynamic_h = node.height();
-    let y = node.y + (dynamic_h * (idx + 1) as f32 / (node.kind.output_count() + 1) as f32);
-
-    (x, y)
+    (
+        node.x + Node::W,
+        node.y + evenly(idx, node.kind.output_count(), node.height()),
+    )
 }
