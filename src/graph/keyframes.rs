@@ -60,10 +60,72 @@ pub struct KeyframeLanes;
 const KEYFRAME_LANE_HEIGHT: f32 = 50.0;
 const KEYFRAME_LANE_WIDTH: f32 = 180.0;
 
+/// Width of the little scroll-position indicator drawn along the right
+/// edge of the lanes area when there are more lanes than fit on screen.
+const SCROLLBAR_W: f32 = 4.0;
+
+/// Wheel-delta-to-pixels multiplier. Browser wheel `deltaY` per notch is
+/// typically ~100, which would otherwise fly past a couple of lane rows
+/// per tick; scaling it down keeps scrolling feeling controllable.
+const SCROLL_SPEED: f32 = 0.35;
+
+/// Y coordinate (in screen space) of the top of the lanes area, i.e.
+/// just below the ruler.
+pub fn lanes_top(s: &super::GraphState) -> f32 {
+    s.viewport.1 * KEYFRAME_POS_PERCENT + KEYFRAME_RULER_HEIGHT
+}
+
+/// Screen-space top y of lane row `abs_row`, after applying the current
+/// scroll offset. This is the single source of truth for where a lane
+/// row (and everything drawn inside it: header, envelope line, and its
+/// keyframe diamonds) sits on screen, so nothing can drift out of sync
+/// with the rest.
+pub fn lane_row_y(s: &super::GraphState, abs_row: usize) -> f32 {
+    lanes_top(s) + abs_row as f32 * KEYFRAME_LANE_HEIGHT - s.lane_scroll
+}
+
+/// Whether a row whose top is at `row_y` is currently within the visible
+/// lanes strip. A row that would start above the strip is hidden outright
+/// (rather than clipped/partially drawn) so it never bleeds into the
+/// ruler above; a row starting before the bottom of the viewport is kept
+/// even if it runs past the bottom edge, since the canvas itself clips
+/// that for free.
+pub fn row_in_view(s: &super::GraphState, row_y: f32) -> bool {
+    row_y >= lanes_top(s) - 0.5 && row_y < s.viewport.1
+}
+
+/// Furthest valid `lane_scroll` value: once the last lane row's bottom
+/// reaches the bottom of the visible strip, scrolling further would just
+/// show empty space.
+pub fn max_lane_scroll(s: &super::GraphState) -> f32 {
+    let total_h = s.lanes.len() as f32 * KEYFRAME_LANE_HEIGHT;
+    let visible_h = (s.viewport.1 - lanes_top(s)).max(0.0);
+
+    (total_h - visible_h).max(0.0)
+}
+
+/// Keeps `lane_scroll` in range after the lane count or viewport size
+/// changes (e.g. a lane got removed, or the window was resized).
+pub fn clamp_lane_scroll(s: &mut super::GraphState) {
+    s.lane_scroll = s.lane_scroll.clamp(0.0, max_lane_scroll(s));
+}
+
+/// Scrolls the lane list by a wheel delta (browser `WheelEvent.deltaY`
+/// units), smoothly and proportionally rather than snapping row by row.
+pub fn scroll_lanes(s: &mut super::GraphState, dy: f32) {
+    let max_scroll = max_lane_scroll(s);
+    if max_scroll <= 0.0 {
+        s.lane_scroll = 0.0;
+        return;
+    }
+
+    s.lane_scroll = (s.lane_scroll + dy * SCROLL_SPEED).clamp(0.0, max_scroll);
+}
+
 impl Draw for KeyframeLanes {
     fn draw(&self, _i: usize, s: &super::GraphState, ctx: &mut crate::draw::DrawBuf) {
         let view_h = s.viewport.1;
-        let y = view_h * KEYFRAME_POS_PERCENT + KEYFRAME_RULER_HEIGHT;
+        let y = lanes_top(s);
 
         let gap = KEYFRAME_LANE_HEIGHT;
 
@@ -100,6 +162,27 @@ impl Draw for KeyframeLanes {
             Direction::Horizontal,
             false,
         );
+
+        // Scroll-position indicator: a thin track down the right edge
+        // with a thumb sized/positioned to reflect how much of the lane
+        // list is visible and where in it we're scrolled to. Only shown
+        // once there are more lanes than fit on screen.
+        let track_h = view_h - y;
+        let total_h = s.lanes.len() as f32 * KEYFRAME_LANE_HEIGHT;
+        let max_scroll = max_lane_scroll(s);
+
+        if total_h > track_h && max_scroll > 0.0 {
+            let track_x = s.viewport.0 - SCROLLBAR_W;
+
+            ctx.fill_style([35; 3]);
+            ctx.fill_rect(track_x, y, SCROLLBAR_W, track_h, false);
+
+            let thumb_h = (track_h * track_h / total_h).max(16.0);
+            let thumb_y = y + (track_h - thumb_h) * (s.lane_scroll / max_scroll);
+
+            ctx.fill_style([110; 3]);
+            ctx.fill_rect(track_x, thumb_y, SCROLLBAR_W, thumb_h, false);
+        }
     }
 }
 
@@ -129,14 +212,17 @@ const KEYFRAME_HIT_PAD: f32 = 5.0;
 
 impl Keyframe {
     pub fn rect(&self, s: &super::GraphState) -> Option<(f32, f32, f32, f32)> {
-        let row = s.lanes.iter().position(|l| *l == self.lane)?;
+        let abs_row = s.lanes.iter().position(|l| *l == self.lane)?;
 
-        let base_y = KEYFRAME_RULER_HEIGHT + s.viewport.1 * KEYFRAME_POS_PERCENT;
+        let row_y = lane_row_y(s, abs_row);
+        if !row_in_view(s, row_y) {
+            return None;
+        }
+
         let step_x = (s.viewport.0 - KEYFRAME_LANE_WIDTH) / 256.0;
 
         let x = self.frame as f32 * step_x + KEYFRAME_LANE_WIDTH;
-        let y =
-            base_y + row as f32 * KEYFRAME_LANE_HEIGHT + (KEYFRAME_LANE_HEIGHT - KEYFRAME_H) / 2.0;
+        let y = row_y + (KEYFRAME_LANE_HEIGHT - KEYFRAME_H) / 2.0;
 
         Some((x, y, KEYFRAME_W, KEYFRAME_H))
     }
@@ -167,10 +253,7 @@ impl KeyframeLane {
 
 impl Draw for KeyframeLane {
     fn draw(&self, i: usize, s: &super::GraphState, ctx: &mut crate::draw::DrawBuf) {
-        let view_h = s.viewport.1;
-        let y = KEYFRAME_RULER_HEIGHT
-            + view_h * KEYFRAME_POS_PERCENT
-            + (i as f32 * KEYFRAME_LANE_HEIGHT);
+        let y = lane_row_y(s, i);
 
         let Some(kind) = self.kind() else { return };
 
@@ -404,6 +487,7 @@ pub fn on_keyframe_hit(node_id: usize, param_id: usize) {
         // No keyframes left on this lane -> drop the lane too.
         if !s.keyframes.iter().any(|k| k.lane == lane) {
             s.lanes.retain(|l| *l != lane);
+            clamp_lane_scroll(s);
         }
     } else {
         if !s.lanes.contains(&lane) && s.lanes.push(lane).is_err() {

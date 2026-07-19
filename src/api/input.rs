@@ -16,20 +16,6 @@ pub enum HitType {
     Playhead = 6,
 }
 
-impl HitType {
-    fn from_u8(v: u8) -> Self {
-        match v {
-            1 => Self::Node,
-            2 => Self::Link,
-            3 => Self::Btn,
-            4 => Self::Knob,
-            5 => Self::Keyframe,
-            6 => Self::Playhead,
-            _ => Self::Empty,
-        }
-    }
-}
-
 pub struct HitResult {
     kind: HitType,
     id: u16,
@@ -90,14 +76,6 @@ impl HitResult {
     pub fn into_u32(self) -> u32 {
         (self.kind as u32) | ((self.id as u32) << 8) | (((self._sub_id as u8) as u32) << 24)
     }
-
-    pub fn from_u32(val: u32) -> Self {
-        Self {
-            kind: HitType::from_u8((val & 0xFF) as u8),
-            id: ((val >> 8) & 0xFFFF) as u16,
-            _sub_id: ((val >> 24) & 0xFF) as i8,
-        }
-    }
 }
 
 /// Node header-bar rect hit test
@@ -105,16 +83,8 @@ fn header_hit(n: &Node, x: f32, y: f32) -> bool {
     point_in_rect(x, y, n.x, n.y, Node::W, Node::HEADER_H)
 }
 
-/// Toggles flag `flag_idx` on node `node_id` and reprocesses the graph.
-/// Re-fetches state (like `on_keyframe_hit`) so it can run while the
-/// caller still holds a `&Node` borrowed from `s.nodes.iter()`. Debounced
-/// the same way keyframe toggles are, via `debounce_toggle`.
 fn on_flag_hit(node_id: usize, flag_idx: usize) {
     let s = state();
-
-    if debounce_toggle(&mut s.last_flag_toggle, (node_id, flag_idx)) {
-        return;
-    }
 
     let Some(node) = s.nodes.get_mut(node_id) else {
         return;
@@ -146,6 +116,74 @@ fn keyframe_hit(n: &Node, x: f32, y: f32) -> Option<usize> {
         let (kx, ky, kw, kh) = n.keyframe_value_rect(p);
         point_in_rect(x, y, kx, ky, kw, kh)
     })
+}
+
+fn pure_hit_test(sx: f32, sy: f32) -> HitResult {
+    let s = state();
+    let c = camera();
+    let (x, y) = c.to_world(sx, sy);
+
+    for (i, b) in s.buttons.iter().enumerate() {
+        if b.contains(sx, sy) {
+            return HitResult::btn(i as u16);
+        }
+    }
+
+    for (i, k) in s.knobs.iter().enumerate() {
+        if k.contains(sx, sy) {
+            return HitResult::knob(i as u16);
+        }
+    }
+
+    if playhead_hit_test(s, sx, sy) {
+        return HitResult::playhead();
+    }
+
+    if let Some(k) = keyframe_hit_test(s, sx, sy) {
+        return HitResult::keyframe(k as u16, -1);
+    }
+
+    for i in 0..s.nodes.len() {
+        let n = &s.nodes[i];
+        for o in 0..n.kind.output_count() {
+            let (ox, oy) = output_pos(n, o);
+            if dist2(x, y, ox, oy) <= SOCKET_HIT_R2 {
+                return HitResult::node(i as u16, -1);
+            }
+        }
+    }
+
+    for (i, n) in s.nodes.iter().enumerate() {
+        if !n.contains(x, y) {
+            continue;
+        }
+
+        if let Some(k) = keyframe_hit(n, x, y) {
+            return HitResult::keyframe(i as u16, k as i8);
+        }
+
+        if let Some(_f) = flag_hit(n, x, y) {
+            return HitResult::node(i as u16, -1);
+        }
+
+        if let Some(p) = param_hit(n, x, y) {
+            return HitResult::node(i as u16, p as i8);
+        }
+
+        if header_hit(n, x, y) {
+            return HitResult::node(i as u16, -1);
+        }
+
+        return HitResult::node(i as u16, -1);
+    }
+
+    if find_hovered_link(s, x, y).is_some()
+        && let Some(i) = find_hovered_link(s, x, y)
+    {
+        return HitResult::link(i as u16);
+    }
+
+    HitResult::empty()
 }
 
 #[unsafe(no_mangle)]
@@ -414,8 +452,7 @@ pub extern "C" fn on_mouse_move(sx: f32, sy: f32, alt_key: bool) {
 pub extern "C" fn on_dbl_click(x: f32, y: f32, button: i8) {
     let s = state();
 
-    let raw_hit = on_mouse_down(x, y, -1, false);
-    let hit = HitResult::from_u32(raw_hit);
+    let hit = pure_hit_test(x, y);
 
     if let HitType::Node = hit.kind
         && hit._sub_id > -1
@@ -515,13 +552,19 @@ pub extern "C" fn on_mouse_up(sx: f32, sy: f32) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn on_wheel(sx: f32, sy: f32, dx: f32, dy: f32, ctrl_key: bool) {
-    let c = camera();
     let s = state();
+
+    if sy >= lanes_top(s) {
+        scroll_lanes(s, dy);
+        render();
+        return;
+    }
 
     if sy < HEADER_HEIGHT || sy > s.viewport.1 * KEYFRAME_POS_PERCENT {
         return;
     }
 
+    let c = camera();
     if ctrl_key {
         c.zoom_at(sx, sy, dy);
     } else {
@@ -533,9 +576,8 @@ pub extern "C" fn on_wheel(sx: f32, sy: f32, dx: f32, dy: f32, ctrl_key: bool) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn on_context_menu(x: f32, y: f32) {
-    let raw_hit = on_mouse_down(x, y, -1, false);
-
-    ffi::open_context_menu(x, y, raw_hit);
+    let hit = pure_hit_test(x, y);
+    ffi::open_context_menu(x, y, hit.into_u32());
 }
 
 #[unsafe(no_mangle)]

@@ -51,6 +51,10 @@ pub struct GraphState {
     pub buttons: [Button; 1],
     pub knobs: [Knob; 2],
     pub lanes: HVec<KeyframeLane, 10>,
+    /// Pixel offset the lane list is currently scrolled down by. Lets the
+    /// lane list scroll smoothly when there are more lanes than fit in the
+    /// visible strip. See `scroll_lanes`.
+    pub lane_scroll: f32,
     pub keyframes: Vec<Keyframe>,
     pub dragging_keyframe: Option<usize>,
     /// (lane, timestamp) of the last keyframe-toggle mousedown, used to
@@ -59,9 +63,7 @@ pub struct GraphState {
     /// toggle the lane on and immediately back off.
     pub last_keyframe_toggle: Option<(KeyframeLane, f64)>,
     /// (node id, flag idx) + timestamp of the last flag-button toggle,
-    /// used to debounce duplicate hits the same way `last_keyframe_toggle`
-    /// does — see `debounce_toggle`.
-    pub last_flag_toggle: Option<((usize, usize), f64)>,
+
     /// Global playhead position (0..255), shown as the draggable green
     /// dot in the keyframe ruler.
     pub current_frame: u8,
@@ -125,10 +127,11 @@ static mut STATE: GraphState = GraphState {
         },
     ],
     lanes: HVec::new(),
+    lane_scroll: 0.0,
     keyframes: Vec::new(),
     dragging_keyframe: None,
     last_keyframe_toggle: None,
-    last_flag_toggle: None,
+
     current_frame: 0,
     dragging_playhead: false,
     dragging_knob: None,

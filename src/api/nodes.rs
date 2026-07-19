@@ -86,6 +86,7 @@ pub extern "C" fn remove_node(target_idx: usize) {
     s.dragging_param = None;
     s.dragging_keyframe = None;
     s.pending_link_from = None;
+    clamp_lane_scroll(s);
 
     render();
 }

@@ -137,11 +137,15 @@ pub extern "C" fn render() {
         knob.draw(i, s, ctx);
     }
 
+    clamp_lane_scroll(s);
+
     KeyframeRuler.draw(0, s, ctx);
     KeyframeLanes.draw(0, s, ctx);
 
     for (i, lane) in s.lanes.iter().enumerate() {
-        lane.draw(i, s, ctx);
+        if row_in_view(s, lane_row_y(s, i)) {
+            lane.draw(i, s, ctx);
+        }
     }
 
     for (i, keyframe) in s.keyframes.iter().enumerate() {
