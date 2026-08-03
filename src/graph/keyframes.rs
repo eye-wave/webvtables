@@ -290,15 +290,38 @@ impl Draw for KeyframeLane {
         sorted.sort_by_key(|k| k.frame);
 
         ctx.stroke_style([90, 80, 60]);
-        for k in sorted {
-            let x = (k.frame as f32 / 256.0 * w) + KEYFRAME_LANE_WIDTH;
-            let y = y + (1.0 - k.value) as f32 * KEYFRAME_LANE_HEIGHT;
+
+        let first_val = sorted.first().map(|k| k.value).unwrap_or(0.0);
+
+        let line_x = |frame: u8| (frame as f32 / 256.0 * w) + KEYFRAME_LANE_WIDTH;
+        let line_y = |value: f64| y + (1.0 - value) as f32 * KEYFRAME_LANE_HEIGHT;
+
+        for k in sorted.iter() {
+            let x = line_x(k.frame);
+            let ly = line_y(k.value);
 
             if let Some((px, py)) = prev {
-                ctx.stroke_line(px, py, x, y, false);
+                ctx.stroke_line(px, py, x, ly, false);
+            } else {
+                let px = line_x(0);
+                let py = line_y(first_val);
+
+                ctx.stroke_line(px, py, x, ly, false);
             }
 
-            prev = Some((x, y));
+            prev = Some((x, ly));
+        }
+
+        if let Some(last) = sorted.last()
+            && last.frame != 255
+        {
+            let px = line_x(last.frame);
+            let py = line_y(last.value);
+
+            let x = line_x(255);
+            let y = line_y(last.value);
+
+            ctx.stroke_line(px, py, x, y, false);
         }
     }
 }
