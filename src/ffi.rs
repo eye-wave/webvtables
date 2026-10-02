@@ -35,7 +35,19 @@ wasm_imports! {
     fn log_f64(val: f64);
     fn log_flush();
 
-    fn hypot(x:f64, y:f64)->f64;
-    fn ln(x: f64) -> f64;
+    fn log(x: f64) -> f64;
+    fn exp(x: f64) -> f64;
     fn sin(x: f64) -> f64;
+    fn floor(x: f64) -> f64;
+
+    fn atan2f(x: f32,y:f32) -> f32;
+    fn powf(x: f32,y:f32) -> f32;
+    fn roundf(x: f32) -> f32;
+    fn sinf(x: f32) -> f32;
+    fn cosf(x: f32) -> f32;
+    fn tanhf(x: f32) -> f32;
+    fn sqrtf(x: f32) -> f32;
+    fn log2f(x: f32) -> f32;
 }
+
+pub use libm::hypot;

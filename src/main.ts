@@ -17,8 +17,8 @@ loadWasm().then((wasm) => {
   const view = createView(nodeGrid, gridBg);
   const ropes = createRopes(wasm);
 
-  scene.add(0, 40, 40, 3);
-  scene.add(0, 40, 170, 3);
+  scene.add(0, 40, 40, 2);
+  scene.add(0, 40, 170, 2);
   scene.add(2, 290, 100, 2);
   scene.add(1, 540, 100, 0);
 

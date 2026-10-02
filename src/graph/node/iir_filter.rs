@@ -1,0 +1,178 @@
+use crate::ffi;
+use super::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::helpers::{self, PI32, TAU32};
+
+pub struct IirFilterNode;
+
+impl IirFilterNode {
+    /// RBJ cookbook biquad coefficients, normalized by a0.
+    fn coeffs(shape: u8, w0: f32, q: f32, gain_db: f32) -> (f32, f32, f32, f32, f32) {
+        let cos_w0 = ffi::cosf(w0);
+        let sin_w0 = ffi::sinf(w0);
+        let alpha = sin_w0 / (2.0 * q);
+        let a = ffi::powf(10.0, gain_db / 40.0);
+
+        let (b0, b1, b2, a0, a1, a2) = match shape {
+            0 => (
+                (1.0 - cos_w0) / 2.0,
+                1.0 - cos_w0,
+                (1.0 - cos_w0) / 2.0,
+                1.0 + alpha,
+                -2.0 * cos_w0,
+                1.0 - alpha,
+            ),
+            1 => (
+                (1.0 + cos_w0) / 2.0,
+                -(1.0 + cos_w0),
+                (1.0 + cos_w0) / 2.0,
+                1.0 + alpha,
+                -2.0 * cos_w0,
+                1.0 - alpha,
+            ),
+            2 => (
+                sin_w0 / 2.0,
+                0.0,
+                -sin_w0 / 2.0,
+                1.0 + alpha,
+                -2.0 * cos_w0,
+                1.0 - alpha,
+            ),
+            3 | 4 => {
+                let s = q.clamp(0.05, 5.0);
+                let sqrt_a = ffi::sqrtf(a);
+                let alpha_s = sin_w0 / 2.0 * ffi::sqrtf((a + 1.0 / a) * (1.0 / s - 1.0) + 2.0);
+                if shape == 3 {
+                    (
+                        a * ((a + 1.0) - (a - 1.0) * cos_w0 + 2.0 * sqrt_a * alpha_s),
+                        2.0 * a * ((a - 1.0) - (a + 1.0) * cos_w0),
+                        a * ((a + 1.0) - (a - 1.0) * cos_w0 - 2.0 * sqrt_a * alpha_s),
+                        (a + 1.0) + (a - 1.0) * cos_w0 + 2.0 * sqrt_a * alpha_s,
+                        -2.0 * ((a - 1.0) + (a + 1.0) * cos_w0),
+                        (a + 1.0) + (a - 1.0) * cos_w0 - 2.0 * sqrt_a * alpha_s,
+                    )
+                } else {
+                    (
+                        a * ((a + 1.0) + (a - 1.0) * cos_w0 + 2.0 * sqrt_a * alpha_s),
+                        -2.0 * a * ((a - 1.0) + (a + 1.0) * cos_w0),
+                        a * ((a + 1.0) + (a - 1.0) * cos_w0 - 2.0 * sqrt_a * alpha_s),
+                        (a + 1.0) - (a - 1.0) * cos_w0 + 2.0 * sqrt_a * alpha_s,
+                        2.0 * ((a - 1.0) - (a + 1.0) * cos_w0),
+                        (a + 1.0) - (a - 1.0) * cos_w0 - 2.0 * sqrt_a * alpha_s,
+                    )
+                }
+            }
+            5 => (
+                1.0 + alpha * a,
+                -2.0 * cos_w0,
+                1.0 - alpha * a,
+                1.0 + alpha / a,
+                -2.0 * cos_w0,
+                1.0 - alpha / a,
+            ),
+            _ => (
+                1.0,
+                -2.0 * cos_w0,
+                1.0,
+                1.0 + alpha,
+                -2.0 * cos_w0,
+                1.0 - alpha,
+            ),
+        };
+
+        let coeffs = (b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0);
+        if coeffs.0.is_finite()
+            && coeffs.1.is_finite()
+            && coeffs.2.is_finite()
+            && coeffs.3.is_finite()
+            && coeffs.4.is_finite()
+        {
+            coeffs
+        } else {
+            (1.0, 0.0, 0.0, 0.0, 0.0)
+        }
+    }
+}
+
+impl IirFilterNode {
+    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+        Param::new_enum(
+            "Shape",
+            &[
+                "Lowpass",
+                "Highpass",
+                "Bandpass",
+                "Lowshelf",
+                "Highshelf",
+                "Peaking",
+                "Notch",
+            ],
+        ),
+        Param::new_log("Freq", 1.0, BUFFER_LEN_F64)
+            .with_unit("bins")
+            .with_default_denorm(777.77),
+        Param::new_linear("Gain", -30.0, 30.0)
+            .with_unit("dB")
+            .with_default_norm(0.5),
+        Param::new_linear("Q", 0.0, 10.0).with_default_denorm(1.0),
+        Param::new_linear("Mix", 0.0, 100.0)
+            .with_unit("%")
+            .with_default_norm(1.0),
+    ];
+}
+
+impl NodeLogic for IirFilterNode {
+    fn title(&self) -> &'static str {
+        "IIR Filter"
+    }
+
+    fn category(&self) -> &'static [NodeCategory] {
+        &[NodeCategory::Effect]
+    }
+
+    fn input_count(&self) -> usize {
+        1
+    }
+
+    fn output_count(&self) -> usize {
+        1
+    }
+
+    fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
+        Self::PARAMS
+    }
+
+    fn process(
+        &self,
+        inputs: &[&Buffer],
+        params: &[Option<Param>; MAX_PARAMS],
+        outs: &mut [Buffer],
+    ) {
+        let out = &mut outs[0];
+        let shape = helpers::param(params, 0, 0.0) as u8;
+        let freq = (helpers::param(params, 1, 1000.0) as f32).max(1.0);
+        let gain_db = helpers::param(params, 2, 0.0) as f32;
+        let q = (helpers::param(params, 3, 0.707) as f32).max(0.02);
+        let mix = (helpers::param(params, 4, 100.0) / 100.0) as f32;
+        let src = helpers::input(inputs, 0);
+
+        let w0 = (TAU32 * freq / BUFFER_LEN as f32).min(PI32 * 0.999);
+        let (b0, b1, b2, a1, a2) = Self::coeffs(shape, w0, q, gain_db);
+
+        let mut z1 = 0.0;
+        let mut z2 = 0.0;
+
+        for i in 0..BUFFER_LEN {
+            let x = src[i];
+            let y = b0 * x + z1;
+            z1 = b1 * x - a1 * y + z2;
+            z2 = b2 * x - a2 * y;
+            if !z1.is_finite() {
+                z1 = 0.0;
+            }
+            if !z2.is_finite() {
+                z2 = 0.0;
+            }
+            out[i] = x * (1.0 - mix) + y.clamp(-1e6, 1e6) * mix;
+        }
+    }
+}

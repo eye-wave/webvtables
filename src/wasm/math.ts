@@ -2,7 +2,19 @@ const math_ffi: Record<string, Math[keyof Math]> = {
   ln: Math.log,
 };
 
-for (const name of ["hypot", "sin"] as const) {
+for (const name of [
+  "atan2",
+  "cos",
+  "exp",
+  "floor",
+  "log",
+  "log2",
+  "pow",
+  "round",
+  "sin",
+  "sqrt",
+  "tanh",
+] as const) {
   math_ffi[name] = Math[name];
 }
 

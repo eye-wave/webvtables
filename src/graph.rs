@@ -4,13 +4,17 @@ use alloc::vec::Vec;
 pub use self::arena::Arena;
 pub use self::link::Link;
 pub use self::node::NodeKind;
+pub use self::param::Param;
 use self::rope::Rope;
 
 mod arena;
 mod link;
 mod node;
+mod param;
 mod rope;
 pub mod scope;
+
+pub const MAX_PARAMS: usize = 8;
 
 pub struct State {
     pub links: Vec<Link>,
