@@ -19,12 +19,10 @@ export function createRopes(w: WasmExports) {
       return changed;
     },
 
-    segments: () =>
-      new Float32Array(
-        w.memory.buffer,
-        w.rope_out(),
-        w.rope_segments(hot),
-      ).slice(),
+    segments() {
+      const n = w.rope_segments(hot);
+      return new Float32Array(w.memory.buffer, w.rope_out(), n).slice();
+    },
   };
 }
 

@@ -36,13 +36,7 @@ export type WasmExports = {
   get_param(idx: number, i: number): number;
   param_text(idx: number, i: number): number;
   param_text_ptr(): number;
-  add_node(
-    kind: number,
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-  ): number;
+  add_node(kind: number, x: number, y: number, w: number, h: number): number;
 } & { memory: WebAssembly.Memory };
 
 export async function loadWasm(): Promise<WasmExports> {

@@ -10,11 +10,22 @@ const KIND_AT = 16;
 type ParamInfo = { name: string; options?: readonly string[]; unit?: string };
 const utf8 = new TextDecoder();
 
-const SIZE = [
-  [160, 120],
-  [160, 140],
-  [160, 120],
-];
+const WIDTH = 180,
+  HEAD = 20,
+  ROW = 20,
+  SCOPE = 56,
+  GAP = 4,
+  PAD = 12; // keep in sync with .node/.knob in style.css
+
+const sizeOf = (kind: number): [number, number] => {
+  const n = nodes[kind];
+  const parts = [
+    HEAD,
+    ...(n.params.length ? [n.params.length * ROW] : []),
+    ...Array(1 + +n.hasWidget).fill(SCOPE),
+  ];
+  return [WIDTH, parts.reduce((a, b) => a + b + GAP, PAD - GAP)];
+};
 const GREEN: [number, number, number] = [0.3, 1, 0.45];
 const ORANGE: [number, number, number] = [1, 0.6, 0.25];
 
@@ -50,7 +61,7 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
         kind,
         x,
         y,
-        ...((SIZE[kind] ?? [160, 120]) as [number, number]),
+        ...sizeOf(kind),
       );
       if (p < 0) return;
       const i = wasm.nodes_len() - 1;
@@ -62,13 +73,17 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
 
       const head = div("head", el);
       div("title", head).textContent = nodes[kind].name;
-      div("readout", head);
 
       const knobs = div("knobs", el);
       for (let j = 0, a; (a = wasm.get_param(i, j)) >= 0; j++) {
         const k = div("knob", knobs);
         k.dataset.a = `${a}`;
         k.dataset.j = `${j}`;
+        div("dial", k);
+        div("pname", k).textContent = (
+          nodes[kind].params as readonly ParamInfo[]
+        )[j].name;
+        div("pval", k);
       }
 
       for (let j = 0; j < 1 + +wasm.node_has_widget(i); j++)
@@ -104,34 +119,33 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
         el.style.width = `${w}px`;
         el.style.height = `${h}px`;
         inst.set([x, y, w, h, i, u[p + KIND_AT]], i * STRIDE);
-        el.querySelectorAll<HTMLElement>(".knob").forEach((k) =>
-          k.style.setProperty("--v", `${f[+k.dataset.a! >> 2]}`),
-        );
-      }
-
-      const k = root.querySelector<HTMLElement>(".knob.on");
-      const el = k?.closest<HTMLElement>(".node");
-      if (k && el) {
-        const j = +k.dataset.j!;
-        const p = (nodes[+el.dataset.k!].params as readonly ParamInfo[])[j];
-        const len = wasm.param_text(+el.dataset.n!, j);
-        const v = utf8.decode(
-          new Uint8Array(wasm.memory.buffer, wasm.param_text_ptr(), len),
-        );
-        el.querySelector(".readout")!.textContent =
-          `${p.name}: ${p.options?.[+v] ?? (p.unit ? `${v} ${p.unit}` : v)}`;
+        const info = nodes[+el.dataset.k!].params as readonly ParamInfo[];
+        el.querySelectorAll<HTMLElement>(".knob").forEach((k) => {
+          k.style.setProperty("--v", `${f[+k.dataset.a! >> 2]}`);
+          const j = +k.dataset.j!;
+          // param_text doesn't allocate, so views taken above stay valid
+          const len = wasm.param_text(+el.dataset.n!, j);
+          const v = utf8.decode(
+            new Uint8Array(wasm.memory.buffer, wasm.param_text_ptr(), len),
+          );
+          const p = info[j];
+          const text = p.options?.[+v] ?? (p.unit ? `${v} ${p.unit}` : v);
+          const out = k.lastElementChild!;
+          if (out.textContent !== text) out.textContent = text;
+        });
       }
       return inst;
     },
 
     scopes(): Scope[] {
       const out: Scope[] = [];
-      [...root.children].forEach((c, order) => {
-        const el = c as HTMLElement;
+      for (let order = 0; order < root.children.length; order++) {
+        const el = root.children.item(order) as HTMLElement;
         const [x, y] = f32().subarray(at(el), at(el) + 2);
-        for (const s of el.querySelectorAll<HTMLElement>(".scope")) {
+
+        el.querySelectorAll<HTMLElement>(".scope").forEach((s) => {
           const len = wasm.scope_fill(+el.dataset.n!, +s.dataset.w!);
-          if (len < 2) continue;
+          if (len < 2) return;
           out.push({
             rect: [
               x + el.clientLeft + s.offsetLeft,
@@ -147,15 +161,16 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
               len,
             ).slice(),
           });
-        }
-      });
+        });
+      }
       return out;
     },
 
     *links(): Generator<[number, Pt, Pt]> {
-      const u = u8(),
-        w = u16();
       for (let i = 0; i < wasm.links_len(); i++) {
+        // fresh views: the caller may allocate (grow memory) between yields
+        const u = u8(),
+          w = u16();
         const p = wasm.get_link(i);
         yield [
           i,

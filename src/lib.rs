@@ -13,6 +13,23 @@ extern crate alloc;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
+#[cfg(not(test))]
+#[panic_handler]
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    use crate::log::LogArg;
+    use core::fmt::{Result, Write};
+    struct W;
+    impl Write for W {
+        fn write_str(&mut self, s: &str) -> Result {
+            s.log();
+            Ok(())
+        }
+    }
+    let _ = write!(W, "{info}");
+    crate::console_print!();
+    core::arch::wasm32::unreachable()
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn links_len() -> u16 {
     state().links.len() as u16

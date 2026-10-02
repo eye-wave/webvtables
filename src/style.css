@@ -54,8 +54,7 @@ body {
   left: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
   gap: 4px;
   padding: 4px;
   background: #1c1c1c;
@@ -81,50 +80,73 @@ body {
 }
 
 .head {
-  display: grid;
+  flex: none;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.title,
-.readout {
-  grid-area: 1 / 1;
+.title {
   white-space: nowrap;
 }
 
-.readout {
-  visibility: hidden;
-  color: #6af;
-}
-
-.node:has(.knob.on) .title {
-  visibility: hidden;
-}
-
-.node:has(.knob.on) .readout {
-  visibility: visible;
-}
-
 .knobs {
+  flex: none;
   display: flex;
-  gap: 8px;
+  flex-direction: column;
 }
 
 .knob {
-  width: 22px;
-  height: 22px;
+  height: 20px;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+  border-radius: 4px;
+  cursor: ns-resize;
+}
+
+.knob.on {
+  background: #2a2a2a;
+}
+
+.dial {
+  width: 16px;
+  height: 16px;
   border: 2px solid #777;
   border-radius: 50%;
   background: #333;
-  cursor: ns-resize;
   transform: rotate(calc(var(--v) * 270deg - 135deg));
 }
 
-.knob::after {
+.dial::after {
   content: "";
   display: block;
   width: 2px;
-  height: 7px;
-  margin: 1px auto;
+  height: 5px;
+  margin: 0 auto;
   background: #6af;
+}
+
+.pname {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: #999;
+}
+
+.pval {
+  white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #6af;
+}
+
+.knob.on .pval {
+  color: #8cf;
 }
 
 .overlay-canvas {
