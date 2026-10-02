@@ -15,7 +15,7 @@ const draw = createOverlay(canvas);
 loadWasm().then((wasm) => {
   const scene = createScene(wasm, nodeGrid);
   const view = createView(nodeGrid, gridBg);
-  const ropes = createRopes();
+  const ropes = createRopes(wasm);
 
   scene.add(0, 40, 40, 3);
   scene.add(0, 40, 170, 3);

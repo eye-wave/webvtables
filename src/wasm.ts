@@ -1,4 +1,5 @@
 import wasmUrl from "~wasm/webvtlabes.wasm?url";
+import { math_ffi } from "./wasm/math";
 
 declare const ptr: unique symbol;
 declare const int: unique symbol;
@@ -12,6 +13,14 @@ export type float = number & { readonly [float]: never };
 
 export type WasmExports = {
   links_len(): number;
+
+  rope_pin(id: number, ax: number, ay: number, bx: number, by: number): void;
+  rope_drop(id: number): void;
+  rope_rename(from: number, to: number): void;
+  rope_step(dt: number): number;
+  rope_hit(x: number, y: number, r: number): number;
+  rope_segments(hot: number): number;
+  rope_out(): number;
 
   add_link(s1: number, s2: number, t1: number, t2: number): number;
 
@@ -37,6 +46,7 @@ export async function loadWasm(): Promise<WasmExports> {
 
   const wasmObject = await WebAssembly.instantiateStreaming(fetch(wasmUrl), {
     env: {
+      ...math_ffi,
       log_str(ptr: ptr, len: uint) {
         logBuffer += readStr(ptr, len);
       },

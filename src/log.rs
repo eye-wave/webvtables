@@ -1,5 +1,6 @@
 use crate::ffi;
 
+#[allow(unused)]
 pub trait LogArg {
     fn log(&self);
 }

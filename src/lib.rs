@@ -75,3 +75,38 @@ pub extern "C" fn add_node(kind: u8, x: f32, y: f32, w: f32, h: f32, n_params: u
         .map(|off| (s.arena.base() + off as usize) as i32)
         .unwrap_or(-1)
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rope_pin(id: i32, ax: f64, ay: f64, bx: f64, by: f64) {
+    state().rope_pin(id, [ax, ay], [bx, by])
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rope_drop(id: i32) {
+    state().rope_drop(id)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rope_rename(from: i32, to: i32) {
+    state().rope_rename(from, to)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rope_step(dt: f64) -> bool {
+    state().rope_step(dt)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rope_hit(x: f64, y: f64, r: f64) -> i32 {
+    state().rope_hit(x, y, r)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rope_segments(hot: i32) -> u32 {
+    state().rope_segments(hot) as u32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn rope_out() -> i32 {
+    state().rope_out.as_ptr() as i32
+}

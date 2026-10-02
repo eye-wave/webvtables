@@ -34,4 +34,6 @@ wasm_imports! {
     fn log_i32(val: i32);
     fn log_f64(val: f64);
     fn log_flush();
+
+    fn hypot(x:f64, y:f64)->f64;
 }
