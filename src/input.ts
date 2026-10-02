@@ -92,7 +92,10 @@ export function createInput(
   };
 
   grid.addEventListener("pointerdown", (e) => {
+    if (e.button) return; // right click belongs to the context menu
     const t = e.target as HTMLElement;
+    const flag = t.closest<HTMLElement>(".flag");
+    if (flag) return (scene.flag(flag), schedule());
     const knob = t.closest<HTMLElement>(".knob");
     const sock = t.closest<HTMLElement>(".socket");
     const node = t.closest<HTMLElement>(".node");

@@ -1,18 +1,25 @@
-import { nodes } from "./generated/nodes";
+import { flagLabels, nodes } from "./generated/nodes";
 import { RADIUS, STRIDE, type Scope } from "./overlay";
 import type { Pt } from "./ropes";
 import type { WasmExports } from "./wasm";
 
 export type Sock = { node: number; out: boolean; j: number };
 
-const KIND_AT = 16;
+const KIND_AT = 16,
+  FLAGS_AT = KIND_AT + 1; // Node.flags follows Node.kind (repr(C))
 
-type ParamInfo = { name: string; options?: readonly string[]; unit?: string };
+type ParamInfo = {
+  name: string;
+  options?: readonly string[];
+  unit?: string;
+  default: number;
+};
 const utf8 = new TextDecoder();
 
 const WIDTH = 180,
   HEAD = 20,
   ROW = 20,
+  FLAGS = 20,
   SCOPE = 56,
   GAP = 4,
   PAD = 12; // keep in sync with .node/.knob in style.css
@@ -22,6 +29,7 @@ const sizeOf = (kind: number): [number, number] => {
   const parts = [
     HEAD,
     ...(n.params.length ? [n.params.length * ROW] : []),
+    FLAGS,
     ...Array(1 + +n.hasWidget).fill(SCOPE),
   ];
   return [WIDTH, parts.reduce((a, b) => a + b + GAP, PAD - GAP)];
@@ -86,6 +94,13 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
         div("pval", k);
       }
 
+      const flags = div("flags", el);
+      flagLabels.forEach((label, b) => {
+        const f = div("flag", flags);
+        f.dataset.b = `${b}`;
+        f.textContent = label;
+      });
+
       for (let j = 0; j < 1 + +wasm.node_has_widget(i); j++)
         div("scope", el).dataset.w = `${j}`;
 
@@ -119,6 +134,9 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
         el.style.width = `${w}px`;
         el.style.height = `${h}px`;
         inst.set([x, y, w, h, i, u[p + KIND_AT]], i * STRIDE);
+        el.querySelectorAll<HTMLElement>(".flag").forEach((b) =>
+          b.classList.toggle("active", !!(u[p + FLAGS_AT] & (1 << +b.dataset.b!))),
+        );
         const info = nodes[+el.dataset.k!].params as readonly ParamInfo[];
         el.querySelectorAll<HTMLElement>(".knob").forEach((k) => {
           k.style.setProperty("--v", `${f[+k.dataset.a! >> 2]}`);
@@ -202,6 +220,38 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
 
     raise: (el: HTMLElement) => root.append(el),
 
+    remove(el: HTMLElement) {
+      const n = +el.dataset.n!;
+      wasm.remove_node(n);
+      el.remove();
+      // node indices above n shifted down: renumber the nodes and their sockets
+      for (const e of root.querySelectorAll<HTMLElement>(".node, .socket"))
+        if (+e.dataset.n! > n) e.dataset.n = `${+e.dataset.n! - 1}`;
+    },
+
+    reset(el: HTMLElement) {
+      const info = nodes[+el.dataset.k!].params as readonly ParamInfo[];
+      const f = f32();
+      el.querySelectorAll<HTMLElement>(".knob").forEach((k) => {
+        f[+k.dataset.a! >> 2] = info[+k.dataset.j!].default;
+      });
+    },
+
+    duplicate(el: HTMLElement) {
+      const i = at(el);
+      const count = root.children.length;
+      this.add(+el.dataset.k!, f32()[i] + 24, f32()[i + 1] + 24);
+      if (root.children.length === count) return; // arena full
+      const copy = root.lastElementChild as HTMLElement;
+      const f = f32(),
+        u = u8();
+      const src = el.querySelectorAll<HTMLElement>(".knob");
+      copy.querySelectorAll<HTMLElement>(".knob").forEach((k, j) => {
+        f[+k.dataset.a! >> 2] = f[+src[j].dataset.a! >> 2];
+      });
+      u[+copy.dataset.p! + FLAGS_AT] = u[+el.dataset.p! + FLAGS_AT];
+    },
+
     pos(el: HTMLElement): Pt {
       const f = f32(),
         i = at(el);
@@ -213,6 +263,11 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
         i = at(el);
       f[i] = x;
       f[i + 1] = y;
+    },
+
+    flag(b: HTMLElement) {
+      const p = +b.closest<HTMLElement>(".node")!.dataset.p!;
+      u8()[p + FLAGS_AT] ^= 1 << +b.dataset.b!;
     },
 
     knob(el: HTMLElement) {

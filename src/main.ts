@@ -1,5 +1,7 @@
 import "./style.css";
+import { createContextMenu } from "./ctx";
 import { createInput } from "./input";
+import { createMenu } from "./menu";
 import { createOverlay } from "./overlay";
 import { createRopes } from "./ropes";
 import { createScene } from "./scene";
@@ -54,6 +56,13 @@ loadWasm().then((wasm) => {
     view,
     ropes,
     schedule,
+  });
+  const add = createMenu(canvas.parentElement!, view, scene, schedule);
+  createContextMenu(canvas.parentElement!, {
+    scene,
+    view,
+    schedule,
+    openAdd: add.open,
   });
   new ResizeObserver(schedule).observe(nodeGrid);
   schedule();

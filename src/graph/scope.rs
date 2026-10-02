@@ -52,10 +52,16 @@ fn eval(s: &State, node: usize, sock: usize, memo: &mut Memo, dst: &mut Buffer) 
             outs
         };
         let f = s.flags(node);
-        outs.as_chunks_mut::<N>().0.iter_mut().for_each(|o| post(o, f));
+        outs.as_chunks_mut::<N>()
+            .0
+            .iter_mut()
+            .for_each(|o| post(o, f));
         memo[node] = Some(outs);
     }
-    if let Some(o) = memo[node].as_ref().and_then(|o| o.as_chunks::<N>().0.get(sock)) {
+    if let Some(o) = memo[node]
+        .as_ref()
+        .and_then(|o| o.as_chunks::<N>().0.get(sock))
+    {
         dst.copy_from_slice(&o[..]);
     }
 }

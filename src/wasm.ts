@@ -25,6 +25,7 @@ export type WasmExports = {
   rope_segments(hot: number): number;
   rope_out(): number;
 
+  remove_node(idx: number): void;
   add_link(s1: number, s2: number, t1: number, t2: number): number;
 
   node_sockets(idx: number): number;

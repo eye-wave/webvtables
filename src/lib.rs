@@ -58,6 +58,11 @@ pub extern "C" fn remove_link(idx: u16) {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn remove_node(idx: u16) {
+    state().remove_node(idx as usize)
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn node_sockets(idx: u16) -> i32 {
     state()
         .sockets(idx as usize)

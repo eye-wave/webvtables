@@ -44,3 +44,41 @@ impl State {
         }
     }
 }
+
+impl State {
+    // ponytail: the node's arena bytes are not reclaimed (bump arena), fine for hand-built graphs
+    pub fn remove_node(&mut self, idx: usize) {
+        if idx >= self.nodes.len() {
+            return;
+        }
+        self.nodes.remove(idx);
+        self.links
+            .retain(|l| l.source as usize != idx && l.target as usize != idx);
+        for l in &mut self.links {
+            l.source -= (l.source as usize > idx) as u16;
+            l.target -= (l.target as usize > idx) as u16;
+        }
+        self.rope_clear_links();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::graph::{NodeKind, State};
+
+    #[test]
+    fn remove_node_drops_and_reindexes_links() {
+        let mut s = State::new();
+        for _ in 0..3 {
+            s.add_node(NodeKind::Add, [0.0; 2], [0.0; 2]).unwrap();
+        }
+        s.link((0, 0), (1, 0));
+        s.link((1, 0), (2, 0));
+        s.link((0, 0), (2, 1));
+        s.remove_node(1);
+        assert_eq!(s.nodes.len(), 2);
+        assert_eq!(s.links.len(), 1);
+        let l = &s.links[0];
+        assert_eq!((l.source, l.target, l.target_socket), (0, 1, 1));
+    }
+}
