@@ -1,3 +1,4 @@
+use alloc::{boxed::Box, vec};
 use microfft::Complex32;
 
 use super::{BUFFER_LEN, Buffer, MAX_PARAMS, Param, ZERO_BUFFER};
@@ -37,7 +38,7 @@ pub fn param_db(params: &[Option<Param>; MAX_PARAMS], idx: usize, default: f64) 
 
 #[inline]
 pub fn input<'a>(inputs: &[&'a Buffer], idx: usize) -> &'a Buffer {
-    inputs.get(idx).unwrap_or(&&ZERO_BUFFER)
+    inputs.get(idx).copied().unwrap_or(&ZERO_BUFFER)
 }
 
 #[inline]
@@ -96,9 +97,37 @@ pub fn from_mag_phase(mag: f32, phase: f32) -> Complex32 {
     }
 }
 
-#[inline(always)]
-pub fn unpack_real_fft(spectrum: &[Complex32; BUFFER_LEN / 2]) -> [Complex32; BUFFER_LEN] {
-    let mut full = [Complex32::new(0.0, 0.0); BUFFER_LEN];
+/// Log-frequency response curve for filter widgets. `ratio(bin)` is the filter's linear gain at
+/// that FFT bin; `out` gets dB scaled so +-30 dB is full height. Returns the point count.
+pub fn response_curve(out: &mut Buffer, mix: f32, ratio: impl Fn(f32) -> f32) -> usize {
+    const POINTS: usize = 256;
+    const DB_RANGE: f32 = 30.0;
+    let bins = (BUFFER_LEN / 2) as f32;
+    for (i, o) in out[..POINTS].iter_mut().enumerate() {
+        let bin = ffi::powf(bins, i as f32 / (POINTS - 1) as f32).clamp(1.0, bins - 1.0);
+        let mixed = (1.0 - mix) + mix * ratio(bin);
+        *o = 20.0 * ffi::log10f(mixed.max(1e-6)) / DB_RANGE;
+    }
+    POINTS
+}
+
+/// Heap array filled with `v`; the vec -> boxed slice -> array route never puts `[T; M]` on the stack.
+pub fn boxed<T: Clone, const M: usize>(v: T) -> Box<[T; M]> {
+    match vec![v; M].into_boxed_slice().try_into() {
+        Ok(b) => b,
+        Err(_) => unreachable!(),
+    }
+}
+
+/// Heap copy of a buffer (FFTs run in place, so they need an owned scratch).
+pub fn copy_of(src: &Buffer) -> Box<Buffer> {
+    let mut b = boxed(0.0);
+    b.copy_from_slice(src);
+    b
+}
+
+pub fn unpack_real_fft(spectrum: &[Complex32; BUFFER_LEN / 2]) -> Box<[Complex32; BUFFER_LEN]> {
+    let mut full: Box<[Complex32; BUFFER_LEN]> = boxed(Complex32::new(0.0, 0.0));
 
     full[0] = Complex32::new(spectrum[0].re, 0.0);
     full[BUFFER_LEN / 2] = Complex32::new(spectrum[0].im, 0.0);

@@ -175,4 +175,33 @@ impl NodeLogic for IirFilterNode {
             out[i] = x * (1.0 - mix) + y.clamp(-1e6, 1e6) * mix;
         }
     }
+    fn has_widget(&self) -> bool {
+        true
+    }
+
+    fn fill_widget(&self, _: &[&Buffer], p: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) -> usize {
+        let shape = helpers::param(p, 0, 0.0) as u8;
+        let freq = (helpers::param(p, 1, 1000.0) as f32).max(1.0);
+        let gain_db = helpers::param(p, 2, 0.0) as f32;
+        let q = (helpers::param(p, 3, 0.707) as f32).max(0.02);
+        let mix = (helpers::param(p, 4, 100.0) / 100.0) as f32;
+
+        let w0 = (TAU32 * freq / BUFFER_LEN as f32).min(PI32 * 0.999);
+        let (b0, b1, b2, a1, a2) = Self::coeffs(shape, w0, q, gain_db);
+
+        helpers::response_curve(out, mix, |bin| {
+            let wr = TAU32 * bin / BUFFER_LEN as f32;
+            let (cw, sw) = (ffi::cosf(wr), ffi::sinf(wr));
+            let (c2w, s2w) = (ffi::cosf(2.0 * wr), ffi::sinf(2.0 * wr));
+
+            let num_re = b0 + b1 * cw + b2 * c2w;
+            let num_im = -b1 * sw - b2 * s2w;
+            let den_re = 1.0 + a1 * cw + a2 * c2w;
+            let den_im = -a1 * sw - a2 * s2w;
+
+            let num_mag = ffi::sqrtf(num_re * num_re + num_im * num_im);
+            let den_mag = ffi::sqrtf(den_re * den_re + den_im * den_im).max(1e-6);
+            num_mag / den_mag
+        })
+    }
 }

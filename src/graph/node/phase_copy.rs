@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use microfft::Complex32;
 use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self, from_mag_phase, magnitude, phase};
@@ -36,15 +37,15 @@ impl NodeLogic for PhaseCopyNode {
         let b = helpers::input(inputs, 1);
         let bins = BUFFER_LEN / 2;
 
-        let mut a_time: [f32; BUFFER_LEN] = *a;
-        let mut b_time: [f32; BUFFER_LEN] = *b;
+        let mut a_time = helpers::copy_of(a);
+        let mut b_time = helpers::copy_of(b);
         let a_spec = microfft::real::rfft_2048(&mut a_time);
         let b_spec = microfft::real::rfft_2048(&mut b_time);
 
         let dc = a_spec[0].re.abs() * b_spec[0].re.signum();
         let nyq = a_spec[0].im.abs() * b_spec[0].im.signum();
 
-        let mut full = [Complex32::new(0.0, 0.0); BUFFER_LEN];
+        let mut full: Box<[Complex32; BUFFER_LEN]> = helpers::boxed(Complex32::new(0.0, 0.0));
         full[0] = Complex32::new(dc, 0.0);
         full[bins] = Complex32::new(nyq, 0.0);
         for k in 1..bins {

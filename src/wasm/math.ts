@@ -9,6 +9,7 @@ for (const name of [
   "floor",
   "log",
   "log2",
+  "log10",
   "pow",
   "round",
   "sin",

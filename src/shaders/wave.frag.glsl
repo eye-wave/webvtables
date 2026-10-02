@@ -6,6 +6,8 @@ flat in vec4 vSeg;
 flat in vec2 vV;
 flat in float vR;
 
+uniform vec3 uCol;
+
 out vec4 o;
 
 void main() {
@@ -14,6 +16,6 @@ void main() {
   float d = length(pa - ba * h) - vR;
   float k = clamp(0.5 - d / max(fwidth(d), 1e-4), 0.0, 1.0);
   if (k == 0.0) discard;
-  vec3 col = abs(h < 0.5 ? vV.x : vV.y) > 1.0 ? vec3(1.0, 0.25, 0.25) : vec3(0.3, 1.0, 0.45);
+  vec3 col = abs(h < 0.5 ? vV.x : vV.y) > 1.0 ? vec3(1.0, 0.25, 0.25) : uCol;
   o = vec4(col * k, k);
 }

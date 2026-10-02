@@ -49,7 +49,7 @@ impl NodeLogic for SpectralGateNode {
         let src = helpers::input(inputs, 0);
         let mix = (helpers::param(params, 1, 100.0) / 100.0) as f32;
 
-        let mut samples: [f32; BUFFER_LEN] = *src;
+        let mut samples = helpers::copy_of(src);
         let spectrum = microfft::real::rfft_2048(&mut samples);
 
         for bin in spectrum.iter_mut() {

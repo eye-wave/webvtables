@@ -42,7 +42,7 @@ impl NodeLogic for DisperserNode {
         let direction = if exp >= 0.0 { 1.0 } else { -1.0 };
         let abs_exp = exp.abs();
 
-        let mut samples: [f32; BUFFER_LEN] = *src;
+        let mut samples = helpers::copy_of(src);
         let spectrum = microfft::real::rfft_2048(&mut samples);
 
         let step = TAU32 / BUFFER_LEN_F32;

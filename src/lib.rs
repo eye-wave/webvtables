@@ -47,6 +47,13 @@ pub extern "C" fn node_sockets(idx: u16) -> i32 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn node_has_widget(idx: u16) -> bool {
+    state()
+        .kind(idx as usize)
+        .is_some_and(|k| k.as_node().has_widget())
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn nodes_len() -> u16 {
     state().nodes.len() as u16
 }
@@ -68,10 +75,10 @@ pub extern "C" fn get_param(idx: u16, i: u8) -> i32 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn add_node(kind: u8, x: f32, y: f32, w: f32, h: f32, n_params: u8) -> i32 {
+pub extern "C" fn add_node(kind: u8, x: f32, y: f32, w: f32, h: f32) -> i32 {
     let s = state();
     NodeKind::from_u8(kind)
-        .and_then(|k| s.add_node(k, [x, y], [w, h], n_params))
+        .and_then(|k| s.add_node(k, [x, y], [w, h]))
         .map(|off| (s.arena.base() + off as usize) as i32)
         .unwrap_or(-1)
 }

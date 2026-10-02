@@ -17,10 +17,13 @@ loadWasm().then((wasm) => {
   const view = createView(nodeGrid, gridBg);
   const ropes = createRopes(wasm);
 
-  scene.add(0, 40, 40, 2);
-  scene.add(0, 40, 170, 2);
-  scene.add(2, 290, 100, 2);
-  scene.add(1, 540, 100, 0);
+  scene.add(0, 40, 40);
+  scene.add(0, 40, 170);
+  scene.add(2, 290, 100);
+  scene.add(1, 540, 100);
+  scene.add(3, 300, 300);
+  scene.add(9, 540, 400);
+  scene.add(22, 200, 400);
 
   let queued = false;
   let last = 0;

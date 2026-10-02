@@ -18,6 +18,7 @@ export type Scope = {
   rect: [x: number, y: number, w: number, h: number];
   order: number;
   pts: Float32Array;
+  color: [number, number, number];
 };
 
 export type Frame = {
@@ -142,7 +143,8 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
 
     gl.useProgram(wave);
     gl.blendEquation(gl.MAX);
-    for (const { rect, order, pts } of scopes) {
+    for (const { rect, order, pts, color } of scopes) {
+      gl.uniform3f(loc(wave, "uCol"), ...color);
       gl.uniform4f(loc(wave, "uRect"), ...rect);
       gl.uniform1f(loc(wave, "uCount"), pts.length);
       gl.uniform1f(loc(wave, "uZ"), 1 - (2 * (order + 1.5)) / (n + 1));

@@ -4,7 +4,14 @@ import type { WasmExports } from "./wasm";
 
 export type Sock = { node: number; out: boolean; j: number };
 
-const KIND_NAMES = ["Basic Shapes", "Output", "Transform"];
+// Same order as define_nodes! in graph/node.rs.
+const KIND_NAMES = [
+  "Basic Shapes", "Output", "Transform", "Add", "Amplitude Modulation", "Bit crusher",
+  "Band split", "Comb", "Disperser", "FFT Filter", "Frequency Modulation", "Gain",
+  "Harmonic shift", "IIR Filter", "Inharmonic shift", "Invert polarity", "Noise",
+  "Partials", "Phase shift", "Phase copy", "Pulse wave", "Ring Modulation",
+  "Saturation", "Spectral Gate", "Spectral Subtract", "Sync warp", "Window",
+];
 const KIND_AT = 16;
 
 const SIZE = [
@@ -12,7 +19,8 @@ const SIZE = [
   [160, 140],
   [160, 120],
 ];
-const SCOPES = [1, 2, 1];
+const GREEN: [number, number, number] = [0.3, 1, 0.45];
+const ORANGE: [number, number, number] = [1, 0.6, 0.25];
 
 const div = (cls: string, parent: Element) => {
   const el = document.createElement("div");
@@ -41,13 +49,12 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
   return {
     socketPos,
 
-    add(kind: number, x: number, y: number, nParams: number) {
+    add(kind: number, x: number, y: number) {
       const p = wasm.add_node(
         kind,
         x,
         y,
-        ...(SIZE[kind] as [number, number]),
-        nParams,
+        ...((SIZE[kind] ?? [160, 120]) as [number, number]),
       );
       if (p < 0) return;
       const i = wasm.nodes_len() - 1;
@@ -61,7 +68,8 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
       for (let j = 0, a; (a = wasm.get_param(i, j)) >= 0; j++)
         div("knob", knobs).dataset.a = `${a}`;
 
-      for (let j = 0; j < SCOPES[kind]; j++)
+      // scope 0 = waveform, scope 1 = the node's own widget (if any)
+      for (let j = 0; j < 1 + +wasm.node_has_widget(i); j++)
         div("scope", el).dataset.w = `${j}`;
 
       const [ins, outs] = sockets(i);
@@ -117,6 +125,7 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
               s.offsetHeight,
             ],
             order,
+            color: s.dataset.w === "0" ? GREEN : ORANGE,
             pts: new Float32Array(
               wasm.memory.buffer,
               wasm.scope_ptr(),

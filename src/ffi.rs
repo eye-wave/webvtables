@@ -48,6 +48,7 @@ wasm_imports! {
     fn tanhf(x: f32) -> f32;
     fn sqrtf(x: f32) -> f32;
     fn log2f(x: f32) -> f32;
+    fn log10f(x: f32) -> f32;
 }
 
 pub use libm::hypot;

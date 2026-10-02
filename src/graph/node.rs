@@ -1,12 +1,18 @@
 #![allow(dead_code)] // ponytail: ported API, not all wired to callers yet
 use crate::graph::{MAX_PARAMS, Param, State};
+use alloc::{boxed::Box, vec};
 
 pub const N: usize = 2048;
 pub type Buffer = [f32; N];
 pub const BUFFER_LEN: usize = N;
 pub const BUFFER_LEN_F32: f32 = N as f32;
 pub const BUFFER_LEN_F64: f64 = N as f64;
-pub const ZERO_BUFFER: Buffer = [0.0; N];
+pub static ZERO_BUFFER: Buffer = [0.0; N];
+
+/// `n` zeroed buffers as one heap slice (view with `as_chunks_mut::<N>()`); never builds a Buffer on the stack.
+pub fn zeroed(n: usize) -> Box<[f32]> {
+    vec![0.0; n * N].into_boxed_slice()
+}
 
 mod helpers;
 
@@ -130,6 +136,18 @@ pub trait NodeLogic {
     fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
         [None; MAX_PARAMS]
     }
+    fn has_widget(&self) -> bool {
+        false
+    }
+    /// Widget points (y in -1..1) written to the front of `out`; returns how many. Drawn orange.
+    fn fill_widget(
+        &self,
+        _inputs: &[&Buffer],
+        _params: &[Option<Param>; MAX_PARAMS],
+        _out: &mut Buffer,
+    ) -> usize {
+        0
+    }
     /// `inputs` has `input_count()` buffers (zeroed if unlinked), `outs` has `output_count()`.
     fn process(
         &self,
@@ -197,19 +215,14 @@ pub struct NodeParams {
 }
 
 impl State {
-    pub fn add_node(
-        &mut self,
-        kind: NodeKind,
-        position: [f32; 2],
-        size: [f32; 2],
-        n_params: u8,
-    ) -> Option<u32> {
-        let start = self.arena.alloc::<f32>(n_params as usize)?;
-        let off = self.arena.alloc::<Node>(1)?;
+    pub fn add_node(&mut self, kind: NodeKind, position: [f32; 2], size: [f32; 2]) -> Option<u32> {
         let defaults = kind.as_node().default_params();
+        let n_params = defaults.iter().flatten().count();
+        let start = self.arena.alloc::<f32>(n_params)?;
+        let off = self.arena.alloc::<Node>(1)?;
         for (v, d) in self
             .arena
-            .slice_mut::<f32>(start, n_params as usize)
+            .slice_mut::<f32>(start, n_params)
             .iter_mut()
             .zip(defaults)
         {
@@ -222,7 +235,7 @@ impl State {
             flags: NodeFlags::empty().bits(),
             params: NodeParams {
                 start,
-                len: n_params,
+                len: n_params as u8,
             },
         };
         self.nodes.push(off);

@@ -1,3 +1,5 @@
+use alloc::boxed::Box;
+use microfft::Complex32;
 use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
 
@@ -45,11 +47,12 @@ impl NodeLogic for HarmonicShiftNode {
         let shift = (1.0 + helpers::param(params, 0, 0.0) * 0.05) as f32;
 
         let src = helpers::input(inputs, 0);
-        let mut samples: [f32; BUFFER_LEN] = *src;
+        let mut samples = helpers::copy_of(src);
         let spectrum = microfft::real::rfft_2048(&mut samples);
         let n = spectrum.len();
 
-        let mut shifted = *spectrum;
+        let mut shifted: Box<[Complex32; BUFFER_LEN / 2]> = helpers::boxed(Complex32::new(0.0, 0.0));
+        shifted.copy_from_slice(spectrum);
         for b in shifted.iter_mut().skip(1) {
             b.re = 0.0;
             b.im = 0.0;
@@ -71,7 +74,7 @@ impl NodeLogic for HarmonicShiftNode {
             }
         }
 
-        spectrum.copy_from_slice(&shifted);
+        spectrum.copy_from_slice(&shifted[..]);
 
         let mut full = helpers::unpack_real_fft(spectrum);
         let time = microfft::inverse::ifft_2048(&mut full);

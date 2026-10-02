@@ -30,6 +30,7 @@ export type WasmExports = {
   node_sockets(idx: number): number;
   get_link(idx: number): number;
   remove_link(idx: number): void;
+  node_has_widget(idx: number): boolean;
   nodes_len(): number;
   get_node(idx: number): number;
   get_param(idx: number, i: number): number;
@@ -39,7 +40,6 @@ export type WasmExports = {
     y: number,
     w: number,
     h: number,
-    nParams: number,
   ): number;
 } & { memory: WebAssembly.Memory };
 

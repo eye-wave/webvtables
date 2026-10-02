@@ -102,7 +102,7 @@ impl NodeLogic for FilterNode {
         let mix = (helpers::param(params, 4, 0.0) / 100.0) as f32;
         let src = helpers::input(inputs, 0);
 
-        let mut samples: [f32; BUFFER_LEN] = *src;
+        let mut samples = helpers::copy_of(src);
         let spectrum = microfft::real::rfft_2048(&mut samples);
         let bins = BUFFER_LEN / 2;
 
@@ -119,5 +119,17 @@ impl NodeLogic for FilterNode {
 
             out[i] = dry * (1.0 - mix) + wet * (mix);
         }
+    }
+    fn has_widget(&self) -> bool {
+        true
+    }
+
+    fn fill_widget(&self, _: &[&Buffer], p: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) -> usize {
+        let shape = helpers::param(p, 0, 0.0) as u8;
+        let freq = helpers::param(p, 1, 1000.0).max(1.0) as f32;
+        let gain_db = helpers::param(p, 2, 0.0) as f32;
+        let q = helpers::param(p, 3, 0.707).max(0.05) as f32;
+        let mix = (helpers::param(p, 4, 100.0) / 100.0) as f32;
+        helpers::response_curve(out, mix, |bin| Self::magnitude(shape, bin / freq, q, gain_db))
     }
 }

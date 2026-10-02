@@ -1,7 +1,6 @@
-use super::node::{Buffer, N, NodeFlags};
-use crate::ffi;
+use super::node::{Buffer, N, NodeFlags, zeroed};
 use crate::graph::{MAX_PARAMS, NodeKind, Param, State};
-use alloc::{vec, vec::Vec};
+use alloc::{boxed::Box, vec::Vec};
 
 const MAX_DEPTH: u8 = 16;
 
@@ -11,54 +10,68 @@ pub fn buf() -> usize {
     (&raw const BUF) as usize
 }
 
+/// widget 0: the node's waveform. widget 1: its `fill_widget` points (spectrum, filter curve...).
 pub fn fill(s: &State, node: usize, widget: u8) -> usize {
-    let n = match (widget, s.kind(node)) {
-        (0, Some(_)) => N,
-        (1, Some(NodeKind::Output)) => N / 2,
-        _ => return 0,
-    };
-    let Some(b) = eval(s, node, 0).into_iter().next() else {
+    let Some(kind) = s.kind(node) else {
         return 0;
     };
     let buf = unsafe { &mut BUF };
-    *buf = b;
-    if widget == 1 {
-        spectrum(buf);
+    match widget {
+        0 => {
+            eval(s, node, 0, 0, buf);
+            N
+        }
+        1 if kind.as_node().has_widget() => {
+            let ins = inputs(s, node, kind, 0);
+            let refs: Vec<&Buffer> = ins.as_chunks::<N>().0.iter().collect();
+            kind.as_node()
+                .fill_widget(&refs, &params(s, node, kind), buf)
+        }
+        _ => 0,
     }
-    n
 }
 
-/// Output buffers of `node`. Sinks (no outputs) return their inputs instead (ponytail: lets widgets read them).
-/// Unlinked inputs are silent; depth-capped so cycles terminate.
-fn eval(s: &State, node: usize, depth: u8) -> Vec<Buffer> {
+/// Writes output `sock` of `node` into `dst`. Sinks (no outputs) expose their inputs instead
+/// (ponytail: lets widgets read them). Unlinked inputs are silent; depth-capped so cycles terminate.
+/// All working buffers live on the heap and nothing 8KB-sized is returned by value: wasm's stack is small.
+fn eval(s: &State, node: usize, sock: usize, depth: u8, dst: &mut Buffer) {
+    dst.fill(0.0);
     let Some(kind) = s.kind(node).filter(|_| depth < MAX_DEPTH) else {
-        return vec![];
+        return;
     };
-    let (ni, no) = kind.sockets();
-    let ins: Vec<Buffer> = (0..ni)
-        .map(|i| {
-            s.links
-                .iter()
-                .find(|l| l.target as usize == node && l.target_socket == i)
-                .and_then(|l| {
-                    let outs = eval(s, l.source as usize, depth + 1);
-                    outs.into_iter().nth(l.source_socket as usize)
-                })
-                .unwrap_or([0.0; N])
-        })
-        .collect();
+    let no = kind.sockets().1;
+    let ins = inputs(s, node, kind, depth);
     let mut outs = if no == 0 {
         ins
     } else {
-        let mut outs = vec![[0.0; N]; no as usize];
-        let refs: Vec<&Buffer> = ins.iter().collect();
+        let mut outs = zeroed(no as usize);
+        let refs: Vec<&Buffer> = ins.as_chunks::<N>().0.iter().collect();
+        let ps = params(s, node, kind);
         kind.as_node()
-            .process(&refs, &params(s, node, kind), &mut outs);
+            .process(&refs, &ps, outs.as_chunks_mut::<N>().0);
         outs
     };
     let f = s.flags(node);
+    let outs = outs.as_chunks_mut::<N>().0;
     outs.iter_mut().for_each(|o| post(o, f));
-    outs
+    if let Some(o) = outs.get(sock) {
+        dst.copy_from_slice(&o[..]);
+    }
+}
+
+/// Evaluates whatever feeds each input socket of `node` (silence if unlinked).
+fn inputs(s: &State, node: usize, kind: NodeKind, depth: u8) -> Box<[f32]> {
+    let mut ins = zeroed(kind.sockets().0 as usize);
+    for (i, b) in ins.as_chunks_mut::<N>().0.iter_mut().enumerate() {
+        let src = s
+            .links
+            .iter()
+            .find(|l| l.target as usize == node && l.target_socket as usize == i);
+        if let Some(l) = src {
+            eval(s, l.source as usize, l.source_socket as usize, depth + 1, b);
+        }
+    }
+    ins
 }
 
 /// Node defaults overlaid with the 0..1 values JS keeps in the arena.
@@ -86,16 +99,4 @@ fn post(b: &mut Buffer, f: NodeFlags) {
     if f.contains(NodeFlags::HARD_CLIP) {
         b.iter_mut().for_each(|v| *v = v.clamp(-1.0, 1.0));
     }
-}
-
-fn spectrum(re: &mut [f32; N]) {
-    let bins = microfft::real::rfft_2048(re);
-    bins[0].im = 0.0;
-    let mut out = [0.0; N / 2];
-    for (k, (o, b)) in out.iter_mut().zip(bins.iter()).enumerate() {
-        let m = ffi::hypot(b.re as f64, b.im as f64) * if k == 0 { 1.0 } else { 2.0 } / N as f64;
-
-        *o = (1.0 + 0.217147 * ffi::log(m.max(1e-4))) as f32;
-    }
-    re[..N / 2].copy_from_slice(&out);
 }
