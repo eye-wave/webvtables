@@ -19,6 +19,15 @@ export function createInput(
   let drag: Drag | null = null;
   let lit: Pt[] = [];
 
+  let hot: HTMLElement | null = null;
+  const hover = (k: HTMLElement | null) => {
+    if (k === hot) return;
+    hot?.classList.remove("on");
+    k?.classList.add("on");
+    hot = k;
+    schedule();
+  };
+
   const dragKnob = (e: PointerEvent, k: ReturnType<Scene["knob"]>): Drag => {
     const y0 = e.clientY,
       v0 = k.get();
@@ -89,6 +98,7 @@ export function createInput(
     const node = t.closest<HTMLElement>(".node");
     const link =
       knob || sock || node ? -1 : ropes.hit(view.world(e), HIT / view.v[2]);
+    hover(knob);
     if (link >= 0) unlink(link);
     else
       drag = knob
@@ -109,6 +119,7 @@ export function createInput(
       grid.contains(t) && !t.closest(".node")
         ? ropes.hit(view.world(e), HIT / view.v[2])
         : -1;
+    hover(grid.contains(t) ? t.closest<HTMLElement>(".knob") : null);
     if (ropes.highlight(id)) schedule();
     grid.style.cursor = id < 0 ? "" : "pointer";
   });
@@ -116,6 +127,7 @@ export function createInput(
     if (!drag) return;
     drag.up?.(e);
     drag = null;
+    hover((e.target as HTMLElement).closest<HTMLElement>(".knob"));
     schedule();
   });
 

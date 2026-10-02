@@ -1,3 +1,4 @@
+use super::{Label, label};
 use alloc::boxed::Box;
 use microfft::Complex32;
 use crate::ffi;
@@ -11,8 +12,8 @@ impl InharmonicShiftNode {
 }
 
 impl NodeLogic for InharmonicShiftNode {
-    fn title(&self) -> &'static str {
-        "Inharmonic shift"
+    fn title(&self) -> Label {
+        label("Inharmonic shift")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

@@ -1,3 +1,4 @@
+use super::{Label, label};
 use crate::ffi;
 use super::{BUFFER_LEN, BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self, TAU32};
@@ -9,8 +10,8 @@ impl DisperserNode {
 }
 
 impl NodeLogic for DisperserNode {
-    fn title(&self) -> &'static str {
-        "Disperser"
+    fn title(&self) -> Label {
+        label("Disperser")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

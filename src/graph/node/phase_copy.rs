@@ -1,3 +1,4 @@
+use super::{Label, label};
 use alloc::boxed::Box;
 use microfft::Complex32;
 use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
@@ -5,13 +6,9 @@ use super::helpers::{self, from_mag_phase, magnitude, phase};
 
 pub struct PhaseCopyNode;
 
-impl PhaseCopyNode {
-    pub const PARAMS: [Option<Param>; MAX_PARAMS] = [None; MAX_PARAMS];
-}
-
 impl NodeLogic for PhaseCopyNode {
-    fn title(&self) -> &'static str {
-        "Phase copy"
+    fn title(&self) -> Label {
+        label("Phase copy")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

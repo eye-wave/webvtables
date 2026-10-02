@@ -1,3 +1,4 @@
+use super::{Label, label};
 use super::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
 
@@ -11,8 +12,8 @@ impl PulseWaveNode {
 }
 
 impl NodeLogic for PulseWaveNode {
-    fn title(&self) -> &'static str {
-        "Pulse wave"
+    fn title(&self) -> Label {
+        label("Pulse wave")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

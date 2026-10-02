@@ -7,7 +7,6 @@ use crate::ffi;
 pub const PI32: f32 = core::f32::consts::PI;
 pub const TAU32: f32 = core::f32::consts::TAU;
 
-/// Denormalized value of `params[idx]`, or `default` if that slot is empty.
 #[inline]
 pub fn param(params: &[Option<Param>; MAX_PARAMS], idx: usize, default: f64) -> f64 {
     params
@@ -52,7 +51,6 @@ pub fn db_to_value(db: f64) -> f64 {
     ffi::exp(db * core::f64::consts::LN_10 / 20.0)
 }
 
-/// Per-sample transform of input 0 into `out`. Covers every 1-in effect node.
 #[inline]
 pub fn map1(inputs: &[&Buffer], out: &mut Buffer, f: impl Fn(f32) -> f32) {
     let src = input(inputs, 0);
@@ -61,7 +59,6 @@ pub fn map1(inputs: &[&Buffer], out: &mut Buffer, f: impl Fn(f32) -> f32) {
     }
 }
 
-/// Per-sample transform of inputs 0 and 1 into `out`. Covers every 2-in combine node.
 #[inline]
 pub fn map2(inputs: &[&Buffer], out: &mut Buffer, f: impl Fn(f32, f32) -> f32) {
     let a = input(inputs, 0);
@@ -97,8 +94,6 @@ pub fn from_mag_phase(mag: f32, phase: f32) -> Complex32 {
     }
 }
 
-/// Log-frequency response curve for filter widgets. `ratio(bin)` is the filter's linear gain at
-/// that FFT bin; `out` gets dB scaled so +-30 dB is full height. Returns the point count.
 pub fn response_curve(out: &mut Buffer, mix: f32, ratio: impl Fn(f32) -> f32) -> usize {
     const POINTS: usize = 256;
     const DB_RANGE: f32 = 30.0;
@@ -111,7 +106,6 @@ pub fn response_curve(out: &mut Buffer, mix: f32, ratio: impl Fn(f32) -> f32) ->
     POINTS
 }
 
-/// Heap array filled with `v`; the vec -> boxed slice -> array route never puts `[T; M]` on the stack.
 pub fn boxed<T: Clone, const M: usize>(v: T) -> Box<[T; M]> {
     match vec![v; M].into_boxed_slice().try_into() {
         Ok(b) => b,
@@ -119,7 +113,6 @@ pub fn boxed<T: Clone, const M: usize>(v: T) -> Box<[T; M]> {
     }
 }
 
-/// Heap copy of a buffer (FFTs run in place, so they need an owned scratch).
 pub fn copy_of(src: &Buffer) -> Box<Buffer> {
     let mut b = boxed(0.0);
     b.copy_from_slice(src);

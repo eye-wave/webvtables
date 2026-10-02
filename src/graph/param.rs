@@ -1,4 +1,5 @@
-#![allow(dead_code)] // ponytail: UI-side helpers (label, drag, reset) not wired yet
+#![allow(dead_code)]
+use crate::graph::{Label, Labels, State, label, labels};
 use libm::{exp, log, round};
 
 #[derive(Clone, Copy)]
@@ -6,7 +7,7 @@ enum Kind {
     Linear(f64, f64),
     Log(f64, f64),
     Int(i32, i32),
-    Enum(&'static [&'static str]),
+    Enum(u8),
 }
 
 #[derive(Clone, Copy)]
@@ -15,15 +16,14 @@ enum Init {
     Denorm(f64),
 }
 
-/// Knob metadata + value. `value` is the 0..1 slider position (what the UI/arena stores);
-/// `denorm()` is the real-world value (Hz, dB, index...) that DSP should read.
 #[derive(Clone, Copy)]
 pub struct Param {
-    name: &'static str,
+    name: Label,
     kind: Kind,
     value: f64,
     default: Init,
-    unit: Option<&'static str>,
+    unit: Option<Label>,
+    options: Option<Labels>,
 }
 
 fn sym_log(v: f64) -> f64 {
@@ -37,11 +37,12 @@ fn sym_exp(v: f64) -> f64 {
 impl Param {
     const fn new(name: &'static str, kind: Kind) -> Self {
         Self {
-            name,
+            name: label(name),
             kind,
             value: f64::NAN,
             default: Init::Norm(0.0),
             unit: None,
+            options: None,
         }
     }
 
@@ -58,11 +59,13 @@ impl Param {
     }
 
     pub const fn new_enum(name: &'static str, data: &'static [&'static str]) -> Self {
-        Self::new(name, Kind::Enum(data))
+        let mut p = Self::new(name, Kind::Enum(data.len() as u8));
+        p.options = Some(labels(data));
+        p
     }
 
     pub const fn with_unit(mut self, unit: &'static str) -> Self {
-        self.unit = Some(unit);
+        self.unit = Some(label(unit));
         self
     }
 
@@ -83,15 +86,6 @@ impl Param {
         }
     }
 
-    pub const fn name(&self) -> &'static str {
-        self.name
-    }
-
-    pub const fn unit(&self) -> Option<&'static str> {
-        self.unit
-    }
-
-    /// Current 0..1 position; the default until something sets it.
     pub fn value(&self) -> f64 {
         if self.value.is_nan() {
             self.default_norm()
@@ -114,14 +108,6 @@ impl Param {
 
     pub fn denorm(&self) -> f64 {
         self.denormalize(self.value())
-    }
-
-    /// Enum label for the current value (empty for non-enum params).
-    pub fn label(&self) -> &'static str {
-        match self.kind {
-            Kind::Enum(d) => d.get(self.denorm() as usize).copied().unwrap_or(""),
-            _ => "",
-        }
     }
 
     pub fn denormalize(&self, n: f64) -> f64 {
@@ -164,13 +150,135 @@ impl Param {
 
     fn last(&self) -> f64 {
         match self.kind {
-            Kind::Enum(d) => (d.len().max(1) - 1) as f64,
+            Kind::Enum(n) => (n.max(1) - 1) as f64,
             _ => 0.0,
         }
     }
 }
 
-/// `params![Param::..., ...]` -> `[Option<Param>; MAX_PARAMS]`. Const-evaluable.
+#[cfg(test)]
+impl Param {
+    pub fn ts(&self) -> alloc::string::String {
+        use alloc::format;
+        let mut s = format!("{{ name: {:?}", self.name);
+        if let Some(o) = self.options {
+            s += &format!(", options: {o:?}");
+        }
+        s += &format!(", default: {}", self.default_norm());
+        if let Some(u) = self.unit {
+            s += &format!(", unit: {u:?}");
+        }
+        s + " }"
+    }
+}
+
+const TEXT_CAP: usize = 24;
+static mut TEXT: [u8; TEXT_CAP] = [0; TEXT_CAP];
+
+pub fn text_ptr() -> usize {
+    (&raw const TEXT) as usize
+}
+
+impl State {
+    pub fn param_text(&self, idx: usize, i: usize) -> usize {
+        let param = self
+            .kind(idx)
+            .and_then(|k| k.as_node().default_params().get(i).copied().flatten());
+        let (Some(p), Some(&v)) = (param, self.params(idx).get(i)) else {
+            return 0;
+        };
+        write_num(p.denormalize(v as f64), unsafe { &mut TEXT })
+    }
+}
+
+fn write_num(v: f64, out: &mut [u8; TEXT_CAP]) -> usize {
+    let a = v.abs().min(1e9);
+    let decimals: usize = match a {
+        a if a >= 100.0 => 0,
+        a if a >= 10.0 => 1,
+        a if a >= 1.0 => 2,
+        a if a >= 0.1 => 3,
+        _ => 4,
+    };
+    let mut x = round(a * [1.0, 10.0, 100.0, 1e3, 1e4][decimals]) as u64;
+    let mut n = 0;
+    if v < 0.0 && x != 0 {
+        out[0] = b'-';
+        n = 1;
+    }
+    let mut digits = [0u8; 16];
+    let mut d = 0;
+    loop {
+        digits[d] = b'0' + (x % 10) as u8;
+        d += 1;
+        x /= 10;
+        if x == 0 && d > decimals {
+            break;
+        }
+    }
+    for k in (decimals..d).rev() {
+        out[n] = digits[k];
+        n += 1;
+    }
+    let lo = digits[..decimals]
+        .iter()
+        .take_while(|&&c| c == b'0')
+        .count();
+    if lo < decimals {
+        out[n] = b'.';
+        n += 1;
+        for k in (lo..decimals).rev() {
+            out[n] = digits[k];
+            n += 1;
+        }
+    }
+    n
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::graph::NodeKind;
+
+    fn num(v: f64) -> alloc::string::String {
+        let mut b = [0; TEXT_CAP];
+        let n = write_num(v, &mut b);
+        alloc::string::String::from_utf8(b[..n].to_vec()).unwrap()
+    }
+
+    #[test]
+    fn formats_numbers() {
+        for (v, s) in [
+            (0.0, "0"),
+            (-12.5, "-12.5"),
+            (440.0, "440"),
+            (0.025, "0.025"),
+            (7.0, "7"),
+            (99.96, "100"),
+            (-0.00001, "0"),
+            (3.14159, "3.14"),
+            (2048.0, "2048"),
+            (-0.5, "-0.5"),
+            (0.0001, "0.0001"),
+        ] {
+            assert_eq!(num(v), s, "{v}");
+        }
+    }
+
+    #[test]
+    fn param_text_reads_arena_value() {
+        let mut s = State::new();
+        s.add_node(NodeKind::Gain, [0.0; 2], [0.0; 2]).unwrap();
+        s.arena.slice_mut::<f32>(
+            s.param_addr(0, 0).unwrap() as u32 - s.arena.base() as u32,
+            1,
+        )[0] = 1.0;
+        let n = s.param_text(0, 0);
+        assert_eq!(unsafe { &TEXT[..n] }, b"30");
+        assert_eq!(s.param_text(0, 1), 0);
+    }
+}
+
 #[macro_export]
 macro_rules! params {
     ($($p:expr),+ $(,)?) => {{

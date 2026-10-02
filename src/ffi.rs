@@ -18,7 +18,7 @@ macro_rules! wasm_imports {
         }
 
         $(
-            #[allow(clippy::too_many_arguments)]
+            #[allow(clippy::too_many_arguments, dead_code)]
             pub fn $name(
                 $($arg: $argty),*
             ) $(-> $ret)? {

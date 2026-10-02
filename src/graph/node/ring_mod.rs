@@ -1,15 +1,12 @@
+use super::{Label, label};
 use super::{Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
 
 pub struct RingModNode;
 
-impl RingModNode {
-    pub const PARAMS: [Option<Param>; MAX_PARAMS] = [None; MAX_PARAMS];
-}
-
 impl NodeLogic for RingModNode {
-    fn title(&self) -> &'static str {
-        "Ring Modulation"
+    fn title(&self) -> Label {
+        label("Ring Modulation")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

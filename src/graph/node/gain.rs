@@ -1,3 +1,4 @@
+use super::{Label, label};
 use super::{Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
 
@@ -12,8 +13,8 @@ impl GainNode {
 }
 
 impl NodeLogic for GainNode {
-    fn title(&self) -> &'static str {
-        "Gain"
+    fn title(&self) -> Label {
+        label("Gain")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

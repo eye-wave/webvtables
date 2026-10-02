@@ -1,11 +1,11 @@
-use crate::ffi;
-use super::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self, PI32, TAU32};
+use super::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::{Label, label};
+use crate::ffi;
 
 pub struct IirFilterNode;
 
 impl IirFilterNode {
-    /// RBJ cookbook biquad coefficients, normalized by a0.
     fn coeffs(shape: u8, w0: f32, q: f32, gain_db: f32) -> (f32, f32, f32, f32, f32) {
         let cos_w0 = ffi::cosf(w0);
         let sin_w0 = ffi::sinf(w0);
@@ -121,8 +121,8 @@ impl IirFilterNode {
 }
 
 impl NodeLogic for IirFilterNode {
-    fn title(&self) -> &'static str {
-        "IIR Filter"
+    fn title(&self) -> Label {
+        label("IIR Filter")
     }
 
     fn category(&self) -> &'static [NodeCategory] {
@@ -179,7 +179,12 @@ impl NodeLogic for IirFilterNode {
         true
     }
 
-    fn fill_widget(&self, _: &[&Buffer], p: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) -> usize {
+    fn fill_widget(
+        &self,
+        _: &[&Buffer],
+        p: &[Option<Param>; MAX_PARAMS],
+        out: &mut Buffer,
+    ) -> usize {
         let shape = helpers::param(p, 0, 0.0) as u8;
         let freq = (helpers::param(p, 1, 1000.0) as f32).max(1.0);
         let gain_db = helpers::param(p, 2, 0.0) as f32;

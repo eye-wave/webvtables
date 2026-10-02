@@ -1,3 +1,4 @@
+use super::{Label, label};
 use crate::ffi;
 use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
@@ -13,8 +14,8 @@ impl SyncWarpNode {
 }
 
 impl NodeLogic for SyncWarpNode {
-    fn title(&self) -> &'static str {
-        "Sync warp"
+    fn title(&self) -> Label {
+        label("Sync warp")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

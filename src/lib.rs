@@ -1,5 +1,5 @@
 #![allow(static_mut_refs)]
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 use crate::graph::{NodeKind, state};
 
@@ -9,6 +9,7 @@ mod log;
 
 extern crate alloc;
 
+#[cfg(not(test))]
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
@@ -126,4 +127,14 @@ pub extern "C" fn scope_fill(node: u16, widget: u8) -> u32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn scope_ptr() -> i32 {
     graph::scope::buf() as i32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn param_text(idx: u16, i: u8) -> u32 {
+    state().param_text(idx as usize, i as usize) as u32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn param_text_ptr() -> i32 {
+    graph::param_text_ptr() as i32
 }

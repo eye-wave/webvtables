@@ -1,3 +1,4 @@
+use super::{Label, label};
 use crate::ffi;
 use super::{BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self, PI32};
@@ -12,8 +13,8 @@ impl BasicShapesNode {
 }
 
 impl NodeLogic for BasicShapesNode {
-    fn title(&self) -> &'static str {
-        "Basic shapes"
+    fn title(&self) -> Label {
+        label("Basic shapes")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

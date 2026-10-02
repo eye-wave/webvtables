@@ -1,18 +1,14 @@
 use super::helpers;
 use super::{Buffer, N, NodeCategory, NodeLogic};
+use super::{Label, label};
 use crate::ffi;
 use crate::graph::{MAX_PARAMS, Param};
 
 pub struct OutputNode;
 
-impl OutputNode {
-    pub const PARAMS: [Option<Param>; MAX_PARAMS] = [None; MAX_PARAMS];
-}
-
-// Sink: no outputs, so eval hands its inputs to the widgets directly.
 impl NodeLogic for OutputNode {
-    fn title(&self) -> &'static str {
-        "Output"
+    fn title(&self) -> Label {
+        label("Output")
     }
     fn category(&self) -> &'static [NodeCategory] {
         &[NodeCategory::Outputs]
@@ -27,7 +23,6 @@ impl NodeLogic for OutputNode {
         true
     }
 
-    /// Magnitude spectrum, log-scaled: 1e-4 -> -1, 1.0 -> +1.
     fn fill_widget(
         &self,
         inputs: &[&Buffer],

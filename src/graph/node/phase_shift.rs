@@ -1,3 +1,4 @@
+use super::{Label, label};
 use super::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
 
@@ -8,8 +9,8 @@ impl PhaseShiftNode {
 }
 
 impl NodeLogic for PhaseShiftNode {
-    fn title(&self) -> &'static str {
-        "Phase shift"
+    fn title(&self) -> Label {
+        label("Phase shift")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

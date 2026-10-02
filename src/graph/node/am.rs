@@ -1,3 +1,4 @@
+use super::{Label, label};
 use super::{Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
 
@@ -8,8 +9,8 @@ impl AmNode {
 }
 
 impl NodeLogic for AmNode {
-    fn title(&self) -> &'static str {
-        "Amplitude Modulation"
+    fn title(&self) -> Label {
+        label("Amplitude Modulation")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

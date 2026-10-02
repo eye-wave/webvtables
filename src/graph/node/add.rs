@@ -1,3 +1,4 @@
+use super::{Label, label};
 use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
 
@@ -8,8 +9,8 @@ impl AddNode {
 }
 
 impl NodeLogic for AddNode {
-    fn title(&self) -> &'static str {
-        "Add"
+    fn title(&self) -> Label {
+        label("Add")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

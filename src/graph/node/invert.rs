@@ -1,15 +1,12 @@
+use super::{Label, label};
 use super::{Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
 
 pub struct InvertNode;
 
-impl InvertNode {
-    pub const PARAMS: [Option<Param>; MAX_PARAMS] = [None; MAX_PARAMS];
-}
-
 impl NodeLogic for InvertNode {
-    fn title(&self) -> &'static str {
-        "Invert polarity"
+    fn title(&self) -> Label {
+        label("Invert polarity")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

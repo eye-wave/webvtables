@@ -1,3 +1,4 @@
+use super::{Label, label};
 use crate::ffi;
 use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self, PI32};
@@ -20,8 +21,8 @@ impl SaturationNode {
 }
 
 impl NodeLogic for SaturationNode {
-    fn title(&self) -> &'static str {
-        "Saturation"
+    fn title(&self) -> Label {
+        label("Saturation")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

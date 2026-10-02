@@ -80,6 +80,29 @@ body {
   cursor: crosshair;
 }
 
+.head {
+  display: grid;
+}
+
+.title,
+.readout {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+}
+
+.readout {
+  visibility: hidden;
+  color: #6af;
+}
+
+.node:has(.knob.on) .title {
+  visibility: hidden;
+}
+
+.node:has(.knob.on) .readout {
+  visibility: visible;
+}
+
 .knobs {
   display: flex;
   gap: 8px;

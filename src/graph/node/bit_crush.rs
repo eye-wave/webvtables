@@ -1,3 +1,4 @@
+use super::{Label, label};
 use crate::ffi;
 use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
@@ -16,8 +17,8 @@ impl BitCrushNode {
 }
 
 impl NodeLogic for BitCrushNode {
-    fn title(&self) -> &'static str {
-        "Bit crusher"
+    fn title(&self) -> Label {
+        label("Bit crusher")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

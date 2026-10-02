@@ -11,6 +11,7 @@ target
 node_modules
 dist
 dist-ssr
+src/generated
 *.local
 
 # Editor directories and files

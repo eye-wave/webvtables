@@ -10,7 +10,6 @@ pub fn buf() -> usize {
     (&raw const BUF) as usize
 }
 
-/// widget 0: the node's waveform. widget 1: its `fill_widget` points (spectrum, filter curve...).
 pub fn fill(s: &State, node: usize, widget: u8) -> usize {
     let Some(kind) = s.kind(node) else {
         return 0;
@@ -31,9 +30,6 @@ pub fn fill(s: &State, node: usize, widget: u8) -> usize {
     }
 }
 
-/// Writes output `sock` of `node` into `dst`. Sinks (no outputs) expose their inputs instead
-/// (ponytail: lets widgets read them). Unlinked inputs are silent; depth-capped so cycles terminate.
-/// All working buffers live on the heap and nothing 8KB-sized is returned by value: wasm's stack is small.
 fn eval(s: &State, node: usize, sock: usize, depth: u8, dst: &mut Buffer) {
     dst.fill(0.0);
     let Some(kind) = s.kind(node).filter(|_| depth < MAX_DEPTH) else {
@@ -59,7 +55,6 @@ fn eval(s: &State, node: usize, sock: usize, depth: u8, dst: &mut Buffer) {
     }
 }
 
-/// Evaluates whatever feeds each input socket of `node` (silence if unlinked).
 fn inputs(s: &State, node: usize, kind: NodeKind, depth: u8) -> Box<[f32]> {
     let mut ins = zeroed(kind.sockets().0 as usize);
     for (i, b) in ins.as_chunks_mut::<N>().0.iter_mut().enumerate() {
@@ -74,7 +69,6 @@ fn inputs(s: &State, node: usize, kind: NodeKind, depth: u8) -> Box<[f32]> {
     ins
 }
 
-/// Node defaults overlaid with the 0..1 values JS keeps in the arena.
 fn params(s: &State, node: usize, kind: NodeKind) -> [Option<Param>; MAX_PARAMS] {
     let mut ps = kind.as_node().default_params();
     for (p, v) in ps.iter_mut().zip(s.params(node)) {

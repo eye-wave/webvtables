@@ -2,12 +2,14 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 pub use self::arena::Arena;
+pub use self::label::{Label, Labels, label, labels};
 pub use self::link::Link;
 pub use self::node::NodeKind;
-pub use self::param::Param;
+pub use self::param::{Param, text_ptr as param_text_ptr};
 use self::rope::Rope;
 
 mod arena;
+mod label;
 mod link;
 mod node;
 mod param;

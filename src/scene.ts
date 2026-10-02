@@ -1,18 +1,14 @@
+import { nodes } from "./generated/nodes";
 import { RADIUS, STRIDE, type Scope } from "./overlay";
 import type { Pt } from "./ropes";
 import type { WasmExports } from "./wasm";
 
 export type Sock = { node: number; out: boolean; j: number };
 
-// Same order as define_nodes! in graph/node.rs.
-const KIND_NAMES = [
-  "Basic Shapes", "Output", "Transform", "Add", "Amplitude Modulation", "Bit crusher",
-  "Band split", "Comb", "Disperser", "FFT Filter", "Frequency Modulation", "Gain",
-  "Harmonic shift", "IIR Filter", "Inharmonic shift", "Invert polarity", "Noise",
-  "Partials", "Phase shift", "Phase copy", "Pulse wave", "Ring Modulation",
-  "Saturation", "Spectral Gate", "Spectral Subtract", "Sync warp", "Window",
-];
 const KIND_AT = 16;
+
+type ParamInfo = { name: string; options?: readonly string[]; unit?: string };
+const utf8 = new TextDecoder();
 
 const SIZE = [
   [160, 120],
@@ -61,14 +57,20 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
       const el = div("node", root);
       el.dataset.p = `${p}`;
       el.dataset.n = `${i}`;
+      el.dataset.k = `${kind}`;
       el.style.borderRadius = `${RADIUS}px`;
-      el.append(KIND_NAMES[kind]);
+
+      const head = div("head", el);
+      div("title", head).textContent = nodes[kind].name;
+      div("readout", head);
 
       const knobs = div("knobs", el);
-      for (let j = 0, a; (a = wasm.get_param(i, j)) >= 0; j++)
-        div("knob", knobs).dataset.a = `${a}`;
+      for (let j = 0, a; (a = wasm.get_param(i, j)) >= 0; j++) {
+        const k = div("knob", knobs);
+        k.dataset.a = `${a}`;
+        k.dataset.j = `${j}`;
+      }
 
-      // scope 0 = waveform, scope 1 = the node's own widget (if any)
       for (let j = 0; j < 1 + +wasm.node_has_widget(i); j++)
         div("scope", el).dataset.w = `${j}`;
 
@@ -105,6 +107,19 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
         el.querySelectorAll<HTMLElement>(".knob").forEach((k) =>
           k.style.setProperty("--v", `${f[+k.dataset.a! >> 2]}`),
         );
+      }
+
+      const k = root.querySelector<HTMLElement>(".knob.on");
+      const el = k?.closest<HTMLElement>(".node");
+      if (k && el) {
+        const j = +k.dataset.j!;
+        const p = (nodes[+el.dataset.k!].params as readonly ParamInfo[])[j];
+        const len = wasm.param_text(+el.dataset.n!, j);
+        const v = utf8.decode(
+          new Uint8Array(wasm.memory.buffer, wasm.param_text_ptr(), len),
+        );
+        el.querySelector(".readout")!.textContent =
+          `${p.name}: ${p.options?.[+v] ?? (p.unit ? `${v} ${p.unit}` : v)}`;
       }
       return inst;
     },

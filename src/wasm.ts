@@ -34,6 +34,8 @@ export type WasmExports = {
   nodes_len(): number;
   get_node(idx: number): number;
   get_param(idx: number, i: number): number;
+  param_text(idx: number, i: number): number;
+  param_text_ptr(): number;
   add_node(
     kind: number,
     x: number,

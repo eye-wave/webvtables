@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "codegen": "cargo test --lib --target \"$(rustc -vV | sed -n 's/host: //p')\" generate_ts"
   },
   "devDependencies": {
     "typescript": "~7.0.2",

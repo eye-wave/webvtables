@@ -1,3 +1,4 @@
+use super::{Label, label};
 use alloc::boxed::Box;
 use microfft::Complex32;
 use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
@@ -10,8 +11,8 @@ impl HarmonicShiftNode {
 }
 
 impl NodeLogic for HarmonicShiftNode {
-    fn title(&self) -> &'static str {
-        "Harmonic shift"
+    fn title(&self) -> Label {
+        label("Harmonic shift")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

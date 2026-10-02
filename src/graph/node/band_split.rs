@@ -1,3 +1,4 @@
+use super::{Label, label};
 use super::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
 
@@ -35,8 +36,8 @@ impl BandSplitNode {
 }
 
 impl NodeLogic for BandSplitNode {
-    fn title(&self) -> &'static str {
-        "Band split"
+    fn title(&self) -> Label {
+        label("Band split")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

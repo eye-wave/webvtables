@@ -1,3 +1,4 @@
+use super::{Label, label};
 use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
 
@@ -11,8 +12,8 @@ impl CombNode {
 }
 
 impl NodeLogic for CombNode {
-    fn title(&self) -> &'static str {
-        "Comb"
+    fn title(&self) -> Label {
+        label("Comb")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

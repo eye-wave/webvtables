@@ -1,3 +1,4 @@
+use super::{Label, label};
 use crate::ffi;
 use super::{BUFFER_LEN, BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self, PI32};
@@ -18,8 +19,8 @@ impl WindowNode {
 }
 
 impl NodeLogic for WindowNode {
-    fn title(&self) -> &'static str {
-        "Window"
+    fn title(&self) -> Label {
+        label("Window")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

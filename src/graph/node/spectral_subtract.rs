@@ -1,3 +1,4 @@
+use super::{Label, label};
 use alloc::boxed::Box;
 use microfft::Complex32;
 use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
@@ -14,8 +15,8 @@ impl SpectralSubtractNode {
 }
 
 impl NodeLogic for SpectralSubtractNode {
-    fn title(&self) -> &'static str {
-        "Spectral Subtract"
+    fn title(&self) -> Label {
+        label("Spectral Subtract")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

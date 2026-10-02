@@ -1,5 +1,4 @@
-#![allow(dead_code)] // ponytail: ported API, not all wired to callers yet
-use crate::graph::{MAX_PARAMS, Param, State};
+use crate::graph::{Label, MAX_PARAMS, Param, State, label};
 use alloc::{boxed::Box, vec};
 
 pub const N: usize = 2048;
@@ -9,7 +8,6 @@ pub const BUFFER_LEN_F32: f32 = N as f32;
 pub const BUFFER_LEN_F64: f64 = N as f64;
 pub static ZERO_BUFFER: Buffer = [0.0; N];
 
-/// `n` zeroed buffers as one heap slice (view with `as_chunks_mut::<N>()`); never builds a Buffer on the stack.
 pub fn zeroed(n: usize) -> Box<[f32]> {
     vec![0.0; n * N].into_boxed_slice()
 }
@@ -27,7 +25,7 @@ macro_rules! define_nodes {
                 $($variant),+
             }
 
-            // Order == discriminant, so from_u8 is a plain index.
+
             const NODES: &[NodeKind] = &[$(NodeKind::$variant),+];
             const _: () = {
                 let mut i = 0;
@@ -37,15 +35,7 @@ macro_rules! define_nodes {
                 }
             };
 
-            // Static param-name lookup, built at compile time from each node's PARAMS.
-            static PARAM_NAMES: [[&str; MAX_PARAMS]; NODES.len()] =
-                [$(param_names(&[<$variant:snake>]::[<$variant Node>]::PARAMS)),+];
-
             impl NodeKind {
-                pub fn param_name(self, i: usize) -> &'static str {
-                    PARAM_NAMES[self as usize].get(i).copied().unwrap_or("")
-                }
-
                 #[inline]
                 pub fn as_node(&self) -> &'static dyn NodeLogic {
                     match self {
@@ -53,12 +43,12 @@ macro_rules! define_nodes {
                     }
                 }
 
-                pub fn iter() -> impl Iterator<Item = &'static Self> {
-                    NODES.iter()
-                }
 
-                pub const fn count() -> usize {
-                    NODES.len()
+                #[cfg(test)]
+                pub fn ident(self) -> &'static str {
+                    match self {
+                        $(NodeKind::$variant => stringify!($variant)),+
+                    }
                 }
 
                 pub fn from_u8(n: u8) -> Option<Self> {
@@ -69,11 +59,9 @@ macro_rules! define_nodes {
     };
 }
 
-// Order == NodeKind id used by the TS side: keep the first three fixed, append new ones.
 define_nodes!(
     BasicShapes,
     Output,
-    Transform,
     Add,
     Am,
     BitCrush,
@@ -111,6 +99,7 @@ pub enum NodeCategory {
     Unknown,
 }
 
+#[cfg(test)]
 impl NodeCategory {
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -126,8 +115,9 @@ impl NodeCategory {
     }
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub trait NodeLogic {
-    fn title(&self) -> &'static str;
+    fn title(&self) -> Label;
     fn category(&self) -> &'static [NodeCategory] {
         &[NodeCategory::Unknown]
     }
@@ -139,7 +129,7 @@ pub trait NodeLogic {
     fn has_widget(&self) -> bool {
         false
     }
-    /// Widget points (y in -1..1) written to the front of `out`; returns how many. Drawn orange.
+
     fn fill_widget(
         &self,
         _inputs: &[&Buffer],
@@ -148,7 +138,7 @@ pub trait NodeLogic {
     ) -> usize {
         0
     }
-    /// `inputs` has `input_count()` buffers (zeroed if unlinked), `outs` has `output_count()`.
+
     fn process(
         &self,
         _inputs: &[&Buffer],
@@ -158,23 +148,7 @@ pub trait NodeLogic {
     }
 }
 
-const fn param_names(p: &[Option<Param>; MAX_PARAMS]) -> [&'static str; MAX_PARAMS] {
-    let mut out = [""; MAX_PARAMS];
-    let mut i = 0;
-    while i < MAX_PARAMS {
-        if let Some(q) = &p[i] {
-            out[i] = q.name();
-        }
-        i += 1;
-    }
-    out
-}
-
 impl NodeKind {
-    pub fn from_title(title: &str) -> Option<Self> {
-        Self::iter().find(|n| n.as_node().title() == title).copied()
-    }
-
     pub fn sockets(self) -> (u8, u8) {
         let n = self.as_node();
         (n.input_count() as u8, n.output_count() as u8)
@@ -190,13 +164,8 @@ bitflags::bitflags! {
     }
 }
 
-pub const FLAG_LABELS: [&str; 3] = ["Norm", "rem DC", "Clip"];
-
-pub const FLAG_BITS: [NodeFlags; 3] = [
-    NodeFlags::NORMALIZE,
-    NodeFlags::REMOVE_DC,
-    NodeFlags::HARD_CLIP,
-];
+#[cfg(test)]
+const FLAG_LABELS: [&str; 3] = ["Norm", "rem DC", "Clip"];
 
 #[repr(C)]
 pub struct Node {
@@ -268,5 +237,93 @@ impl State {
     pub fn param_addr(&self, idx: usize, i: usize) -> Option<usize> {
         let p = self.arena.slice::<Node>(*self.nodes.get(idx)?, 1)[0].params;
         (i < p.len as usize).then(|| self.arena.base() + p.start as usize + i * 4)
+    }
+}
+
+#[cfg(test)]
+pub trait Codegen {
+    fn ts(&self) -> alloc::string::String;
+}
+
+#[cfg(test)]
+impl<T: NodeLogic + ?Sized> Codegen for T {
+    fn ts(&self) -> alloc::string::String {
+        use alloc::{format, string::String, vec::Vec};
+        let cats: Vec<String> = self
+            .category()
+            .iter()
+            .map(|c| format!("{:?}", c.as_str()))
+            .collect();
+        let rows: String = self
+            .default_params()
+            .iter()
+            .flatten()
+            .map(|p| format!("  {},\n", p.ts()))
+            .collect();
+        let params = if rows.is_empty() {
+            String::from("[]")
+        } else {
+            format!("[\n{rows}]")
+        };
+        format!(
+            "export const name = {:?};\nexport const category = [{}] as const;\nexport const inputs = {};\nexport const outputs = {};\nexport const hasWidget = {};\nexport const params = {params} as const;\n",
+            self.title(),
+            cats.join(", "),
+            self.input_count(),
+            self.output_count(),
+            self.has_widget(),
+        )
+    }
+}
+
+#[cfg(test)]
+fn snake(s: &str) -> alloc::string::String {
+    let mut o = alloc::string::String::new();
+    for (i, c) in s.char_indices() {
+        if c.is_ascii_uppercase() && i > 0 {
+            o.push('_');
+        }
+        o.push(c.to_ascii_lowercase());
+    }
+    o
+}
+
+#[cfg(test)]
+pub fn codegen_file(idx: usize) -> Option<(alloc::string::String, alloc::string::String)> {
+    use alloc::{format, string::String};
+    if let Some(k) = NODES.get(idx) {
+        return Some((format!("{}.ts", snake(k.ident())), k.as_node().ts()));
+    }
+    if idx != NODES.len() {
+        return None;
+    }
+    let (mut imports, mut list) = (String::new(), String::new());
+    for k in NODES {
+        let n = snake(k.ident());
+        imports += &format!("import * as {n} from \"./{n}\";\n");
+        list += &format!("  {n},\n");
+    }
+    Some((
+        "index.ts".into(),
+        format!(
+            "{imports}\n// Index == NodeKind id.\nexport const nodes = [\n{list}] as const;\n\nexport const flagLabels = {FLAG_LABELS:?} as const;\n"
+        ),
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn generate_ts() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/generated/nodes");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for i in 0.. {
+            let Some((name, ts)) = super::codegen_file(i) else {
+                break;
+            };
+            let head = "// generated by `npm run codegen` (graph/node.rs), do not edit\n";
+            std::fs::write(dir.join(name), format!("{head}{ts}")).unwrap();
+        }
     }
 }

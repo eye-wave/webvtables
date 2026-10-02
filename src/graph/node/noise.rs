@@ -1,3 +1,4 @@
+use super::{Label, label};
 use super::{Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
 
@@ -28,8 +29,8 @@ impl NoiseNode {
 }
 
 impl NodeLogic for NoiseNode {
-    fn title(&self) -> &'static str {
-        "Noise"
+    fn title(&self) -> Label {
+        label("Noise")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

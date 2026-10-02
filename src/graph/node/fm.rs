@@ -1,3 +1,4 @@
+use super::{Label, label};
 use super::{BUFFER_LEN, BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
 
@@ -8,8 +9,8 @@ impl FmNode {
 }
 
 impl NodeLogic for FmNode {
-    fn title(&self) -> &'static str {
-        "Frequency Modulation"
+    fn title(&self) -> Label {
+        label("Frequency Modulation")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

@@ -1,6 +1,7 @@
-use crate::ffi;
-use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
+use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::{Label, label};
+use crate::ffi;
 
 pub struct SpectralGateNode;
 
@@ -16,8 +17,8 @@ impl SpectralGateNode {
 }
 
 impl NodeLogic for SpectralGateNode {
-    fn title(&self) -> &'static str {
-        "Spectral Gate"
+    fn title(&self) -> Label {
+        label("Spectral Gate")
     }
 
     fn category(&self) -> &'static [NodeCategory] {

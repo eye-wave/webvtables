@@ -1,3 +1,4 @@
+use super::{Label, label};
 use crate::ffi;
 use super::{BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self, PI32};
@@ -9,8 +10,8 @@ impl PartialsNode {
 }
 
 impl NodeLogic for PartialsNode {
-    fn title(&self) -> &'static str {
-        "Partials"
+    fn title(&self) -> Label {
+        label("Partials")
     }
 
     fn category(&self) -> &'static [NodeCategory] {
