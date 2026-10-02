@@ -17,6 +17,7 @@ export type WasmExports = {
 
   node_sockets(idx: number): number;
   get_link(idx: number): number;
+  remove_link(idx: number): void;
   nodes_len(): number;
   get_node(idx: number): number;
   get_param(idx: number, i: number): number;

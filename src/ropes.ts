@@ -41,9 +41,25 @@ function sim({ p, q }: Rope): boolean {
   return moved > SLEEP;
 }
 
+function dist(pt: Pt, p: Float64Array, i: number) {
+  const ax = p[i],
+    ay = p[i + 1],
+    bx = p[i + 2] - ax,
+    by = p[i + 3] - ay;
+  const t = Math.max(
+    0,
+    Math.min(
+      1,
+      ((pt[0] - ax) * bx + (pt[1] - ay) * by) / (bx * bx + by * by || 1),
+    ),
+  );
+  return Math.hypot(pt[0] - ax - bx * t, pt[1] - ay - by * t);
+}
+
 export function createRopes() {
   const ropes = new Map<number, Rope>();
   let acc = 0;
+  let hot = -1;
 
   return {
     pin(id: number, a: Pt, b: Pt) {
@@ -84,12 +100,31 @@ export function createRopes() {
       return [...ropes.values()].some((r) => r.awake);
     },
 
+    hit(pt: Pt, r: number): number {
+      let best = -1;
+      for (const [id, { p }] of ropes)
+        if (id >= 0)
+          for (let i = 0; i < SEG; i++) {
+            const d = dist(pt, p, 2 * i);
+            if (d < r) [best, r] = [id, d];
+          }
+      return best;
+    },
+
+    highlight(id: number): boolean {
+      const changed = id !== hot;
+      hot = id;
+      return changed;
+    },
+
     segments(): Float32Array {
-      const out = new Float32Array(ropes.size * SEG * 4);
+      const out = new Float32Array(ropes.size * SEG * 5);
       let o = 0;
-      for (const { p } of ropes.values())
-        for (let i = 0; i < SEG; i++, o += 4)
+      for (const [id, { p }] of ropes)
+        for (let i = 0; i < SEG; i++, o += 5) {
           out.set(p.subarray(2 * i, 2 * i + 4), o);
+          out[o + 4] = +(id === hot);
+        }
       return out;
     },
   };

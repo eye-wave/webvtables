@@ -1,8 +1,9 @@
-import type { Ropes } from "./ropes";
+import type { Pt, Ropes } from "./ropes";
 import type { Scene, Sock } from "./scene";
 import type { ViewCtl } from "./view";
 
 const PENDING = -1;
+const HIT = 8;
 
 type Drag = { move(e: PointerEvent): void; up?(e: PointerEvent): void };
 
@@ -16,6 +17,7 @@ export function createInput(
   }: { scene: Scene; view: ViewCtl; ropes: Ropes; schedule: () => void },
 ) {
   let drag: Drag | null = null;
+  let lit: Pt[] = [];
 
   const dragKnob = (e: PointerEvent, k: ReturnType<Scene["knob"]>): Drag => {
     const y0 = e.clientY,
@@ -59,9 +61,11 @@ export function createInput(
       ropes.pin(PENDING, a, b);
     };
     pin(e);
+    lit = scene.targets(from);
     return {
       move: pin,
       up(e) {
+        lit = [];
         const el = (e.target as HTMLElement).closest<HTMLElement>(".socket");
         const i = el ? scene.connect(from, scene.socket(el)) : -1;
         if (i < 0) ropes.drop(PENDING);
@@ -70,22 +74,44 @@ export function createInput(
     };
   };
 
+  const unlink = (i: number) => {
+    const last = scene.unlink(i);
+    if (last === i) ropes.drop(i);
+    else ropes.rename(last, i);
+    ropes.highlight(-1);
+    grid.style.cursor = "";
+  };
+
   grid.addEventListener("pointerdown", (e) => {
     const t = e.target as HTMLElement;
     const knob = t.closest<HTMLElement>(".knob");
     const sock = t.closest<HTMLElement>(".socket");
     const node = t.closest<HTMLElement>(".node");
-    drag = knob
-      ? dragKnob(e, scene.knob(knob))
-      : sock
-        ? dragLink(e, scene.socket(sock))
-        : node
-          ? dragNode(e, node)
-          : dragPan(e);
+    const link =
+      knob || sock || node ? -1 : ropes.hit(view.world(e), HIT / view.v[2]);
+    if (link >= 0) unlink(link);
+    else
+      drag = knob
+        ? dragKnob(e, scene.knob(knob))
+        : sock
+          ? dragLink(e, scene.socket(sock))
+          : node
+            ? dragNode(e, node)
+            : dragPan(e);
     schedule();
   });
 
-  addEventListener("pointermove", (e) => drag && (drag.move(e), schedule()));
+  addEventListener("pointermove", (e) => {
+    if (drag) return (drag.move(e), schedule());
+
+    const t = e.target as HTMLElement;
+    const id =
+      grid.contains(t) && !t.closest(".node")
+        ? ropes.hit(view.world(e), HIT / view.v[2])
+        : -1;
+    if (ropes.highlight(id)) schedule();
+    grid.style.cursor = id < 0 ? "" : "pointer";
+  });
   addEventListener("pointerup", (e) => {
     if (!drag) return;
     drag.up?.(e);
@@ -102,4 +128,10 @@ export function createInput(
     },
     { passive: false },
   );
+
+  return {
+    get lit() {
+      return lit;
+    },
+  };
 }

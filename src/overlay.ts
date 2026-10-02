@@ -2,14 +2,24 @@ import decorationVs from "./shaders/decoration.vert.glsl";
 import decorationFs from "./shaders/decoration.frag.glsl";
 import linkVs from "./shaders/link.vert.glsl";
 import linkFs from "./shaders/link.frag.glsl";
+import ringVs from "./shaders/ring.vert.glsl";
+import ringFs from "./shaders/ring.frag.glsl";
 import type { View } from "./view";
 
 export const STRIDE = 6;
 const PAD = 14;
 export const RADIUS = 8;
 const ROPE_R = 2;
+const RING_R = 12;
 
-export type Draw = (inst: Float32Array, view: View, segs: Float32Array) => void;
+export type Frame = {
+  nodes: Float32Array;
+  view: View;
+  segs: Float32Array;
+  rings: [number, number][];
+  t: number;
+};
+export type Draw = (f: Frame) => void;
 
 const createShaderCompiler =
   (gl: WebGL2RenderingContext) =>
@@ -38,6 +48,7 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
   const compile = createShaderCompiler(gl);
   const decor = compile(decorationVs, decorationFs);
   const rope = compile(linkVs, linkFs);
+  const ring = compile(ringVs, ringFs);
   const loc = (p: WebGLProgram, n: string) => gl.getUniformLocation(p, n);
 
   const stream = (
@@ -63,18 +74,24 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
     [0, 4, 0],
     [1, 2, 4],
   ]);
-  const segments = stream(4, [[0, 4, 0]]);
+  const segments = stream(5, [
+    [0, 4, 0],
+    [1, 1, 4],
+  ]);
+  const centres = stream(2, [[0, 2, 0]]);
 
   gl.useProgram(decor);
   gl.uniform1f(loc(decor, "uR"), RADIUS);
   gl.useProgram(rope);
   gl.uniform1f(loc(rope, "uR"), ROPE_R);
+  gl.useProgram(ring);
+  gl.uniform1f(loc(ring, "uR"), RING_R);
   gl.enable(gl.DEPTH_TEST);
   gl.depthFunc(gl.LEQUAL);
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
-  return (inst, view, segs) => {
+  return ({ nodes: inst, view, segs, rings, t }) => {
     const n = inst.length / STRIDE;
     const dpr = devicePixelRatio;
     const w = canvas.clientWidth,
@@ -88,7 +105,7 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
     }
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    for (const p of [decor, rope]) {
+    for (const p of [decor, rope, ring]) {
       gl.useProgram(p);
       gl.uniform2f(loc(p, "uRes"), w, h);
       gl.uniform3f(loc(p, "uView"), ...view);
@@ -106,11 +123,16 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
     gl.depthMask(false);
     gl.useProgram(rope);
     segments(segs);
-    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, segs.length / 4);
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, segs.length / 5);
 
     gl.useProgram(decor);
     nodes();
     gl.uniform1f(loc(decor, "uPad"), PAD);
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, n);
+
+    gl.useProgram(ring);
+    gl.uniform1f(loc(ring, "uSpin"), (t * 2) % (2 * Math.PI));
+    centres(Float32Array.from(rings.flat()));
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, rings.length);
   };
 }

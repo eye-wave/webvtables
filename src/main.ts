@@ -34,11 +34,23 @@ loadWasm().then((wasm) => {
     for (const [id, a, b] of scene.links()) ropes.pin(id, a, b);
     const moving = ropes.step(Math.min((t - last) / 1000, 0.05));
     last = t;
-    draw(inst, view.v, ropes.segments());
-    if (moving) schedule();
+
+    draw({
+      nodes: inst,
+      view: view.v,
+      segs: ropes.segments(),
+      rings: input.lit,
+      t: t / 1000,
+    });
+    if (moving || input.lit.length) schedule();
   }
 
-  createInput(canvas.parentElement!, { scene, view, ropes, schedule });
+  const input = createInput(canvas.parentElement!, {
+    scene,
+    view,
+    ropes,
+    schedule,
+  });
   new ResizeObserver(schedule).observe(nodeGrid);
   schedule();
 });

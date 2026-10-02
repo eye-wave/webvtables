@@ -32,6 +32,14 @@ pub extern "C" fn add_link(s1: u16, s2: u8, t1: u16, t2: u8) -> i32 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn remove_link(idx: u16) {
+    let links = &mut state().links;
+    if (idx as usize) < links.len() {
+        links.swap_remove(idx as usize);
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn node_sockets(idx: u16) -> i32 {
     state()
         .sockets(idx as usize)

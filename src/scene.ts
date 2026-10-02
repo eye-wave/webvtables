@@ -102,6 +102,21 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
       return a.out === b.out ? -1 : wasm.add_link(s.node, s.j, t.node, t.j);
     },
 
+    unlink(i: number): number {
+      const last = wasm.links_len() - 1;
+      wasm.remove_link(i);
+      return last;
+    },
+
+    targets(from: Sock): Pt[] {
+      const out: Pt[] = [];
+      for (let node = 0; node < wasm.nodes_len(); node++)
+        if (node !== from.node)
+          for (let j = 0; j < sockets(node)[+!from.out]; j++)
+            out.push(socketPos({ node, out: !from.out, j }));
+      return out;
+    },
+
     raise: (el: HTMLElement) => root.append(el),
 
     pos(el: HTMLElement): Pt {
