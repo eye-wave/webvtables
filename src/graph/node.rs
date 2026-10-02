@@ -5,6 +5,7 @@ use crate::graph::State;
 pub enum NodeKind {
     BasicShapes,
     Output,
+    Transform,
 }
 
 impl NodeKind {
@@ -12,7 +13,16 @@ impl NodeKind {
         match n {
             0 => Some(Self::BasicShapes),
             1 => Some(Self::Output),
+            2 => Some(Self::Transform),
             _ => None,
+        }
+    }
+
+    pub fn sockets(self) -> (u8, u8) {
+        match self {
+            Self::BasicShapes => (0, 1),
+            Self::Output => (1, 0),
+            Self::Transform => (1, 1),
         }
     }
 }
@@ -55,6 +65,11 @@ impl State {
         };
         self.nodes.push(off);
         Some(off)
+    }
+
+    pub fn sockets(&self, idx: usize) -> Option<(u8, u8)> {
+        let off = *self.nodes.get(idx)?;
+        Some(self.arena.slice::<Node>(off, 1)[0].kind.sockets())
     }
 
     pub fn param_addr(&self, idx: usize, i: usize) -> Option<usize> {

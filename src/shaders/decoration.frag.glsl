@@ -19,6 +19,6 @@ void main() {
   }
   if (d < 0.0 || d > uPad) discard;
   float a = pow(1.0 - d / uPad, 2.0) * 0.55 + (1.0 - smoothstep(1.0, 2.0, d)) * 0.45;
-  vec3 col = vKind == 0.0 ? vec3(0.3, 0.6, 1.0) : vec3(1.0, 0.6, 0.25);
+  vec3 col = vKind == 0.0 ? vec3(0.3, 0.6, 1.0) : vKind == 1.0 ? vec3(1.0, 0.6, 0.25) : vec3(0.4, 0.9, 0.5);
   o = vec4(col * a, a);
 }

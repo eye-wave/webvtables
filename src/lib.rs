@@ -1,7 +1,7 @@
 #![allow(static_mut_refs)]
 #![no_std]
 
-use crate::graph::{Link, NodeKind, state};
+use crate::graph::{NodeKind, state};
 
 mod ffi;
 mod graph;
@@ -27,8 +27,15 @@ pub extern "C" fn get_link(idx: u16) -> i32 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn add_link(s1: u16, s2: u8, t1: u16, t2: u8) {
-    state().links.push(Link::new(s1, s2, t1, t2));
+pub extern "C" fn add_link(s1: u16, s2: u8, t1: u16, t2: u8) -> i32 {
+    state().link((s1, s2), (t1, t2)).map_or(-1, |i| i as i32)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn node_sockets(idx: u16) -> i32 {
+    state()
+        .sockets(idx as usize)
+        .map_or(-1, |(i, o)| (i as i32) | ((o as i32) << 8))
 }
 
 #[unsafe(no_mangle)]

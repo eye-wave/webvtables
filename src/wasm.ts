@@ -12,12 +12,22 @@ export type float = number & { readonly [float]: never };
 
 export type WasmExports = {
   links_len(): number;
-  add_link(s1: number, s2: number, t1: number, t2: number): void;
+
+  add_link(s1: number, s2: number, t1: number, t2: number): number;
+
+  node_sockets(idx: number): number;
   get_link(idx: number): number;
   nodes_len(): number;
   get_node(idx: number): number;
   get_param(idx: number, i: number): number;
-  add_node(kind: number, x: number, y: number, w: number, h: number, nParams: number): number;
+  add_node(
+    kind: number,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    nParams: number,
+  ): number;
 } & { memory: WebAssembly.Memory };
 
 export async function loadWasm(): Promise<WasmExports> {
