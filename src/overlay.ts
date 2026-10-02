@@ -4,6 +4,8 @@ import linkVs from "./shaders/link.vert.glsl";
 import linkFs from "./shaders/link.frag.glsl";
 import ringVs from "./shaders/ring.vert.glsl";
 import ringFs from "./shaders/ring.frag.glsl";
+import waveVs from "./shaders/wave.vert.glsl";
+import waveFs from "./shaders/wave.frag.glsl";
 import type { View } from "./view";
 
 export const STRIDE = 6;
@@ -12,11 +14,18 @@ export const RADIUS = 8;
 const ROPE_R = 2;
 const RING_R = 12;
 
+export type Scope = {
+  rect: [x: number, y: number, w: number, h: number];
+  order: number;
+  pts: Float32Array;
+};
+
 export type Frame = {
   nodes: Float32Array;
   view: View;
   segs: Float32Array;
   rings: [number, number][];
+  scopes: Scope[];
   t: number;
 };
 export type Draw = (f: Frame) => void;
@@ -49,6 +58,7 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
   const decor = compile(decorationVs, decorationFs);
   const rope = compile(linkVs, linkFs);
   const ring = compile(ringVs, ringFs);
+  const wave = compile(waveVs, waveFs);
   const loc = (p: WebGLProgram, n: string) => gl.getUniformLocation(p, n);
 
   const stream = (
@@ -80,6 +90,11 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
   ]);
   const centres = stream(2, [[0, 2, 0]]);
 
+  const samples = stream(1, [
+    [0, 1, 0],
+    [1, 1, 1],
+  ]);
+
   gl.useProgram(decor);
   gl.uniform1f(loc(decor, "uR"), RADIUS);
   gl.useProgram(rope);
@@ -91,7 +106,7 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
-  return ({ nodes: inst, view, segs, rings, t }) => {
+  return ({ nodes: inst, view, segs, rings, scopes, t }) => {
     const n = inst.length / STRIDE;
     const dpr = devicePixelRatio;
     const w = canvas.clientWidth,
@@ -105,7 +120,7 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
     }
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    for (const p of [decor, rope, ring]) {
+    for (const p of [decor, rope, ring, wave]) {
       gl.useProgram(p);
       gl.uniform2f(loc(p, "uRes"), w, h);
       gl.uniform3f(loc(p, "uView"), ...view);
@@ -124,6 +139,17 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
     gl.useProgram(rope);
     segments(segs);
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, segs.length / 5);
+
+    gl.useProgram(wave);
+    gl.blendEquation(gl.MAX);
+    for (const { rect, order, pts } of scopes) {
+      gl.uniform4f(loc(wave, "uRect"), ...rect);
+      gl.uniform1f(loc(wave, "uCount"), pts.length);
+      gl.uniform1f(loc(wave, "uZ"), 1 - (2 * (order + 1.5)) / (n + 1));
+      samples(pts);
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, pts.length - 1);
+    }
+    gl.blendEquation(gl.FUNC_ADD);
 
     gl.useProgram(decor);
     nodes();

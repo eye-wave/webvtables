@@ -1,4 +1,4 @@
-import { RADIUS, STRIDE } from "./overlay";
+import { RADIUS, STRIDE, type Scope } from "./overlay";
 import type { Pt } from "./ropes";
 import type { WasmExports } from "./wasm";
 
@@ -6,6 +6,13 @@ export type Sock = { node: number; out: boolean; j: number };
 
 const KIND_NAMES = ["Basic Shapes", "Output", "Transform"];
 const KIND_AT = 16;
+
+const SIZE = [
+  [160, 120],
+  [160, 140],
+  [160, 120],
+];
+const SCOPES = [1, 2, 1];
 
 const div = (cls: string, parent: Element) => {
   const el = document.createElement("div");
@@ -35,17 +42,27 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
     socketPos,
 
     add(kind: number, x: number, y: number, nParams: number) {
-      const p = wasm.add_node(kind, x, y, 160, 80, nParams);
+      const p = wasm.add_node(
+        kind,
+        x,
+        y,
+        ...(SIZE[kind] as [number, number]),
+        nParams,
+      );
       if (p < 0) return;
       const i = wasm.nodes_len() - 1;
       const el = div("node", root);
       el.dataset.p = `${p}`;
+      el.dataset.n = `${i}`;
       el.style.borderRadius = `${RADIUS}px`;
       el.append(KIND_NAMES[kind]);
 
       const knobs = div("knobs", el);
       for (let j = 0, a; (a = wasm.get_param(i, j)) >= 0; j++)
         div("knob", knobs).dataset.a = `${a}`;
+
+      for (let j = 0; j < SCOPES[kind]; j++)
+        div("scope", el).dataset.w = `${j}`;
 
       const [ins, outs] = sockets(i);
       for (const [out, count] of [
@@ -82,6 +99,33 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
         );
       }
       return inst;
+    },
+
+    scopes(): Scope[] {
+      const out: Scope[] = [];
+      [...root.children].forEach((c, order) => {
+        const el = c as HTMLElement;
+        const [x, y] = f32().subarray(at(el), at(el) + 2);
+        for (const s of el.querySelectorAll<HTMLElement>(".scope")) {
+          const len = wasm.scope_fill(+el.dataset.n!, +s.dataset.w!);
+          if (len < 2) continue;
+          out.push({
+            rect: [
+              x + el.clientLeft + s.offsetLeft,
+              y + el.clientTop + s.offsetTop,
+              s.offsetWidth,
+              s.offsetHeight,
+            ],
+            order,
+            pts: new Float32Array(
+              wasm.memory.buffer,
+              wasm.scope_ptr(),
+              len,
+            ).slice(),
+          });
+        }
+      });
+      return out;
     },
 
     *links(): Generator<[number, Pt, Pt]> {

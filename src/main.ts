@@ -39,6 +39,7 @@ loadWasm().then((wasm) => {
       nodes: inst,
       view: view.v,
       segs: ropes.segments(),
+      scopes: scene.scopes(),
       rings: input.lit,
       t: t / 1000,
     });

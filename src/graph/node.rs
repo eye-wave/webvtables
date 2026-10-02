@@ -67,6 +67,18 @@ impl State {
         Some(off)
     }
 
+    pub fn kind(&self, idx: usize) -> Option<NodeKind> {
+        Some(self.arena.slice::<Node>(*self.nodes.get(idx)?, 1)[0].kind)
+    }
+
+    pub fn params(&self, idx: usize) -> &[f32] {
+        let Some(&off) = self.nodes.get(idx) else {
+            return &[];
+        };
+        let p = self.arena.slice::<Node>(off, 1)[0].params;
+        self.arena.slice(p.start, p.len as usize)
+    }
+
     pub fn sockets(&self, idx: usize) -> Option<(u8, u8)> {
         let off = *self.nodes.get(idx)?;
         Some(self.arena.slice::<Node>(off, 1)[0].kind.sockets())

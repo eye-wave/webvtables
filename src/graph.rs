@@ -10,6 +10,7 @@ mod arena;
 mod link;
 mod node;
 mod rope;
+pub mod scope;
 
 pub struct State {
     pub links: Vec<Link>,

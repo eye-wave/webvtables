@@ -110,3 +110,13 @@ pub extern "C" fn rope_segments(hot: i32) -> u32 {
 pub extern "C" fn rope_out() -> i32 {
     state().rope_out.as_ptr() as i32
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn scope_fill(node: u16, widget: u8) -> u32 {
+    graph::scope::fill(state(), node as usize, widget) as u32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn scope_ptr() -> i32 {
+    graph::scope::buf() as i32
+}

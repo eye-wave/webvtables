@@ -14,6 +14,9 @@ export type float = number & { readonly [float]: never };
 export type WasmExports = {
   links_len(): number;
 
+  scope_fill(node: number, widget: number): number;
+  scope_ptr(): number;
+
   rope_pin(id: number, ax: number, ay: number, bx: number, by: number): void;
   rope_drop(id: number): void;
   rope_rename(from: number, to: number): void;

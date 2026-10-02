@@ -36,4 +36,6 @@ wasm_imports! {
     fn log_flush();
 
     fn hypot(x:f64, y:f64)->f64;
+    fn ln(x: f64) -> f64;
+    fn sin(x: f64) -> f64;
 }

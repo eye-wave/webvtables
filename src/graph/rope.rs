@@ -15,13 +15,11 @@ pub struct Rope {
     awake: bool,
 }
 
-use crate::ffi;
-
 impl Rope {
     fn sim(&mut self) -> bool {
         let (p, q) = (&mut self.p, &mut self.q);
         let e = 2 * SEG;
-        let rest = (ffi::hypot(p[e] - p[0], p[e + 1] - p[1]) * 1.03 + 12.0) / SEG as f64;
+        let rest = (libm::hypot(p[e] - p[0], p[e + 1] - p[1]) * 1.03 + 12.0) / SEG as f64;
 
         for i in (2..e).step_by(2) {
             let (x, y) = (p[i], p[i + 1]);
@@ -33,7 +31,7 @@ impl Rope {
         for _ in 0..ITER {
             for i in (0..e).step_by(2) {
                 let (dx, dy) = (p[i + 2] - p[i], p[i + 3] - p[i + 1]);
-                let d = ffi::hypot(dx, dy);
+                let d = libm::hypot(dx, dy);
                 if d <= rest {
                     continue;
                 }
@@ -65,7 +63,7 @@ impl Rope {
         let (bx, by) = (p[i + 2] - ax, p[i + 3] - ay);
         let l = bx * bx + by * by;
         let t = (((x - ax) * bx + (y - ay) * by) / if l == 0.0 { 1.0 } else { l }).clamp(0.0, 1.0);
-        ffi::hypot(x - ax - bx * t, y - ay - by * t)
+        libm::hypot(x - ax - bx * t, y - ay - by * t)
     }
 }
 
