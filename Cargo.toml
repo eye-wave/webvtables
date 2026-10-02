@@ -1,0 +1,23 @@
+
+cargo-features = ["profile-rustflags", "trim-paths", "panic-immediate-abort"]
+
+[package]
+name = "webvtlabes"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+test = false
+
+[dependencies]
+wee_alloc = { version = "0.4.5", features = ["static_array_backend"] }
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+opt-level = "z"
+panic = "immediate-abort"
+strip = true
+trim-paths = "all"
+rustflags = ["-Cdebuginfo=0", "-Zthreads=8"]
