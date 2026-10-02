@@ -29,9 +29,24 @@ body {
   flex: 1;
 }
 
+#gridBg {
+  position: absolute;
+  inset: 0;
+  background-size: 20px 20px;
+  background-image:
+    linear-gradient(#262626 1px, transparent 1px),
+    linear-gradient(90deg, #262626 1px, transparent 1px);
+}
+
 #nodeGrid {
   position: absolute;
   inset: 0;
+  transform-origin: 0 0;
+}
+
+.box-node-grid {
+  cursor: move;
+  touch-action: none;
 }
 
 .node {
@@ -43,14 +58,40 @@ body {
   background: #1c1c1c;
   border: 2px solid #555;
   color: #ddd;
-  font: 13px system-ui, sans-serif;
+  font:
+    13px system-ui,
+    sans-serif;
   cursor: grab;
   user-select: none;
   touch-action: none;
 }
 
+.knobs {
+  display: flex;
+  gap: 8px;
+}
+
+.knob {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #777;
+  border-radius: 50%;
+  background: #333;
+  cursor: ns-resize;
+  transform: rotate(calc(var(--v) * 270deg - 135deg));
+}
+
+.knob::after {
+  content: "";
+  display: block;
+  width: 2px;
+  height: 7px;
+  margin: 1px auto;
+  background: #6af;
+}
+
 .overlay-canvas {
-  pointer-events: none; /* clicks fall through to the nodes underneath */
+  pointer-events: none;
   top: 0;
   left: 0;
   position: absolute;
@@ -60,4 +101,8 @@ body {
 
 .box-keyframes {
   min-height: 120px;
+}
+
+.knobs:empty {
+  display: none;
 }

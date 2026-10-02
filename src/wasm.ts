@@ -16,6 +16,7 @@ export type WasmExports = {
   get_link(idx: number): number;
   nodes_len(): number;
   get_node(idx: number): number;
+  get_param(idx: number, i: number): number;
   add_node(kind: number, x: number, y: number, w: number, h: number, nParams: number): number;
 } & { memory: WebAssembly.Memory };
 

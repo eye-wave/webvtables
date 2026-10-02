@@ -57,6 +57,11 @@ impl State {
         Some(off)
     }
 
+    pub fn param_addr(&self, idx: usize, i: usize) -> Option<usize> {
+        let p = self.arena.slice::<Node>(*self.nodes.get(idx)?, 1)[0].params;
+        (i < p.len as usize).then(|| self.arena.base() + p.start as usize + i * 4)
+    }
+
     pub fn params(&self, p: NodeParams) -> &[f32] {
         self.arena.slice(p.start, p.len as usize)
     }

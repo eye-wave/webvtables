@@ -36,7 +36,6 @@ pub extern "C" fn nodes_len() -> u16 {
     state().nodes.len() as u16
 }
 
-/// Address of node `idx` in wasm memory (stable: the arena is static), or -1.
 #[unsafe(no_mangle)]
 pub extern "C" fn get_node(idx: u16) -> i32 {
     let s = state();
@@ -46,7 +45,13 @@ pub extern "C" fn get_node(idx: u16) -> i32 {
         .unwrap_or(-1)
 }
 
-/// Returns the node's address, or -1 on bad kind / arena full.
+#[unsafe(no_mangle)]
+pub extern "C" fn get_param(idx: u16, i: u8) -> i32 {
+    state()
+        .param_addr(idx as usize, i as usize)
+        .map_or(-1, |a| a as i32)
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn add_node(kind: u8, x: f32, y: f32, w: f32, h: f32, n_params: u8) -> i32 {
     let s = state();

@@ -2,6 +2,7 @@ layout(location = 0) in vec4 aRect;
 layout(location = 1) in vec2 aMeta;
 
 uniform vec2 uRes;
+uniform vec3 uView;
 uniform float uN, uPad;
 
 out vec2 vP;
@@ -17,5 +18,6 @@ void main() {
   vKind = aMeta.y;
 
   float z = 1.0 - 2.0 * (aMeta.x + 1.0) / (uN + 1.0);
-  gl_Position = vec4(p.x / uRes.x * 2.0 - 1.0, 1.0 - p.y / uRes.y * 2.0, z, 1.0);
+  vec2 s = p * uView.z + uView.xy;
+  gl_Position = vec4(s.x / uRes.x * 2.0 - 1.0, 1.0 - s.y / uRes.y * 2.0, z, 1.0);
 }

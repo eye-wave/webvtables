@@ -1,12 +1,14 @@
 import "./style.css";
-import { RADIUS, STRIDE, createOverlay } from "./overlay";
+import { RADIUS, STRIDE, createOverlay, type View } from "./overlay";
 import { loadWasm } from "./wasm";
 
 declare const nodeGrid: HTMLDivElement;
+declare const gridBg: HTMLDivElement;
 declare const canvas: HTMLCanvasElement;
 
 const draw = createOverlay(canvas);
 const KIND_NAMES = ["Basic Shapes", "Output"];
+const view = new Float32Array([0, 0, 1]) as unknown as View;
 
 loadWasm().then((wasm) => {
   const f32 = () => new Float32Array(wasm.memory.buffer);
@@ -23,6 +25,13 @@ loadWasm().then((wasm) => {
     el.dataset.p = `${ptr}`;
     el.style.borderRadius = `${RADIUS}px`;
     el.textContent = KIND_NAMES[kinds[ptr + 16]];
+    const knobs = el.appendChild(document.createElement("div"));
+    knobs.className = "knobs";
+    for (let j = 0, a; (a = wasm.get_param(i, j)) >= 0; j++) {
+      const k = knobs.appendChild(document.createElement("div"));
+      k.className = "knob";
+      k.dataset.a = `${a}`;
+    }
     nodeGrid.append(el);
   }
 
@@ -36,6 +45,7 @@ loadWasm().then((wasm) => {
     const u = new Uint8Array(wasm.memory.buffer);
     const els = nodeGrid.children;
     const inst = new Float32Array(els.length * STRIDE);
+    nodeGrid.style.transform = `translate(${view[0]}px, ${view[1]}px) scale(${view[2]})`;
     for (let i = 0; i < els.length; i++) {
       const el = els[i] as HTMLElement;
       const p = +el.dataset.p!;
@@ -44,35 +54,78 @@ loadWasm().then((wasm) => {
       el.style.width = `${w}px`;
       el.style.height = `${h}px`;
       inst.set([x, y, w, h, i, u[p + 16]], i * STRIDE);
+      el.querySelectorAll<HTMLElement>(".knob").forEach((k) => {
+        k.style.setProperty("--v", `${f[+k.dataset.a! >> 2]}`);
+      });
     }
-    draw(inst);
+    gridBg.style.backgroundSize = `${128 * view[2]}px `.repeat(2);
+    gridBg.style.backgroundPosition = `${view[0]}px ${view[1]}px`;
+    draw(inst, view);
   }
 
-  let drag: { p: number; dx: number; dy: number } | null = null;
-
-  nodeGrid.addEventListener("pointerdown", (e) => {
-    const el = (e.target as HTMLElement).closest<HTMLElement>(".node");
-    if (!el) return;
-    const p = +el.dataset.p!;
+  const grid = canvas.parentElement!;
+  const world = (e: PointerEvent) => {
     const r = nodeGrid.getBoundingClientRect();
-    drag = {
-      p,
-      dx: e.clientX - r.left - f32()[p >> 2],
-      dy: e.clientY - r.top - f32()[(p >> 2) + 1],
-    };
-    nodeGrid.append(el);
+    return [(e.clientX - r.left) / view[2], (e.clientY - r.top) / view[2]];
+  };
+  let drag: ((e: PointerEvent) => void) | null = null;
+
+  grid.addEventListener("pointerdown", (e) => {
+    const t = e.target as HTMLElement;
+    const knob = t.closest<HTMLElement>(".knob");
+    const el = t.closest<HTMLElement>(".node");
+    if (knob) {
+      const a = +knob.dataset.a! >> 2,
+        y0 = e.clientY,
+        v0 = f32()[a];
+      drag = (e) => {
+        f32()[a] = Math.min(1, Math.max(0, v0 + (y0 - e.clientY) / 150));
+      };
+    } else if (el) {
+      const p = +el.dataset.p! >> 2;
+      const [wx, wy] = world(e);
+      const dx = wx - f32()[p],
+        dy = wy - f32()[p + 1];
+      nodeGrid.append(el);
+      drag = (e) => {
+        const [x, y] = world(e);
+        const f = f32();
+        f[p] = x - dx;
+        f[p + 1] = y - dy;
+      };
+    } else {
+      const x0 = view[0] - e.clientX,
+        y0 = view[1] - e.clientY;
+      drag = (e) => {
+        view[0] = x0 + e.clientX;
+        view[1] = y0 + e.clientY;
+      };
+    }
     schedule();
   });
 
-  addEventListener("pointermove", (e) => {
-    if (!drag) return;
-    const r = nodeGrid.getBoundingClientRect();
-    const f = f32();
-    f[drag.p >> 2] = e.clientX - r.left - drag.dx;
-    f[(drag.p >> 2) + 1] = e.clientY - r.top - drag.dy;
-    schedule();
-  });
+  addEventListener("pointermove", (e) => drag && (drag(e), schedule()));
   addEventListener("pointerup", () => (drag = null));
+
+  grid.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      const r = canvas.getBoundingClientRect();
+      const mx = e.clientX - r.left,
+        my = e.clientY - r.top;
+      const k = view[2];
+      const k2 = Math.min(
+        4,
+        Math.max(0.2, k * Math.exp((-e.deltaY * (e.deltaMode ? 33 : 1)) / 500)),
+      );
+      view[0] = mx - ((mx - view[0]) * k2) / k;
+      view[1] = my - ((my - view[1]) * k2) / k;
+      view[2] = k2;
+      schedule();
+    },
+    { passive: false },
+  );
   new ResizeObserver(schedule).observe(nodeGrid);
 
   schedule();

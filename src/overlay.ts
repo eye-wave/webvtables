@@ -2,6 +2,7 @@ import decorationVs from "./shaders/decoration.vert.glsl";
 import decorationFs from "./shaders/decoration.frag.glsl";
 
 export const STRIDE = 6;
+export type View = [x: number, y: number, k: number];
 const PAD = 14;
 export const RADIUS = 8;
 
@@ -27,7 +28,7 @@ const createShaderCompiler =
 
 export function createOverlay(canvas: HTMLCanvasElement) {
   const gl = canvas.getContext("webgl2");
-  if (!gl) return (_: Float32Array) => {};
+  if (!gl) return (_: Float32Array, __: View) => {};
 
   const compile = createShaderCompiler(gl);
 
@@ -52,7 +53,7 @@ export function createOverlay(canvas: HTMLCanvasElement) {
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
-  return (inst: Float32Array) => {
+  return (inst: Float32Array, view: View) => {
     const n = inst.length / STRIDE;
     const dpr = devicePixelRatio;
     const w = canvas.clientWidth,
@@ -67,6 +68,7 @@ export function createOverlay(canvas: HTMLCanvasElement) {
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.uniform2f(u("uRes"), w, h);
+    gl.uniform3f(u("uView"), ...view);
     gl.uniform1f(u("uN"), n);
     gl.bufferData(gl.ARRAY_BUFFER, inst, gl.STREAM_DRAW);
 
