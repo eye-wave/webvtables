@@ -1,6 +1,8 @@
 use crate::graph::State;
+use serde::{Deserialize, Serialize};
 
 #[repr(C)]
+#[derive(Serialize, Deserialize)]
 pub struct Link {
     pub source: u16,
     pub source_socket: u8,
@@ -46,12 +48,17 @@ impl State {
 }
 
 impl State {
-    // ponytail: the node's arena bytes are not reclaimed (bump arena), fine for hand-built graphs
     pub fn remove_node(&mut self, idx: usize) {
         if idx >= self.nodes.len() {
             return;
         }
-        self.nodes.remove(idx);
+        let off = self.nodes.remove(idx);
+
+        self.keyframes.lanes.retain_mut(|l| {
+            let had = !l.targets.is_empty();
+            l.targets.retain(|t| t.0 != off);
+            !had || !l.targets.is_empty()
+        });
         self.links
             .retain(|l| l.source as usize != idx && l.target as usize != idx);
         for l in &mut self.links {

@@ -2,14 +2,11 @@ use super::node::{Buffer, N, NodeFlags, zeroed};
 use crate::graph::{MAX_PARAMS, NodeKind, Param, State};
 use alloc::{boxed::Box, vec::Vec};
 
-// ponytail: memo shared by every fill() of a frame (reset by begin()), so the whole graph is
-// evaluated once per frame instead of once per scope. Cycles read silence, result depends on entry order.
 type Memo = Vec<Option<Box<[f32]>>>;
 
 static mut BUF: Buffer = [0.0; N];
 static mut MEMO: Memo = Vec::new();
 
-/// Call once per frame, before the first fill(): params may have changed since the last one.
 pub fn begin(s: &State) {
     let memo = unsafe { &mut MEMO };
     memo.clear();
@@ -50,7 +47,7 @@ fn eval(s: &State, node: usize, sock: usize, memo: &mut Memo, dst: &mut Buffer) 
         return;
     };
     if memo[node].is_none() {
-        memo[node] = Some(zeroed(0)); // in progress: a cycle reads silence
+        memo[node] = Some(zeroed(0));
         let no = kind.sockets().1;
         let ins = inputs(s, node, kind, memo);
         let mut outs = if no == 0 {
@@ -157,9 +154,64 @@ mod tests {
             prev = g;
         }
         begin(&s);
-        // was O(n^2) (1.7s native): each scope re-evaluated the whole upstream graph
+
         let t = std::time::Instant::now();
         (0..s.nodes.len()).for_each(|i| assert_eq!(fill(&s, i, 0), N));
         assert!(t.elapsed().as_millis() < 500, "{:?}", t.elapsed());
+    }
+
+    #[test]
+    fn random_graphs_never_panic() {
+        let mut seed = 0x9E37_79B9_7F4A_7C15u64;
+        let mut rnd = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        let kinds: Vec<NodeKind> = (0..).map_while(NodeKind::from_u8).collect();
+        let mut bad = 0;
+        for round in 0..400 {
+            let mut s = State::new();
+            for _ in 0..2 + rnd() % 14 {
+                s.add_node(kinds[rnd() as usize % kinds.len()], [0.0; 2], [0.0; 2]);
+            }
+            let n = s.nodes.len();
+            for i in 0..n {
+                for j in 0..s.params(i).len() {
+                    let v = [0.0, 1.0, (rnd() % 1000) as f32 / 999.0][(rnd() % 3) as usize];
+                    unsafe { *(s.param_addr(i, j).unwrap() as *mut f32) = v };
+                }
+                let f = rnd() as u8 & 7;
+                unsafe { *((s.arena.base() + s.nodes[i] as usize + 17) as *mut u8) = f };
+            }
+            for _ in 0..rnd() % 24 {
+                let (a, b) = ((rnd() % n as u64) as u16, (rnd() % n as u64) as u16);
+                let (_, o) = s.sockets(a as usize).unwrap();
+                let (i, _) = s.sockets(b as usize).unwrap();
+                if o > 0 && i > 0 {
+                    s.link((a, (rnd() % o as u64) as u8), (b, (rnd() % i as u64) as u8));
+                }
+            }
+            for frame in [0.0, 100.5, 255.0] {
+                s.apply_keyframes(frame);
+                begin(&s);
+                for i in 0..n {
+                    for w in 0..2 {
+                        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            fill(&s, i, w)
+                        }));
+                        if r.is_err() {
+                            bad += 1;
+                            println!(
+                                "PANIC round {round}: node {i} {} widget {w}",
+                                s.kind(i).unwrap().ident()
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(bad, 0);
     }
 }

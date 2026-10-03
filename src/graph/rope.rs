@@ -102,7 +102,6 @@ impl State {
         }
     }
 
-    /// Link ids shift when a node is removed, so drop every link rope (the pending one, id < 0, stays).
     pub fn rope_clear_links(&mut self) {
         self.ropes.retain(|r| r.id < 0);
     }

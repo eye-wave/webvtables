@@ -26,6 +26,30 @@ export type WasmExports = {
   rope_segments(hot: number): number;
   rope_out(): number;
 
+  node_kind(idx: number): number;
+  kf_apply(frame: number): number;
+  kf_driven_ptr(): number;
+  lane_dump(): number;
+  lane_dump_ptr(): number;
+  lane_curve(lane: number): number;
+  lane_curve_ptr(): number;
+  lane_targets(lane: number): number;
+  lane_targets_ptr(): number;
+  lane_add(lfo: boolean): number;
+  lane_remove(lane: number): void;
+  lane_link(lane: number, nodeAddr: number, param: number, on: boolean): boolean;
+  lane_rename(lane: number, len: number): boolean;
+  lane_name(lane: number): number;
+  lane_name_ptr(): number;
+  key_add(lane: number, t: number, v: number): number;
+  key_set(lane: number, idx: number, t: number, v: number): boolean;
+  key_remove(lane: number, idx: number): void;
+  lfo_set(lane: number, j: number, v: number): boolean;
+  project_save(): number;
+  project_ptr(): number;
+  project_buf(len: number): number;
+  project_load(len: number): boolean;
+
   remove_node(idx: number): void;
   add_link(s1: number, s2: number, t1: number, t2: number): number;
 

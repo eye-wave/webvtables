@@ -211,6 +211,43 @@ impl State {
         Some(off)
     }
 
+    pub fn param_slot(&self, node_off: u32, i: usize) -> Option<u32> {
+        let p = self.arena.slice::<Node>(node_off, 1)[0].params;
+        (i < p.len as usize).then(|| p.start + (i * 4) as u32)
+    }
+
+    pub fn nodes_valid(&self) -> bool {
+        use core::mem::{align_of, offset_of, size_of};
+        let top = self.arena.bytes().len();
+        self.nodes.len() < u16::MAX as usize
+            && self.nodes.iter().all(|&off| {
+                let o = off as usize;
+                if !o.is_multiple_of(align_of::<Node>()) || o + size_of::<Node>() > top {
+                    return false;
+                }
+                let Some(kind) = NodeKind::from_u8(self.arena.bytes()[o + offset_of!(Node, kind)])
+                else {
+                    return false;
+                };
+                let node = &self.arena.slice::<Node>(off, 1)[0];
+                let n = kind.as_node().default_params().iter().flatten().count();
+                let (start, len) = (node.params.start as usize, node.params.len as usize);
+                len == n
+                    && start % align_of::<f32>() == 0
+                    && start + n * 4 <= top
+                    && node
+                        .position
+                        .iter()
+                        .chain(&node.size)
+                        .all(|v| v.is_finite())
+                    && self
+                        .arena
+                        .slice::<f32>(node.params.start, n)
+                        .iter()
+                        .all(|v| v.is_finite())
+            })
+    }
+
     pub fn kind(&self, idx: usize) -> Option<NodeKind> {
         Some(self.arena.slice::<Node>(*self.nodes.get(idx)?, 1)[0].kind)
     }

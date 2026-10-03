@@ -4,6 +4,7 @@ import type { ViewCtl } from "./view";
 
 const PENDING = -1;
 const HIT = 8;
+const FINE = 0.05;
 
 type Drag = { move(e: PointerEvent): void; up?(e: PointerEvent): void };
 
@@ -29,10 +30,18 @@ export function createInput(
   };
 
   const dragKnob = (e: PointerEvent, k: ReturnType<Scene["knob"]>): Drag => {
-    const y0 = e.clientY,
-      v0 = k.get();
+    let y = e.clientY;
     return {
-      move: (e) => k.set(Math.min(1, Math.max(0, v0 + (y0 - e.clientY) / 150))),
+      move(e) {
+        const dy = y - e.clientY;
+        y = e.clientY;
+        k.set(
+          Math.min(
+            1,
+            Math.max(0, k.get() + (dy / 150) * (e.altKey ? FINE : 1)),
+          ),
+        );
+      },
     };
   };
 
@@ -92,7 +101,7 @@ export function createInput(
   };
 
   grid.addEventListener("pointerdown", (e) => {
-    if (e.button) return; // right click belongs to the context menu
+    if (e.button) return;
     const t = e.target as HTMLElement;
     const flag = t.closest<HTMLElement>(".flag");
     if (flag) return (scene.flag(flag), schedule());
@@ -131,6 +140,13 @@ export function createInput(
     drag.up?.(e);
     drag = null;
     hover((e.target as HTMLElement).closest<HTMLElement>(".knob"));
+    schedule();
+  });
+
+  grid.addEventListener("dblclick", (e) => {
+    const k = (e.target as HTMLElement).closest<HTMLElement>(".knob");
+    if (!k) return;
+    scene.resetKnob(k);
     schedule();
   });
 

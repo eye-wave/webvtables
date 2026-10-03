@@ -1,7 +1,7 @@
 #![allow(static_mut_refs)]
 #![cfg_attr(not(test), no_std)]
 
-use crate::graph::{NodeKind, state};
+use crate::graph::{NodeKind, keyframes, state};
 
 mod ffi;
 mod graph;
@@ -11,22 +11,18 @@ extern crate alloc;
 
 #[cfg(not(test))]
 #[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
 
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    use crate::log::LogArg;
-    use core::fmt::{Result, Write};
-    struct W;
-    impl Write for W {
-        fn write_str(&mut self, s: &str) -> Result {
-            s.log();
-            Ok(())
-        }
-    }
-    let _ = write!(W, "{info}");
-    crate::console_print!();
+    use core::fmt::Write;
+
+    static mut BUF: log::Buf<256> = log::Buf::new();
+    let buf = unsafe { &mut BUF };
+    buf.clear();
+    let _ = write!(buf, "panic: {info}");
+    crate::console_print!(buf.as_str());
     core::arch::wasm32::unreachable()
 }
 
@@ -154,6 +150,129 @@ pub extern "C" fn scope_fill(node: u16, widget: u8) -> u32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn scope_ptr() -> i32 {
     graph::scope::buf() as i32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn node_kind(idx: u16) -> i32 {
+    state().kind(idx as usize).map_or(-1, |k| k as i32)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn kf_apply(frame: f32) -> u32 {
+    state().apply_keyframes(frame) as u32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn kf_driven_ptr() -> i32 {
+    keyframes::driven_ptr() as i32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_dump() -> u32 {
+    state().lane_dump() as u32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_dump_ptr() -> i32 {
+    keyframes::dump_ptr() as i32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_curve(lane: u16) -> u32 {
+    state().lane_curve(lane as usize) as u32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_curve_ptr() -> i32 {
+    keyframes::curve_ptr() as i32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_targets(lane: u16) -> u32 {
+    state().lane_targets(lane as usize) as u32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_targets_ptr() -> i32 {
+    keyframes::targets_ptr() as i32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_add(lfo: bool) -> i32 {
+    state().lane_add(lfo).map_or(-1, |i| i as i32)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_remove(lane: u16) {
+    state().lane_remove(lane as usize)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_link(lane: u16, node_addr: u32, param: u8, on: bool) -> bool {
+    state().lane_link(lane as usize, node_addr as usize, param, on)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_rename(lane: u16, len: u32) -> bool {
+    let name = unsafe { &keyframes::NAME };
+    state().lane_rename(lane as usize, &name[..(len as usize).min(name.len())])
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_name(lane: u16) -> u32 {
+    let Some(l) = state().keyframes.lanes.get(lane as usize) else {
+        return 0;
+    };
+    let buf = unsafe { &mut keyframes::NAME };
+    buf[..l.name.len()].copy_from_slice(l.name.as_bytes());
+    l.name.len() as u32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_name_ptr() -> i32 {
+    keyframes::name_ptr() as i32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn key_add(lane: u16, t: u8, v: f32) -> i32 {
+    state()
+        .key_add(lane as usize, t, v)
+        .map_or(-1, |i| i as i32)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn key_set(lane: u16, idx: u16, t: u8, v: f32) -> bool {
+    state().key_set(lane as usize, idx as usize, t, v)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn key_remove(lane: u16, idx: u16) {
+    state().key_remove(lane as usize, idx as usize)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lfo_set(lane: u16, j: u8, v: f32) -> bool {
+    state().lfo_set(lane as usize, j as usize, v)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn project_save() -> u32 {
+    graph::project::save(state()) as u32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn project_ptr() -> i32 {
+    graph::project::file_ptr() as i32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn project_buf(len: u32) -> i32 {
+    graph::project::buffer(len as usize) as i32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn project_load(len: u32) -> bool {
+    graph::project::load(len as usize)
 }
 
 #[unsafe(no_mangle)]

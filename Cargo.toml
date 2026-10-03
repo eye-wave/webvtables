@@ -16,13 +16,18 @@ libm = "0.2.16"
 microfft = { version = "0.6", default-features = false, features = [
   "size-2048",
 ] }
-wee_alloc = "0.4.5"
+dlmalloc = { version = "0.2", features = ["global"] }
+serde = { version = "1", default-features = false, features = [
+  "derive",
+  "alloc",
+] }
+postcard = { version = "1", default-features = false, features = ["alloc"] }
 
 [profile.release]
 codegen-units = 1
 lto = "fat"
 opt-level = "z"
-panic = "immediate-abort"
+panic = "abort"
 strip = true
 trim-paths = "all"
 rustflags = ["-Cdebuginfo=0", "-Zthreads=8"]

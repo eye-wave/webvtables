@@ -364,6 +364,112 @@ body {
   color: #6af;
 }
 
+.kf-label {
+  flex-wrap: wrap;
+  align-content: center;
+  gap: 4px 6px;
+}
+
+.kf-target {
+  order: 1;
+  flex-basis: 100%;
+  min-width: 0;
+  padding: 1px 4px;
+  overflow: hidden;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #aaa;
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.kf-target:hover {
+  border-color: #666;
+}
+
+.kf-pop {
+  position: fixed;
+  z-index: 100;
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  color: #ccc;
+  font: 12px system-ui, sans-serif;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px #000a;
+}
+
+.kf-pop input {
+  margin: 6px;
+  padding: 4px 6px;
+  font: inherit;
+  color: #ddd;
+  background: #0c0c0c;
+  border: 1px solid #333;
+  border-radius: 4px;
+  outline: none;
+}
+
+.kf-pop input:focus {
+  border-color: #6af;
+}
+
+.kf-pop-list {
+  overflow: auto;
+  padding: 0 0 6px;
+}
+
+.kf-pop-node {
+  padding: 6px 10px 2px;
+  font-size: 11px;
+  color: #777;
+}
+
+.kf-pop-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.kf-pop-row:hover {
+  background: #2a2a2a;
+}
+
+.kf-pop-row.on {
+  color: #8cf;
+}
+
+.kf-pop-row .tick {
+  width: 10px;
+}
+
+.kf-pop-row em {
+  margin-left: auto;
+  font-style: normal;
+  color: #f94;
+}
+
+.kf-pop-empty {
+  padding: 8px 10px;
+  color: #666;
+}
+
+.knob.driven .dial::after {
+  background: #f94;
+}
+
+.knob.driven .pval {
+  color: #f94;
+}
+
 .kf-label i {
   width: 6px;
   height: 14px;
@@ -651,4 +757,24 @@ body {
 
 .ctx .item.danger:hover {
   background: #4a2226;
+}
+
+.tools {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+
+.tool {
+  padding: 2px 10px;
+  font: inherit;
+  color: #ddd;
+  background: #262626;
+  border: 1px solid #444;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tool:hover {
+  border-color: #777;
 }

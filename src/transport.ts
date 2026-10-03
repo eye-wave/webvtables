@@ -1,7 +1,8 @@
 import type { Audio } from "./audio";
 
 const FREQ_MIN = 20,
-  FREQ_MAX = 2000;
+  FREQ_MAX = 2000,
+  SPEED_MAX = 255;
 
 const div = (cls: string, text = "") =>
   Object.assign(document.createElement("div"), {
@@ -56,18 +57,26 @@ function knob(
   return el;
 }
 
-export function createTransport(root: HTMLElement, audio: Audio) {
+export function createTransport(
+  root: HTMLElement,
+  audio: Audio,
+  wake: () => void,
+) {
+  let playing = false;
+  let speed = 32;
   const play = Object.assign(document.createElement("button"), {
     className: "play",
     textContent: "▶",
     title: "Play / pause",
   });
   play.addEventListener("click", async () => {
-    const on = await audio.toggle();
+    const on = (playing = await audio.toggle());
     play.textContent = on ? "⏸" : "▶";
     play.classList.toggle("active", on);
+    wake();
   });
 
+  const fps = (v: number) => SPEED_MAX ** v;
   const hz = (v: number) => FREQ_MIN * (FREQ_MAX / FREQ_MIN) ** v;
   root.append(
     play,
@@ -81,7 +90,22 @@ export function createTransport(root: HTMLElement, audio: Audio) {
       "Volume",
       0.5,
       (v) => `${Math.round(v * 100)} %`,
-      (v) => audio.setVolume(v * v), // squared taper: closer to perceived loudness
+      (v) => audio.setVolume(v * v),
+    ),
+    knob(
+      "Speed",
+      Math.log(speed) / Math.log(SPEED_MAX),
+      (v) => `${fps(v) < 10 ? fps(v).toFixed(1) : Math.round(fps(v))} fr/s`,
+      (v) => (speed = fps(v)),
     ),
   );
+
+  return {
+    get playing() {
+      return playing;
+    },
+    get speed() {
+      return speed;
+    },
+  };
 }

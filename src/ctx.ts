@@ -1,3 +1,4 @@
+import type { Kf } from "./kf";
 import type { Scene } from "./scene";
 import type { ViewCtl } from "./view";
 
@@ -10,7 +11,9 @@ export function createContextMenu(
     view,
     schedule,
     openAdd,
+    kf,
   }: {
+    kf: Kf;
     scene: Scene;
     view: ViewCtl;
     schedule: () => void;
@@ -31,6 +34,35 @@ export function createContextMenu(
   };
   const esc = (e: KeyboardEvent) => e.key === "Escape" && close();
 
+  const paramItems = (e: MouseEvent, node: HTMLElement): Item[] => {
+    const knob = (e.target as HTMLElement).closest<HTMLElement>(".knob");
+    if (!knob) return [];
+    const [p, j, addr] = [+node.dataset.p!, +knob.dataset.j!, +knob.dataset.a!];
+    const lanes = kf.lanes();
+    const owner = lanes.findIndex((l) => l.addrs.includes(addr));
+    const done = () => scene.notify();
+    const take = (lane: number) => {
+      if (owner >= 0) kf.link(owner, p, j, false);
+      kf.link(lane, p, j, true);
+      done();
+    };
+    const fresh = (lfo: boolean) => () => {
+      const lane = kf.addLane(lfo);
+      if (lane < 0) return;
+      kf.rename(lane, knob.querySelector(".pname")!.textContent!);
+      take(lane);
+    };
+    return [
+      ...lanes.map((l, i): Item => ({
+        label: `${i === owner ? "✓ " : ""}Lane: ${l.name}`,
+        run: () => (i === owner ? (kf.link(i, p, j, false), done()) : take(i)),
+      })),
+      { label: "New points lane", run: fresh(false) },
+      { label: "New LFO lane", run: fresh(true) },
+      "-",
+    ];
+  };
+
   const itemsFor = (e: MouseEvent): Item[] => {
     const node = (e.target as HTMLElement).closest<HTMLElement>(".node");
     if (!node)
@@ -45,6 +77,7 @@ export function createContextMenu(
         },
       ];
     return [
+      ...paramItems(e, node),
       { label: "Duplicate", run: () => scene.duplicate(node) },
       { label: "Reset parameters", run: () => scene.reset(node) },
       "-",
@@ -74,7 +107,6 @@ export function createContextMenu(
       root.append(el);
     }
 
-    // open towards the free side of the viewport, like a native menu
     const { offsetWidth: w, offsetHeight: h } = root;
     const flipX = e.clientX + w > innerWidth - 8,
       flipY = e.clientY + h > innerHeight - 8;
@@ -82,7 +114,7 @@ export function createContextMenu(
     root.style.top = `${Math.max(0, flipY ? e.clientY - h : e.clientY)}px`;
     root.style.transformOrigin = `${flipX ? "right" : "left"} ${flipY ? "bottom" : "top"}`;
 
-    void root.offsetWidth; // restart the transition if it was already open
+    void root.offsetWidth;
     root.classList.add("open");
     addEventListener("pointerdown", away, true);
     addEventListener("keydown", esc, true);

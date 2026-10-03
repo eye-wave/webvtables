@@ -9,8 +9,11 @@ import { createScene } from "./scene";
 import { createTransport } from "./transport";
 import { createView } from "./view";
 import { loadWasm } from "./wasm";
-import { render as mount } from "solid-js/web";
+import { createSignal } from "solid-js";
+import { render } from "solid-js/web";
+import { createKf } from "./kf";
 import { Keyframes } from "./keyframes";
+import { createProject } from "./project";
 
 declare const nodeGrid: HTMLDivElement;
 declare const gridBg: HTMLDivElement;
@@ -19,15 +22,14 @@ declare const kfHandle: HTMLDivElement;
 
 const draw = createOverlay(canvas);
 
-const kf = document.querySelector<HTMLElement>(".box-keyframes")!;
-mount(Keyframes, kf);
+const kfBox = document.querySelector<HTMLElement>(".box-keyframes")!;
 kfHandle.onpointerdown = (e) => {
   const y0 = e.clientY,
-    h0 = kf.offsetHeight;
+    h0 = kfBox.offsetHeight;
   kfHandle.setPointerCapture(e.pointerId);
   kfHandle.onpointermove = (m) => {
     const h = h0 + y0 - m.clientY;
-    kf.style.height = `${Math.min(innerHeight * 0.7, Math.max(80, h))}px`;
+    kfBox.style.height = `${Math.min(innerHeight * 0.7, Math.max(80, h))}px`;
   };
   kfHandle.onpointerup = () => (kfHandle.onpointermove = null);
 };
@@ -38,7 +40,12 @@ loadWasm().then((wasm) => {
   const ropes = createRopes(wasm);
   const audio = createAudio();
 
-  createTransport(document.querySelector<HTMLElement>(".box-playback")!, audio);
+  const transport = createTransport(
+    document.querySelector<HTMLElement>(".box-playback")!,
+    audio,
+    () => schedule(),
+  );
+  const [head, setHead] = createSignal(0);
 
   scene.add(0, 40, 40);
   scene.add(1, 540, 100);
@@ -48,15 +55,43 @@ loadWasm().then((wasm) => {
   const schedule = () =>
     queued || ((queued = true), requestAnimationFrame(frame));
 
+  const kf = createKf(wasm);
+  render(
+    () =>
+      Keyframes({
+        host: {
+          ...kf,
+          nodes: scene.nodes,
+          onChange: scene.onChange,
+          schedule,
+          head,
+          setHead,
+        },
+      }),
+    kfBox,
+  );
+  createProject(
+    document.querySelector<HTMLElement>(".box-playback")!,
+    wasm,
+    scene,
+    kf,
+    head,
+    schedule,
+  );
+
   function frame(t: number) {
     queued = false;
+    const dt = Math.min((t - last) / 1000, 0.1);
+    last = t;
+
+    if (transport.playing) setHead((h) => (h + dt * transport.speed) % 256);
     view.apply();
     wasm.scope_begin();
-    const inst = scene.sync();
+    const driven = kf.apply(head());
+    const inst = scene.sync(driven);
     for (const [id, a, b] of scene.links()) ropes.pin(id, a, b);
     audio.table(scene.outputTable());
-    const moving = ropes.step(Math.min((t - last) / 1000, 0.05));
-    last = t;
+    const moving = ropes.step(Math.min(dt, 0.05));
 
     draw({
       nodes: inst,
@@ -66,7 +101,7 @@ loadWasm().then((wasm) => {
       rings: input.lit,
       t: t / 1000,
     });
-    if (moving || input.lit.length) schedule();
+    if (moving || input.lit.length || transport.playing) schedule();
   }
 
   const input = createInput(canvas.parentElement!, {
@@ -80,6 +115,7 @@ loadWasm().then((wasm) => {
     scene,
     view,
     schedule,
+    kf,
     openAdd: add.open,
   });
   new ResizeObserver(schedule).observe(nodeGrid);
