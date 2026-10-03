@@ -1,17 +1,20 @@
-use crate::graph::{
-    BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeLogic, Param,
-    node::helpers::{self},
-};
+use super::{Label, label};
+use super::{BUFFER_LEN, BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::helpers::{self};
 
 pub struct FmNode;
 
+impl FmNode {
+    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![Param::new_linear("Ammount", 0.0, 10.0).with_unit("x")];
+}
+
 impl NodeLogic for FmNode {
-    fn title(&self) -> &'static str {
-        "Frequency Modulation"
+    fn title(&self) -> Label {
+        label("Frequency Modulation")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
-        &[super::NodeCategory::Combine]
+    fn category(&self) -> &'static [NodeCategory] {
+        &[NodeCategory::Combine]
     }
 
     fn input_count(&self) -> usize {
@@ -23,12 +26,12 @@ impl NodeLogic for FmNode {
     }
 
     fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
-        crate::params![Param::new_linear("Ammount", 0.0, 10.0).with_unit("x")]
+        Self::PARAMS
     }
 
     fn process(
         &self,
-        inputs: &[&crate::graph::Buffer],
+        inputs: &[&Buffer],
         params: &[Option<Param>; MAX_PARAMS],
         outs: &mut [Buffer],
     ) {
@@ -39,7 +42,7 @@ impl NodeLogic for FmNode {
         let base_freqs = helpers::input(inputs, 0);
         let modulators = helpers::input(inputs, 1);
 
-        for i in 0..crate::graph::BUFFER_LEN {
+        for i in 0..BUFFER_LEN {
             let current_freq = base_freqs[i] + (modulators[i] * amount);
 
             phase += current_freq / BUFFER_LEN_F32;

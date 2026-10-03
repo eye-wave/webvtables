@@ -1,17 +1,16 @@
-use crate::graph::{Buffer, Param, consts::*};
-
-use super::NodeLogic;
-use super::helpers;
+use super::{Label, label};
+use super::{Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::helpers::{self};
 
 pub struct InvertNode;
 
 impl NodeLogic for InvertNode {
-    fn title(&self) -> &'static str {
-        "Invert polarity"
+    fn title(&self) -> Label {
+        label("Invert polarity")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
-        &[super::NodeCategory::Effect]
+    fn category(&self) -> &'static [NodeCategory] {
+        &[NodeCategory::Effect]
     }
 
     fn input_count(&self) -> usize {

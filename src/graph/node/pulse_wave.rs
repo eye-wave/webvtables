@@ -1,17 +1,23 @@
-use crate::graph::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, Param, consts::*};
-
-use super::NodeLogic;
-use super::helpers;
+use super::{Label, label};
+use super::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::helpers::{self};
 
 pub struct PulseWaveNode;
 
+impl PulseWaveNode {
+    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+        Param::new_linear("PWM", 0.0, 0.5).with_default_norm(0.5),
+        Param::new_int("Repeats", 1, 100).with_unit("x"),
+    ];
+}
+
 impl NodeLogic for PulseWaveNode {
-    fn title(&self) -> &'static str {
-        "Pulse wave"
+    fn title(&self) -> Label {
+        label("Pulse wave")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
-        &[super::NodeCategory::Inputs]
+    fn category(&self) -> &'static [NodeCategory] {
+        &[NodeCategory::Inputs]
     }
 
     fn input_count(&self) -> usize {
@@ -22,11 +28,8 @@ impl NodeLogic for PulseWaveNode {
         1
     }
 
-    fn default_params(&self) -> [Option<crate::graph::Param>; crate::graph::MAX_PARAMS] {
-        crate::params![
-            Param::new_linear("PWM", 0.0, 0.5).with_default_norm(0.5),
-            Param::new_int("Repeats", 1, 100).with_unit("x"),
-        ]
+    fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
+        Self::PARAMS
     }
 
     fn process(

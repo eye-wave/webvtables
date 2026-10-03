@@ -1,0 +1,35 @@
+:root {
+  --surface-100: #141414;
+  --surface-200: #181818;
+  --surface-300: #202020;
+  --surface-400: #262626;
+  --surface-500: #303030;
+  --surface-600: #333;
+  --surface-700: #383838;
+  --surface-800: #444;
+
+  --border-100: #404040;
+  --border-200: #555;
+  --border-300: #666;
+  --border-400: #888;
+  --border-500: #999;
+
+  --text-100: #777;
+  --text-200: #888;
+  --text-300: #999;
+  --text-400: #aaa;
+  --text-500: #ddd;
+  --text-600: #eee;
+
+  --accent-100: #344864;
+  --accent-200: #7bf;
+  --accent-300: #9df;
+  --on-accent: #121212;
+
+  --danger-100: #5a282c;
+  --danger-200: #f88;
+
+  --driven: #fa5;
+  --white: #fff;
+  --shadow: #000c;
+}

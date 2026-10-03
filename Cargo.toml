@@ -1,26 +1,27 @@
 
-cargo-features = ["profile-rustflags", "trim-paths"]
+cargo-features = ["profile-rustflags", "trim-paths", "panic-immediate-abort"]
 
 [package]
-name = "webvtabes"
+name = "webvtlabes"
 version = "0.1.0"
 edition = "2024"
-license = "GPL-3.0-or-later"
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["cdylib"]
 
 [dependencies]
-bitflags = "2.13.1"
-heapless = "0.9.3"
-microfft = { version = "0.6.0", default-features = false, features = [
+bitflags = "2"
+paste = "1"
+libm = "0.2.16"
+microfft = { version = "0.6", default-features = false, features = [
   "size-2048",
 ] }
-paste = "1.0.15"
-wee_alloc = "0.4.5"
-
-[profile.dev]
-panic = "abort"
+dlmalloc = { version = "0.2", features = ["global"] }
+serde = { version = "1", default-features = false, features = [
+  "derive",
+  "alloc",
+] }
+postcard = { version = "1", default-features = false, features = ["alloc"] }
 
 [profile.release]
 codegen-units = 1

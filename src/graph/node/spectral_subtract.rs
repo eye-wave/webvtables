@@ -1,18 +1,25 @@
-use crate::graph::node::helpers::magnitude;
-use crate::graph::{BUFFER_LEN, Buffer, NodeCategory, Param, consts::*};
+use super::{Label, label};
+use alloc::boxed::Box;
 use microfft::Complex32;
-
-use super::NodeLogic;
-use super::helpers;
+use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::helpers::{self, magnitude};
 
 pub struct SpectralSubtractNode;
 
+impl SpectralSubtractNode {
+    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+        Param::new_linear("Mix", 0.0, 100.0)
+            .with_unit("%")
+            .with_default_norm(1.0)
+    ];
+}
+
 impl NodeLogic for SpectralSubtractNode {
-    fn title(&self) -> &'static str {
-        "Spectral Subtract"
+    fn title(&self) -> Label {
+        label("Spectral Subtract")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
+    fn category(&self) -> &'static [NodeCategory] {
         &[NodeCategory::Combine, NodeCategory::Fft]
     }
 
@@ -25,11 +32,7 @@ impl NodeLogic for SpectralSubtractNode {
     }
 
     fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
-        crate::params![
-            Param::new_linear("Mix", 0.0, 100.0)
-                .with_unit("%")
-                .with_default_norm(1.0)
-        ]
+        Self::PARAMS
     }
 
     fn process(
@@ -44,15 +47,15 @@ impl NodeLogic for SpectralSubtractNode {
         let b = helpers::input(inputs, 1);
         let bins = BUFFER_LEN / 2;
 
-        let mut a_time: [f32; BUFFER_LEN] = *a;
-        let mut b_time: [f32; BUFFER_LEN] = *b;
+        let mut a_time = helpers::copy_of(a);
+        let mut b_time = helpers::copy_of(b);
         let a_spec = microfft::real::rfft_2048(&mut a_time);
         let b_spec = microfft::real::rfft_2048(&mut b_time);
 
         let dc = a_spec[0].re - b_spec[0].re;
         let nyq = a_spec[0].im - b_spec[0].im;
 
-        let mut full = [Complex32::new(0.0, 0.0); BUFFER_LEN];
+        let mut full: Box<[Complex32; BUFFER_LEN]> = helpers::boxed(Complex32::new(0.0, 0.0));
         full[0] = Complex32::new(dc, 0.0);
         full[bins] = Complex32::new(nyq, 0.0);
         for k in 1..bins {

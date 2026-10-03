@@ -1,18 +1,39 @@
+use super::{Label, label};
+use super::{Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::helpers::{self};
+
 pub struct NoiseNode;
 
-use crate::graph::Buffer;
-use crate::graph::NodeCategory;
-use crate::graph::Param;
-
-use super::NodeLogic;
-use super::helpers;
+impl NoiseNode {
+    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+        Param::new_enum(
+            "Algorithm",
+            &[
+                "Xorshift",
+                "Splitmix64",
+                "Wyrand",
+                "Sfc64",
+                "Wang_hash",
+                "Jenkins",
+                "Lcg"
+            ]
+        ),
+        Param::new_enum(
+            "Color",
+            &[
+                "White", "Pink", "Brown", "Blue", "Violet", "Green", "Orange", "Grey", "Black"
+            ]
+        ),
+        Param::new_int("Seed", 1, 99999)
+    ];
+}
 
 impl NodeLogic for NoiseNode {
-    fn title(&self) -> &'static str {
-        "Noise"
+    fn title(&self) -> Label {
+        label("Noise")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
+    fn category(&self) -> &'static [NodeCategory] {
         &[NodeCategory::Inputs]
     }
 
@@ -24,34 +45,14 @@ impl NodeLogic for NoiseNode {
         1
     }
 
-    fn default_params(&self) -> [Option<crate::graph::Param>; crate::graph::MAX_PARAMS] {
-        crate::params![
-            Param::new_enum(
-                "Algorithm",
-                &[
-                    "Xorshift",
-                    "Splitmix64",
-                    "Wyrand",
-                    "Sfc64",
-                    "Wang_hash",
-                    "Jenkins",
-                    "Lcg"
-                ]
-            ),
-            Param::new_enum(
-                "Color",
-                &[
-                    "White", "Pink", "Brown", "Blue", "Violet", "Green", "Orange", "Grey", "Black"
-                ]
-            ),
-            Param::new_int("Seed", 1, 99999)
-        ]
+    fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
+        Self::PARAMS
     }
 
     fn process(
         &self,
-        inputs: &[&crate::graph::Buffer],
-        params: &[Option<Param>; crate::graph::MAX_PARAMS],
+        inputs: &[&Buffer],
+        params: &[Option<Param>; MAX_PARAMS],
         outs: &mut [Buffer],
     ) {
         let out = &mut outs[0];

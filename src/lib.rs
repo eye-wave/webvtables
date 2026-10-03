@@ -1,163 +1,291 @@
-#![cfg_attr(not(test), no_std)]
-#![cfg_attr(not(test), no_main)]
 #![allow(static_mut_refs)]
+#![cfg_attr(not(test), no_std)]
+
+use crate::graph::{NodeKind, keyframes, state};
+
+mod ffi;
+mod graph;
+mod log;
 
 extern crate alloc;
 
-#[cfg(all(target_arch = "wasm32", not(test)))]
+#[cfg(not(test))]
+#[global_allocator]
+static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
+
+#[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    struct FixedBuf<'a> {
-        buf: &'a mut [u8],
-        pos: usize,
-    }
-
-    impl<'a> core::fmt::Write for FixedBuf<'a> {
-        fn write_str(&mut self, s: &str) -> core::fmt::Result {
-            let bytes = s.as_bytes();
-            let remaining = self.buf.len() - self.pos;
-            let n = bytes.len().min(remaining);
-            self.buf[self.pos..self.pos + n].copy_from_slice(&bytes[..n]);
-            self.pos += n;
-            Ok(())
-        }
-    }
-
     use core::fmt::Write;
 
-    let mut buf = [0u8; 256];
-    let pos = {
-        let mut w = FixedBuf {
-            buf: &mut buf,
-            pos: 0,
-        };
-        let _ = write!(w, "{}", info);
-        w.pos
-    };
-
-    let msg = core::str::from_utf8(&buf[..pos]).unwrap_or("panic (invalid utf8)");
-    console_print!(msg);
-
+    static mut BUF: log::Buf<256> = log::Buf::new();
+    let buf = unsafe { &mut BUF };
+    buf.clear();
+    let _ = write!(buf, "panic: {info}");
+    crate::console_print!(buf.as_str());
     core::arch::wasm32::unreachable()
 }
 
-#[cfg(all(not(target_arch = "wasm32"), not(test)))]
-#[panic_handler]
-fn panic(_: &core::panic::PanicInfo) -> ! {
-    loop {}
+#[unsafe(no_mangle)]
+pub extern "C" fn links_len() -> u16 {
+    state().links.len() as u16
 }
 
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
-mod api;
-mod draw;
-mod ffi;
-mod geom;
-mod graph;
-mod log;
-mod str;
-
-use draw::{Draw, drawbuf};
-use graph::*;
-
-pub use str::*;
-
-use crate::draw::RENDER_STATS;
+#[unsafe(no_mangle)]
+pub extern "C" fn get_link(idx: u16) -> i32 {
+    state()
+        .links
+        .get(idx as usize)
+        .map(|link| link as *const _ as i32)
+        .unwrap_or(-1)
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn init() {
+pub extern "C" fn add_link(s1: u16, s2: u8, t1: u16, t2: u8) -> i32 {
+    state().link((s1, s2), (t1, t2)).map_or(-1, |i| i as i32)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn remove_link(idx: u16) {
+    let links = &mut state().links;
+    if (idx as usize) < links.len() {
+        links.swap_remove(idx as usize);
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn remove_node(idx: u16) {
+    state().remove_node(idx as usize)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn node_sockets(idx: u16) -> i32 {
+    state()
+        .sockets(idx as usize)
+        .map_or(-1, |(i, o)| (i as i32) | ((o as i32) << 8))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn node_has_widget(idx: u16) -> bool {
+    state()
+        .kind(idx as usize)
+        .is_some_and(|k| k.as_node().has_widget())
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn nodes_len() -> u16 {
+    state().nodes.len() as u16
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn get_node(idx: u16) -> i32 {
     let s = state();
-
-    s.buffers = Some(alloc::vec![[ZERO_BUFFER;MAX_NODE_OUTPUTS]; MAX_NODES].into_boxed_slice());
-    s.wavetable = Some(alloc::vec![ZERO_BUFFER; MAX_FRAMES].into_boxed_slice());
-
-    let _ = s.nodes.push(Node::new(NodeKind::BasicShapes, 240.0, 240.0));
-    let _ = s.nodes.push(Node::new(NodeKind::Output, 500.0, 240.0));
-
-    let _ = s.links.push(Link::new(0, 0, 1, 0));
-
-    process();
-    render();
-}
-
-/// Runs node processing, recomputing each node's single-cycle
-/// output frame.
-#[unsafe(no_mangle)]
-pub extern "C" fn process() {
-    process_graph(state());
-    render();
+    s.nodes
+        .get(idx as usize)
+        .map(|&off| (s.arena.base() + off as usize) as i32)
+        .unwrap_or(-1)
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn render() {
+pub extern "C" fn get_param(idx: u16, i: u8) -> i32 {
+    state()
+        .param_addr(idx as usize, i as usize)
+        .map_or(-1, |a| a as i32)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn add_node(kind: u8, x: f32, y: f32, w: f32, h: f32) -> i32 {
     let s = state();
-    s.viewport_bounds = (
-        0.0,
-        HEADER_HEIGHT,
-        s.viewport.0,
-        s.viewport.1 * KEYFRAME_POS_PERCENT,
-    );
+    NodeKind::from_u8(kind)
+        .and_then(|k| s.add_node(k, [x, y], [w, h]))
+        .map(|off| (s.arena.base() + off as usize) as i32)
+        .unwrap_or(-1)
+}
 
-    let ctx = drawbuf();
-    ctx.begin_frame();
+#[unsafe(no_mangle)]
+pub extern "C" fn rope_pin(id: i32, ax: f64, ay: f64, bx: f64, by: f64) {
+    state().rope_pin(id, [ax, ay], [bx, by])
+}
 
-    Background.draw(0, s, ctx);
+#[unsafe(no_mangle)]
+pub extern "C" fn rope_drop(id: i32) {
+    state().rope_drop(id)
+}
 
-    for (i, link) in s.links.iter().enumerate() {
-        link.draw(i, s, ctx);
-    }
+#[unsafe(no_mangle)]
+pub extern "C" fn rope_rename(from: i32, to: i32) {
+    state().rope_rename(from, to)
+}
 
-    if let Some((from, from_socket)) = s.pending_link_from {
-        let (fx, fy) = output_pos(&s.nodes[from], from_socket);
+#[unsafe(no_mangle)]
+pub extern "C" fn rope_step(dt: f64) -> bool {
+    state().rope_step(dt)
+}
 
-        ctx.stroke_style([210, 180, 60]);
-        ctx.line_width(2.0);
+#[unsafe(no_mangle)]
+pub extern "C" fn rope_hit(x: f64, y: f64, r: f64) -> i32 {
+    state().rope_hit(x, y, r)
+}
 
-        ctx.stroke_line(fx, fy, s.mouse.0, s.mouse.1, true);
-    }
+#[unsafe(no_mangle)]
+pub extern "C" fn rope_segments(hot: i32) -> u32 {
+    state().rope_segments(hot) as u32
+}
 
-    for (i, node) in s.nodes.iter().enumerate() {
-        if geom::is_out_of_bounds(node.x, node.y, node.x + Node::W, node.y + node.height()) {
-            continue;
-        }
+#[unsafe(no_mangle)]
+pub extern "C" fn rope_out() -> i32 {
+    state().rope_out.as_ptr() as i32
+}
 
-        node.draw(i, s, ctx);
-    }
+#[unsafe(no_mangle)]
+pub extern "C" fn scope_begin() {
+    graph::scope::begin(state())
+}
 
-    CameraWidget.draw(0, s, ctx);
-    RendererWidget.draw(0, s, ctx);
-    Header.draw(0, s, ctx);
+#[unsafe(no_mangle)]
+pub extern "C" fn scope_fill(node: u16, widget: u8) -> u32 {
+    graph::scope::fill(state(), node as usize, widget) as u32
+}
 
-    for (i, btn) in s.buttons.iter().enumerate() {
-        btn.draw(i, s, ctx);
-    }
+#[unsafe(no_mangle)]
+pub extern "C" fn scope_ptr() -> i32 {
+    graph::scope::buf() as i32
+}
 
-    for (i, knob) in s.knobs.iter().enumerate() {
-        knob.draw(i, s, ctx);
-    }
+#[unsafe(no_mangle)]
+pub extern "C" fn node_kind(idx: u16) -> i32 {
+    state().kind(idx as usize).map_or(-1, |k| k as i32)
+}
 
-    clamp_lane_scroll(s);
+#[unsafe(no_mangle)]
+pub extern "C" fn kf_apply(frame: f32) -> u32 {
+    state().apply_keyframes(frame) as u32
+}
 
-    KeyframeRuler.draw(0, s, ctx);
-    KeyframeLanes.draw(0, s, ctx);
+#[unsafe(no_mangle)]
+pub extern "C" fn kf_driven_ptr() -> i32 {
+    keyframes::driven_ptr() as i32
+}
 
-    for (i, lane) in s.lanes.iter().enumerate() {
-        if row_in_view(s, lane_row_y(s, i)) {
-            lane.draw(i, s, ctx);
-        }
-    }
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_dump() -> u32 {
+    state().lane_dump() as u32
+}
 
-    for (i, keyframe) in s.keyframes.iter().enumerate() {
-        keyframe.draw(i, s, ctx);
-    }
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_dump_ptr() -> i32 {
+    keyframes::dump_ptr() as i32
+}
 
-    WavetableWidget.draw(0, s, ctx);
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_curve(lane: u16) -> u32 {
+    state().lane_curve(lane as usize) as u32
+}
 
-    let (ptr, len) = ctx.as_ptr_len();
-    ffi::draw_flush(ptr, len);
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_curve_ptr() -> i32 {
+    keyframes::curve_ptr() as i32
+}
 
-    unsafe {
-        RENDER_STATS.refresh();
-    }
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_targets(lane: u16) -> u32 {
+    state().lane_targets(lane as usize) as u32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_targets_ptr() -> i32 {
+    keyframes::targets_ptr() as i32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_add(lfo: bool) -> i32 {
+    state().lane_add(lfo).map_or(-1, |i| i as i32)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_remove(lane: u16) {
+    state().lane_remove(lane as usize)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_link(lane: u16, node_addr: u32, param: u8, on: bool) -> bool {
+    state().lane_link(lane as usize, node_addr as usize, param, on)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_rename(lane: u16, len: u32) -> bool {
+    let name = unsafe { &keyframes::NAME };
+    state().lane_rename(lane as usize, &name[..(len as usize).min(name.len())])
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_name(lane: u16) -> u32 {
+    let Some(l) = state().keyframes.lanes.get(lane as usize) else {
+        return 0;
+    };
+    let buf = unsafe { &mut keyframes::NAME };
+    buf[..l.name.len()].copy_from_slice(l.name.as_bytes());
+    l.name.len() as u32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lane_name_ptr() -> i32 {
+    keyframes::name_ptr() as i32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn key_add(lane: u16, t: u8, v: f32) -> i32 {
+    state()
+        .key_add(lane as usize, t, v)
+        .map_or(-1, |i| i as i32)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn key_set(lane: u16, idx: u16, t: u8, v: f32) -> bool {
+    state().key_set(lane as usize, idx as usize, t, v)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn key_remove(lane: u16, idx: u16) {
+    state().key_remove(lane as usize, idx as usize)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lfo_set(lane: u16, j: u8, v: f32) -> bool {
+    state().lfo_set(lane as usize, j as usize, v)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn project_save() -> u32 {
+    graph::project::save(state()) as u32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn project_ptr() -> i32 {
+    graph::project::file_ptr() as i32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn project_buf(len: u32) -> i32 {
+    graph::project::buffer(len as usize) as i32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn project_load(len: u32) -> bool {
+    graph::project::load(len as usize)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn param_text(idx: u16, i: u8) -> u32 {
+    state().param_text(idx as usize, i as usize) as u32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn param_set_denorm(idx: u16, i: u8, v: f64) -> bool {
+    state().param_set_denorm(idx as usize, i as usize, v)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn param_text_ptr() -> i32 {
+    graph::param_text_ptr() as i32
 }

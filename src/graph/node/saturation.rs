@@ -1,18 +1,31 @@
+use super::{Label, label};
 use crate::ffi;
-use crate::graph::node::helpers::PI32;
-use crate::graph::{BUFFER_LEN, Buffer, NodeCategory, Param, consts::*};
-
-use super::NodeLogic;
-use super::helpers;
+use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::helpers::{self, PI32};
 
 pub struct SaturationNode;
 
+impl SaturationNode {
+    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+        Param::new_enum("Shape", &["Soft clip", "Hard clip", "Lin warp", "Sin warp"]),
+        Param::new_linear("In", -40.0, 60.0)
+            .with_unit("dB")
+            .with_default_denorm(0.0),
+        Param::new_linear("Out", -40.0, 10.0)
+            .with_unit("dB")
+            .with_default_denorm(0.0),
+        Param::new_linear("Mix", 0.0, 100.0)
+            .with_unit("%")
+            .with_default_norm(1.0),
+    ];
+}
+
 impl NodeLogic for SaturationNode {
-    fn title(&self) -> &'static str {
-        "Saturation"
+    fn title(&self) -> Label {
+        label("Saturation")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
+    fn category(&self) -> &'static [NodeCategory] {
         &[NodeCategory::Effect, NodeCategory::Distortion]
     }
 
@@ -24,19 +37,8 @@ impl NodeLogic for SaturationNode {
         1
     }
 
-    fn default_params(&self) -> [Option<crate::graph::Param>; crate::graph::MAX_PARAMS] {
-        crate::params![
-            Param::new_enum("Shape", &["Soft clip", "Hard clip", "Lin warp", "Sin warp"]),
-            Param::new_linear("In", -40.0, 60.0)
-                .with_unit("dB")
-                .with_default_denorm(0.0),
-            Param::new_linear("Out", -40.0, 10.0)
-                .with_unit("dB")
-                .with_default_denorm(0.0),
-            Param::new_linear("Mix", 0.0, 100.0)
-                .with_unit("%")
-                .with_default_norm(1.0),
-        ]
+    fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
+        Self::PARAMS
     }
 
     fn process(

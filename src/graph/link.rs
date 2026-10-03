@@ -1,59 +1,91 @@
-use crate::{
-    draw::{Draw, DrawBuf},
-    geom::{self, point_segment_dist2},
-    graph::{input_pos, output_pos},
-};
+use crate::graph::State;
+use serde::{Deserialize, Serialize};
 
-use super::GraphState;
-use super::consts::*;
-
-#[derive(Clone, Copy)]
+#[repr(C)]
+#[derive(Serialize, Deserialize)]
 pub struct Link {
-    pub from: usize,
-    pub from_socket: usize,
-    pub to: usize,
-    pub to_socket: usize,
+    pub source: u16,
+    pub source_socket: u8,
+    pub target: u16,
+    pub target_socket: u8,
 }
 
 impl Link {
-    pub fn new(from: usize, from_socket: usize, to: usize, to_socket: usize) -> Self {
+    pub fn new(source: u16, source_socket: u8, target: u16, target_socket: u8) -> Self {
         Self {
-            from,
-            from_socket,
-            to,
-            to_socket,
+            source,
+            source_socket,
+            target,
+            target_socket,
         }
     }
 }
 
-impl Draw for Link {
-    fn draw(&self, i: usize, s: &GraphState, ctx: &mut DrawBuf) {
-        let (fx, fy) = output_pos(&s.nodes[self.from], self.from_socket);
-        let (tx, ty) = input_pos(&s.nodes[self.to], self.to_socket);
+impl State {
+    pub fn link(&mut self, s: (u16, u8), t: (u16, u8)) -> Option<usize> {
+        if s.0 == t.0
+            || s.1 >= self.sockets(s.0 as usize)?.1
+            || t.1 >= self.sockets(t.0 as usize)?.0
+        {
+            return None;
+        }
+        let new = Link::new(s.0, s.1, t.0, t.1);
+        match self
+            .links
+            .iter()
+            .position(|l| (l.target, l.target_socket) == t)
+        {
+            Some(i) => {
+                self.links[i] = new;
+                Some(i)
+            }
+            None => {
+                self.links.push(new);
+                Some(self.links.len() - 1)
+            }
+        }
+    }
+}
 
-        if geom::is_out_of_bounds(fx, fy, tx, ty) {
+impl State {
+    pub fn remove_node(&mut self, idx: usize) {
+        if idx >= self.nodes.len() {
             return;
         }
+        let off = self.nodes.remove(idx);
 
-        if s.hovered_link == Some(i) {
-            ctx.stroke_style([255, 240, 140]);
-            ctx.line_width(3.0);
-        } else {
-            ctx.stroke_style([210, 180, 60]);
-            ctx.line_width(2.0);
+        self.keyframes.lanes.retain_mut(|l| {
+            let had = !l.targets.is_empty();
+            l.targets.retain(|t| t.0 != off);
+            !had || !l.targets.is_empty()
+        });
+        self.links
+            .retain(|l| l.source as usize != idx && l.target as usize != idx);
+        for l in &mut self.links {
+            l.source -= (l.source as usize > idx) as u16;
+            l.target -= (l.target as usize > idx) as u16;
         }
-
-        ctx.stroke_line(fx, fy, tx, ty, true);
+        self.rope_clear_links();
     }
 }
 
-pub fn find_hovered_link(s: &GraphState, x: f32, y: f32) -> Option<usize> {
-    for (i, l) in s.links.iter().enumerate() {
-        let (fx, fy) = output_pos(&s.nodes[l.from], l.from_socket);
-        let (tx, ty) = input_pos(&s.nodes[l.to], l.to_socket);
-        if point_segment_dist2(x, y, fx, fy, tx, ty) <= LINK_HIT_DIST2 {
-            return Some(i);
+#[cfg(test)]
+mod tests {
+    use crate::graph::{NodeKind, State};
+
+    #[test]
+    fn remove_node_drops_and_reindexes_links() {
+        let mut s = State::new();
+        for _ in 0..3 {
+            s.add_node(NodeKind::Add, [0.0; 2], [0.0; 2]).unwrap();
         }
+        s.link((0, 0), (1, 0));
+        s.link((1, 0), (2, 0));
+        s.link((0, 0), (2, 1));
+        s.remove_node(1);
+        assert_eq!(s.nodes.len(), 2);
+        assert_eq!(s.links.len(), 1);
+        let l = &s.links[0];
+        assert_eq!((l.source, l.target, l.target_socket), (0, 1, 1));
     }
-    None
 }

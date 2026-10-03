@@ -1,15 +1,22 @@
+use super::{Label, label};
+use alloc::boxed::Box;
+use microfft::Complex32;
 use crate::ffi;
-use crate::graph::NodeCategory;
-use crate::graph::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeLogic, Param, node::helpers};
+use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::helpers::{self};
 
 pub struct InharmonicShiftNode;
 
+impl InharmonicShiftNode {
+    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![Param::new_log("Shift", -20.0, 512.0).with_default_denorm(0.0)];
+}
+
 impl NodeLogic for InharmonicShiftNode {
-    fn title(&self) -> &'static str {
-        "Inharmonic shift"
+    fn title(&self) -> Label {
+        label("Inharmonic shift")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
+    fn category(&self) -> &'static [NodeCategory] {
         &[NodeCategory::Effect, NodeCategory::Fft]
     }
 
@@ -22,7 +29,7 @@ impl NodeLogic for InharmonicShiftNode {
     }
 
     fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
-        crate::params![Param::new_log("Shift", -20.0, 512.0).with_default_denorm(0.0)]
+        Self::PARAMS
     }
 
     /*
@@ -43,11 +50,12 @@ impl NodeLogic for InharmonicShiftNode {
         let mult = (1.0 + shift * 0.05).max(1e-6);
 
         let src = helpers::input(inputs, 0);
-        let mut samples: [f32; BUFFER_LEN] = *src;
+        let mut samples = helpers::copy_of(src);
         let spectrum = microfft::real::rfft_2048(&mut samples);
         let n = spectrum.len();
 
-        let mut shifted = *spectrum;
+        let mut shifted: Box<[Complex32; BUFFER_LEN / 2]> = helpers::boxed(Complex32::new(0.0, 0.0));
+        shifted.copy_from_slice(spectrum);
         for b in shifted.iter_mut().skip(1) {
             b.re = 0.0;
             b.im = 0.0;
@@ -75,7 +83,7 @@ impl NodeLogic for InharmonicShiftNode {
             }
         }
 
-        spectrum.copy_from_slice(&shifted);
+        spectrum.copy_from_slice(&shifted[..]);
 
         let mut full = helpers::unpack_real_fft(spectrum);
         let time = microfft::inverse::ifft_2048(&mut full);

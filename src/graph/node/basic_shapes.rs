@@ -1,19 +1,24 @@
+use super::{Label, label};
 use crate::ffi;
-use crate::graph::node::helpers::PI32;
-use crate::graph::{BUFFER_LEN_F32, Buffer, Param, consts::*};
-
-use super::NodeLogic;
-use super::helpers;
+use super::{BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::helpers::{self, PI32};
 
 pub struct BasicShapesNode;
 
+impl BasicShapesNode {
+    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+        Param::new_enum("Shape", &["Sine", "Triangle", "Square", "Sawtooth"]),
+        Param::new_int("Repeats", 1, 100).with_unit("x"),
+    ];
+}
+
 impl NodeLogic for BasicShapesNode {
-    fn title(&self) -> &'static str {
-        "Basic shapes"
+    fn title(&self) -> Label {
+        label("Basic shapes")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
-        &[super::NodeCategory::Inputs]
+    fn category(&self) -> &'static [NodeCategory] {
+        &[NodeCategory::Inputs]
     }
 
     fn input_count(&self) -> usize {
@@ -24,11 +29,8 @@ impl NodeLogic for BasicShapesNode {
         1
     }
 
-    fn default_params(&self) -> [Option<crate::graph::Param>; crate::graph::MAX_PARAMS] {
-        crate::params![
-            Param::new_enum("Shape", &["Sine", "Triangle", "Square", "Sawtooth"]),
-            Param::new_int("Repeats", 1, 100).with_unit("x"),
-        ]
+    fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
+        Self::PARAMS
     }
 
     fn process(

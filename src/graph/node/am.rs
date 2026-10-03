@@ -1,14 +1,20 @@
-use crate::graph::{Buffer, MAX_PARAMS, NodeLogic, Param, node::helpers};
+use super::{Label, label};
+use super::{Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::helpers::{self};
 
 pub struct AmNode;
 
+impl AmNode {
+    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![Param::new_linear("Depth", 0.0, 1.0)];
+}
+
 impl NodeLogic for AmNode {
-    fn title(&self) -> &'static str {
-        "Amplitude Modulation"
+    fn title(&self) -> Label {
+        label("Amplitude Modulation")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
-        &[super::NodeCategory::Combine]
+    fn category(&self) -> &'static [NodeCategory] {
+        &[NodeCategory::Combine]
     }
 
     fn input_count(&self) -> usize {
@@ -20,12 +26,12 @@ impl NodeLogic for AmNode {
     }
 
     fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
-        crate::params![Param::new_linear("Depth", 0.0, 1.0)]
+        Self::PARAMS
     }
 
     fn process(
         &self,
-        inputs: &[&crate::graph::Buffer],
+        inputs: &[&Buffer],
         params: &[Option<Param>; MAX_PARAMS],
         outs: &mut [Buffer],
     ) {

@@ -1,19 +1,20 @@
-use crate::{
-    draw::Direction,
-    graph::{BUFFER_LEN, Buffer, Param, consts::MAX_PARAMS, node::helpers},
-};
-
-use super::NodeLogic;
+use super::{Label, label};
+use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::helpers::{self};
 
 pub struct AddNode;
 
+impl AddNode {
+    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![Param::new_linear("Crossfade", -1.0, 1.0).with_default_denorm(0.0)];
+}
+
 impl NodeLogic for AddNode {
-    fn title(&self) -> &'static str {
-        "Add"
+    fn title(&self) -> Label {
+        label("Add")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
-        &[super::NodeCategory::Combine]
+    fn category(&self) -> &'static [NodeCategory] {
+        &[NodeCategory::Combine]
     }
 
     fn input_count(&self) -> usize {
@@ -25,7 +26,7 @@ impl NodeLogic for AddNode {
     }
 
     fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
-        crate::params![Param::new_linear("Crossfade", -1.0, 1.0).with_default_denorm(0.0)]
+        Self::PARAMS
     }
 
     fn process(
@@ -50,48 +51,5 @@ impl NodeLogic for AddNode {
 
             out[i] = (s0 * gain0) + (s1 * gain1);
         }
-    }
-
-    fn has_widget(&self) -> bool {
-        true
-    }
-
-    fn draw_widget(
-        &self,
-        node: &super::Node,
-        _i: usize,
-        _s: &crate::graph::GraphState,
-        ctx: &mut crate::draw::DrawBuf,
-        rect: (f32, f32, f32, f32),
-    ) {
-        const M: f32 = 10.0;
-        const S: f32 = 18.0;
-
-        let params = &node.params;
-        let value = helpers::param(params, 0, 0.0) as f32;
-
-        let (x, _, w, _) = rect;
-        let ty = rect.1 + rect.3 / 2.0 + S / 3.0;
-
-        let cx = rect.0 + rect.2 / 2.0;
-        let cy = rect.1 + rect.3 / 2.0;
-
-        ctx.fill_style([200; 3]);
-        ctx.fill_text("A", S, x + M, ty, true);
-        ctx.fill_text("B", S, x + w - (S / 2.0) - M, ty, true);
-
-        let gap = w / 3.0;
-        let lx = cx - gap;
-
-        ctx.line_width(1.0);
-        ctx.stroke_style([80; 3]);
-        ctx.stroke_line(lx, cy, cx + gap, cy, true);
-
-        #[rustfmt::skip]
-        ctx.stroke_line_repeated(lx,cy - 4.0,lx,cy + 4.0,3,gap,Direction::Horizontal,true);
-
-        let px = cx + value * gap;
-        ctx.fill_style([100, 220, 160]);
-        ctx.fill_circle(px, cy, 5.0, true);
     }
 }

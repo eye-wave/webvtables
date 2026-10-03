@@ -1,13 +1,12 @@
-use crate::graph::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, MAX_PARAMS, NodeCategory, Param};
-
-use super::NodeLogic;
-use super::helpers;
+use super::{Label, label};
+use super::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::helpers::{self};
 
 pub struct BandSplitNode;
 
 impl BandSplitNode {
-    fn band(src: &Buffer, lo: usize, hi: usize) -> Buffer {
-        let mut samples: [f32; BUFFER_LEN] = *src;
+    fn band(src: &Buffer, out: &mut Buffer, lo: usize, hi: usize) {
+        let mut samples = helpers::copy_of(src);
         let spectrum = microfft::real::rfft_2048(&mut samples);
 
         for (k, spec) in spectrum.iter_mut().enumerate() {
@@ -19,20 +18,29 @@ impl BandSplitNode {
         let mut full = helpers::unpack_real_fft(spectrum);
         let time = microfft::inverse::ifft_2048(&mut full);
 
-        let mut out = [0f32; BUFFER_LEN];
         for i in 0..BUFFER_LEN {
             out[i] = time[i].re;
         }
-        out
     }
 }
 
+impl BandSplitNode {
+    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+        Param::new_log("Low band", 1.0, BUFFER_LEN_F64)
+            .with_unit("bins")
+            .with_default_denorm(40.0),
+        Param::new_log("High band", 1.0, BUFFER_LEN_F64)
+            .with_unit("bins")
+            .with_default_denorm(1500.0),
+    ];
+}
+
 impl NodeLogic for BandSplitNode {
-    fn title(&self) -> &'static str {
-        "Band split"
+    fn title(&self) -> Label {
+        label("Band split")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
+    fn category(&self) -> &'static [NodeCategory] {
         &[NodeCategory::Fft]
     }
 
@@ -44,15 +52,8 @@ impl NodeLogic for BandSplitNode {
         3
     }
 
-    fn default_params(&self) -> [Option<crate::graph::Param>; crate::graph::MAX_PARAMS] {
-        crate::params![
-            Param::new_log("Low band", 1.0, BUFFER_LEN_F64)
-                .with_unit("bins")
-                .with_default_denorm(40.0),
-            Param::new_log("High band", 1.0, BUFFER_LEN_F64)
-                .with_unit("bins")
-                .with_default_denorm(1500.0),
-        ]
+    fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
+        Self::PARAMS
     }
 
     fn process(
@@ -69,12 +70,9 @@ impl NodeLogic for BandSplitNode {
         let lo = low_edge.clamp(0.0, bins as f32) as usize;
         let hi = high_edge.clamp(lo as f32, bins as f32) as usize;
 
-        outs[0] = Self::band(src, 0, lo);
-        outs[1] = Self::band(src, lo, hi);
-        outs[2] = Self::band(src, hi, bins);
+        Self::band(src, &mut outs[0], 0, lo);
+        Self::band(src, &mut outs[1], lo, hi);
+        Self::band(src, &mut outs[2], hi, bins);
     }
 
-    fn has_widget(&self) -> bool {
-        false
-    }
 }

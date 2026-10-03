@@ -1,17 +1,24 @@
-use crate::graph::{Buffer, Param, consts::*};
-
-use super::NodeLogic;
-use super::helpers;
+use super::{Label, label};
+use super::{Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::helpers::{self};
 
 pub struct GainNode;
 
+impl GainNode {
+    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+        Param::new_linear("Volume", -30.0, 30.0)
+            .with_unit("dB")
+            .with_default_norm(0.5)
+    ];
+}
+
 impl NodeLogic for GainNode {
-    fn title(&self) -> &'static str {
-        "Gain"
+    fn title(&self) -> Label {
+        label("Gain")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
-        &[super::NodeCategory::Effect]
+    fn category(&self) -> &'static [NodeCategory] {
+        &[NodeCategory::Effect]
     }
 
     fn input_count(&self) -> usize {
@@ -22,12 +29,8 @@ impl NodeLogic for GainNode {
         1
     }
 
-    fn default_params(&self) -> [Option<crate::graph::Param>; crate::graph::MAX_PARAMS] {
-        crate::params![
-            Param::new_linear("Volume", -30.0, 30.0)
-                .with_unit("dB")
-                .with_default_norm(0.5)
-        ]
+    fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
+        Self::PARAMS
     }
 
     fn process(

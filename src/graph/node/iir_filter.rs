@@ -1,14 +1,11 @@
-use crate::draw::DrawBuf;
-use crate::ffi;
-use crate::graph::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, GraphState, Node, Param, consts::*};
-
-use super::NodeLogic;
 use super::helpers::{self, PI32, TAU32};
+use super::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::{Label, label};
+use crate::ffi;
 
 pub struct IirFilterNode;
 
 impl IirFilterNode {
-    /// RBJ cookbook biquad coefficients, normalized by a0.
     fn coeffs(shape: u8, w0: f32, q: f32, gain_db: f32) -> (f32, f32, f32, f32, f32) {
         let cos_w0 = ffi::cosf(w0);
         let sin_w0 = ffi::sinf(w0);
@@ -96,13 +93,40 @@ impl IirFilterNode {
     }
 }
 
+impl IirFilterNode {
+    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+        Param::new_enum(
+            "Shape",
+            &[
+                "Lowpass",
+                "Highpass",
+                "Bandpass",
+                "Lowshelf",
+                "Highshelf",
+                "Peaking",
+                "Notch",
+            ],
+        ),
+        Param::new_log("Freq", 1.0, BUFFER_LEN_F64)
+            .with_unit("bins")
+            .with_default_denorm(777.77),
+        Param::new_linear("Gain", -30.0, 30.0)
+            .with_unit("dB")
+            .with_default_norm(0.5),
+        Param::new_linear("Q", 0.0, 10.0).with_default_denorm(1.0),
+        Param::new_linear("Mix", 0.0, 100.0)
+            .with_unit("%")
+            .with_default_norm(1.0),
+    ];
+}
+
 impl NodeLogic for IirFilterNode {
-    fn title(&self) -> &'static str {
-        "IIR Filter"
+    fn title(&self) -> Label {
+        label("IIR Filter")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
-        &[super::NodeCategory::Effect]
+    fn category(&self) -> &'static [NodeCategory] {
+        &[NodeCategory::Effect]
     }
 
     fn input_count(&self) -> usize {
@@ -114,30 +138,7 @@ impl NodeLogic for IirFilterNode {
     }
 
     fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
-        crate::params![
-            Param::new_enum(
-                "Shape",
-                &[
-                    "Lowpass",
-                    "Highpass",
-                    "Bandpass",
-                    "Lowshelf",
-                    "Highshelf",
-                    "Peaking",
-                    "Notch",
-                ],
-            ),
-            Param::new_log("Freq", 1.0, BUFFER_LEN_F64)
-                .with_unit("bins")
-                .with_default_denorm(777.77),
-            Param::new_linear("Gain", -30.0, 30.0)
-                .with_unit("dB")
-                .with_default_norm(0.5),
-            Param::new_linear("Q", 0.0, 10.0).with_default_denorm(1.0),
-            Param::new_linear("Mix", 0.0, 100.0)
-                .with_unit("%")
-                .with_default_norm(1.0),
-        ]
+        Self::PARAMS
     }
 
     fn process(
@@ -174,46 +175,26 @@ impl NodeLogic for IirFilterNode {
             out[i] = x * (1.0 - mix) + y.clamp(-1e6, 1e6) * mix;
         }
     }
-
     fn has_widget(&self) -> bool {
         true
     }
 
-    fn draw_widget(
+    fn fill_widget(
         &self,
-        node: &Node,
-        _i: usize,
-        _s: &GraphState,
-        ctx: &mut DrawBuf,
-        rect: (f32, f32, f32, f32),
-    ) {
-        let (x, y, w, h) = rect;
-        let params = &node.params;
-        let shape = helpers::param(params, 0, 0.0) as u8;
-        let freq = (helpers::param(params, 1, 1000.0) as f32).max(1.0);
-        let gain_db = helpers::param(params, 2, 0.0) as f32;
-        let q = (helpers::param(params, 3, 0.707) as f32).max(0.02);
-        let mix = (helpers::param(params, 4, 100.0) / 100.0) as f32;
+        _: &[&Buffer],
+        p: &[Option<Param>; MAX_PARAMS],
+        out: &mut Buffer,
+    ) -> usize {
+        let shape = helpers::param(p, 0, 0.0) as u8;
+        let freq = (helpers::param(p, 1, 1000.0) as f32).max(1.0);
+        let gain_db = helpers::param(p, 2, 0.0) as f32;
+        let q = (helpers::param(p, 3, 0.707) as f32).max(0.02);
+        let mix = (helpers::param(p, 4, 100.0) / 100.0) as f32;
 
         let w0 = (TAU32 * freq / BUFFER_LEN as f32).min(PI32 * 0.999);
         let (b0, b1, b2, a1, a2) = Self::coeffs(shape, w0, q, gain_db);
-        let bins = BUFFER_LEN / 2;
 
-        let db_min = -30.0f32;
-        let db_max = 30.0f32;
-        let db_to_y =
-            |db: f32| y + h * (1.0 - (db.clamp(db_min, db_max) - db_min) / (db_max - db_min));
-
-        ctx.stroke_style([70, 70, 78]);
-        ctx.line_width(1.0);
-        ctx.stroke_line(x, db_to_y(0.0), x + w, db_to_y(0.0), true);
-
-        ctx.stroke_style([255, 215, 0]);
-        ctx.line_width(2.0);
-        let mut prev: Option<(f32, f32)> = None;
-        for px in 0..(w as usize) {
-            let t = px as f32 / w.max(1.0);
-            let bin = ffi::powf(bins as f32, t).clamp(1.0, (bins - 1) as f32);
+        helpers::response_curve(out, mix, |bin| {
             let wr = TAU32 * bin / BUFFER_LEN as f32;
             let (cw, sw) = (ffi::cosf(wr), ffi::sinf(wr));
             let (c2w, s2w) = (ffi::cosf(2.0 * wr), ffi::sinf(2.0 * wr));
@@ -225,17 +206,7 @@ impl NodeLogic for IirFilterNode {
 
             let num_mag = ffi::sqrtf(num_re * num_re + num_im * num_im);
             let den_mag = ffi::sqrtf(den_re * den_re + den_im * den_im).max(1e-6);
-            let ratio = num_mag / den_mag;
-
-            let mixed_ratio = (1.0 - mix) + mix * ratio;
-            let db = 20.0 * ffi::log10f(mixed_ratio.max(1e-6));
-
-            let px_x = x + px as f32;
-            let px_y = db_to_y(db);
-            if let Some((lx, ly)) = prev {
-                ctx.stroke_line(lx, ly, px_x, px_y, true);
-            }
-            prev = Some((px_x, px_y));
-        }
+            num_mag / den_mag
+        })
     }
 }

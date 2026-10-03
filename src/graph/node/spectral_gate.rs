@@ -1,17 +1,27 @@
+use super::helpers::{self};
+use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::{Label, label};
 use crate::ffi;
-use crate::graph::{BUFFER_LEN, Buffer, NodeCategory, Param, consts::*};
-
-use super::NodeLogic;
-use super::helpers;
 
 pub struct SpectralGateNode;
 
+impl SpectralGateNode {
+    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+        Param::new_linear("Threshold", -80.0, 10.0)
+            .with_unit("dB")
+            .with_default_norm(1.0),
+        Param::new_linear("Mix", 0.0, 100.0)
+            .with_unit("%")
+            .with_default_norm(1.0)
+    ];
+}
+
 impl NodeLogic for SpectralGateNode {
-    fn title(&self) -> &'static str {
-        "Spectral Gate"
+    fn title(&self) -> Label {
+        label("Spectral Gate")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
+    fn category(&self) -> &'static [NodeCategory] {
         &[NodeCategory::Effect, NodeCategory::Fft]
     }
 
@@ -23,15 +33,8 @@ impl NodeLogic for SpectralGateNode {
         1
     }
 
-    fn default_params(&self) -> [Option<crate::graph::Param>; crate::graph::MAX_PARAMS] {
-        crate::params![
-            Param::new_linear("Threshold", -80.0, 10.0)
-                .with_unit("dB")
-                .with_value(1.0),
-            Param::new_linear("Mix", 0.0, 100.0)
-                .with_unit("%")
-                .with_value(1.0)
-        ]
+    fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
+        Self::PARAMS
     }
 
     fn process(
@@ -47,7 +50,7 @@ impl NodeLogic for SpectralGateNode {
         let src = helpers::input(inputs, 0);
         let mix = (helpers::param(params, 1, 100.0) / 100.0) as f32;
 
-        let mut samples: [f32; BUFFER_LEN] = *src;
+        let mut samples = helpers::copy_of(src);
         let spectrum = microfft::real::rfft_2048(&mut samples);
 
         for bin in spectrum.iter_mut() {

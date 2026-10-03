@@ -1,17 +1,20 @@
-use super::NodeLogic;
-use super::helpers;
-use crate::graph::BUFFER_LEN_F64;
-use crate::graph::{BUFFER_LEN, Buffer, MAX_PARAMS, Param};
+use super::{Label, label};
+use super::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::helpers::{self};
 
 pub struct PhaseShiftNode;
 
+impl PhaseShiftNode {
+    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![Param::new_linear("Shift", 0.0, 360.0).with_unit("°")];
+}
+
 impl NodeLogic for PhaseShiftNode {
-    fn title(&self) -> &'static str {
-        "Phase shift"
+    fn title(&self) -> Label {
+        label("Phase shift")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
-        &[super::NodeCategory::Effect]
+    fn category(&self) -> &'static [NodeCategory] {
+        &[NodeCategory::Effect]
     }
 
     fn input_count(&self) -> usize {
@@ -23,7 +26,7 @@ impl NodeLogic for PhaseShiftNode {
     }
 
     fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
-        crate::params![Param::new_linear("Shift", 0.0, 360.0).with_unit("°")]
+        Self::PARAMS
     }
 
     fn process(

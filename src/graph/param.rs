@@ -1,564 +1,316 @@
-use core::ops::{Deref, DerefMut};
+#![allow(dead_code)]
+use crate::graph::{Label, Labels, State, label, labels};
+use libm::{exp, log, round};
 
-use crate::{FixedStr, ffi};
-
-trait ParamLogic {
-    fn name(&self) -> &'static str;
-    fn value(&self) -> f64;
-    fn set_value(&mut self, val: f64);
-    fn drag_range_px(&self) -> f64 {
-        150.0
-    }
-
-    fn normalize(&self, denorm: f64) -> f64;
-}
-
-trait ParamWriteDenorm {
-    type ParamType;
-    fn denormalize(&self, val: f64) -> Self::ParamType;
-    fn write_denorm_value<const N: usize>(&self, buf: &mut FixedStr<N>);
+#[derive(Clone, Copy)]
+enum Kind {
+    Linear(f64, f64),
+    Log(f64, f64),
+    Int(i32, i32),
+    Enum(u8),
 }
 
 #[derive(Clone, Copy)]
-pub struct LinearParam {
-    name: &'static str,
-    value: f64,
-    r_min: f64,
-    r_max: f64,
-}
-
-#[derive(Clone, Copy)]
-pub struct LogParam {
-    name: &'static str,
-    value: f64,
-    log_min: f64,
-    log_max: f64,
-}
-
-#[derive(Clone, Copy)]
-pub struct IntParam {
-    name: &'static str,
-    value: f64,
-    r_min: i32,
-    r_max: i32,
-}
-
-#[derive(Clone, Copy)]
-pub struct EnumParam {
-    name: &'static str,
-    value: u8,
-    data: &'static [&'static str],
-}
-
-#[derive(Clone, Copy)]
-pub enum ParamTypes {
-    Linear(LinearParam),
-    Log(LogParam),
-    Int(IntParam),
-    Enum(EnumParam),
+enum Init {
+    Norm(f64),
+    Denorm(f64),
 }
 
 #[derive(Clone, Copy)]
 pub struct Param {
-    default: f64,
-    inner: ParamTypes,
-    unit: Option<&'static str>,
-}
-
-impl Deref for Param {
-    type Target = ParamTypes;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl DerefMut for Param {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
-    }
-}
-
-#[inline]
-fn sym_log(val: f64) -> f64 {
-    val.signum() * ffi::ln(val.abs() + 1.0)
-}
-
-#[inline]
-fn sym_exp(val: f64) -> f64 {
-    val.signum() * (ffi::exp(val.abs()) - 1.0)
-}
-
-struct ParamWidget {
-    node_id: usize,
-    param_id: usize,
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-    zoom: f32,
+    name: Label,
+    kind: Kind,
     value: f64,
+    default: Init,
+    unit: Option<Label>,
+    options: Option<Labels>,
 }
 
-impl ParamWidget {
-    fn fill_buf(&self, buffer: &mut [u8]) {
-        buffer[0..4].copy_from_slice(&(self.node_id as u32).to_le_bytes());
-        buffer[4..8].copy_from_slice(&(self.param_id as u32).to_le_bytes());
-
-        buffer[8..12].copy_from_slice(&self.x.to_le_bytes());
-        buffer[12..16].copy_from_slice(&self.y.to_le_bytes());
-        buffer[16..20].copy_from_slice(&self.w.to_le_bytes());
-        buffer[20..24].copy_from_slice(&self.h.to_le_bytes());
-        buffer[24..28].copy_from_slice(&self.zoom.to_le_bytes());
-
-        buffer[28..36].copy_from_slice(&self.value.to_le_bytes());
-    }
+fn sym_log(v: f64) -> f64 {
+    v.signum() * log(v.abs() + 1.0)
 }
 
-enum ParamWidgetType {
-    Number {
-        inner: ParamWidget,
-        min: f64,
-        max: f64,
-    },
-    Enum {
-        inner: ParamWidget,
-        ptr: u32,
-        len: usize,
-    },
-}
-
-impl ParamWidgetType {
-    pub fn open_widget(&self) {
-        match self {
-            Self::Number { inner, min, max } => {
-                let mut buffer = [0u8; 52];
-
-                inner.fill_buf(&mut buffer);
-
-                buffer[36..44].copy_from_slice(&(min).to_le_bytes());
-                buffer[44..52].copy_from_slice(&(max).to_le_bytes());
-
-                ffi::open_float_param(buffer.as_ptr());
-            }
-            Self::Enum { inner, ptr, len } => {
-                let mut buffer = [0u8; 40];
-
-                inner.fill_buf(&mut buffer);
-
-                buffer[36..40].copy_from_slice(&(*ptr as usize).to_le_bytes());
-
-                ffi::open_enum_param(buffer.as_ptr(), *len);
-            }
-        }
-    }
+fn sym_exp(v: f64) -> f64 {
+    v.signum() * (exp(v.abs()) - 1.0)
 }
 
 impl Param {
-    pub const fn new_linear(name: &'static str, r_min: f64, r_max: f64) -> Self {
+    const fn new(name: &'static str, kind: Kind) -> Self {
         Self {
-            default: 0.0,
-            inner: ParamTypes::Linear(LinearParam {
-                name,
-                value: 0.0,
-                r_min,
-                r_max,
-            }),
+            name: label(name),
+            kind,
+            value: f64::NAN,
+            default: Init::Norm(0.0),
             unit: None,
+            options: None,
         }
     }
 
-    pub fn new_log(name: &'static str, r_min: f64, r_max: f64) -> Self {
-        Self {
-            default: 0.0,
-            inner: ParamTypes::Log(LogParam {
-                name,
-                value: 0.0,
-                log_min: sym_log(r_min),
-                log_max: sym_log(r_max),
-            }),
-            unit: None,
-        }
+    pub const fn new_linear(name: &'static str, min: f64, max: f64) -> Self {
+        Self::new(name, Kind::Linear(min, max))
     }
 
-    pub const fn new_log_const(name: &'static str, log_min: f64, log_max: f64) -> Self {
-        Self {
-            default: 0.0,
-            inner: ParamTypes::Log(LogParam {
-                name,
-                value: 0.0,
-                log_min,
-                log_max,
-            }),
-            unit: None,
-        }
+    pub const fn new_log(name: &'static str, min: f64, max: f64) -> Self {
+        Self::new(name, Kind::Log(min, max))
     }
 
-    pub const fn new_int(name: &'static str, r_min: i32, r_max: i32) -> Self {
-        Self {
-            default: 0.0,
-            inner: ParamTypes::Int(IntParam {
-                name,
-                value: 0.0,
-                r_min,
-                r_max,
-            }),
-            unit: None,
-        }
+    pub const fn new_int(name: &'static str, min: i32, max: i32) -> Self {
+        Self::new(name, Kind::Int(min, max))
     }
 
+    #[allow(clippy::unit_arg)]
     pub const fn new_enum(name: &'static str, data: &'static [&'static str]) -> Self {
-        Self {
-            default: 0.0,
-            inner: ParamTypes::Enum(EnumParam {
-                name,
-                value: 0,
-                data,
-            }),
-            unit: None,
-        }
+        let mut p = Self::new(name, Kind::Enum(data.len() as u8));
+        p.options = Some(labels(data));
+        p
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn open_param_widget(
-        &self,
-        node_id: usize,
-        param_id: usize,
-        x: f32,
-        y: f32,
-        w: f32,
-        h: f32,
-        zoom: f32,
-    ) {
-        let inner = ParamWidget {
-            node_id,
-            param_id,
-            x,
-            y,
-            w,
-            h,
-            zoom,
-            value: 0.0,
-        };
-
-        match self.inner {
-            ParamTypes::Int(p) => ParamWidgetType::Number {
-                inner: ParamWidget {
-                    value: self.denorm(),
-                    ..inner
-                },
-                min: p.r_min as f64,
-                max: p.r_max as f64,
-            }
-            .open_widget(),
-            ParamTypes::Linear(p) => ParamWidgetType::Number {
-                inner: ParamWidget {
-                    value: self.denorm(),
-                    ..inner
-                },
-                min: p.r_min,
-                max: p.r_max,
-            }
-            .open_widget(),
-            ParamTypes::Log(p) => ParamWidgetType::Number {
-                inner: ParamWidget {
-                    value: self.denorm(),
-                    ..inner
-                },
-                min: p.denormalize(0.0),
-                max: p.denormalize(1.0),
-            }
-            .open_widget(),
-            ParamTypes::Enum(p) => ParamWidgetType::Enum {
-                inner: ParamWidget {
-                    value: self.denorm(),
-                    ..inner
-                },
-                len: p.data.len(),
-                ptr: (p.data.as_ptr() as u32),
-            }
-            .open_widget(),
-        };
-    }
-
+    #[allow(clippy::unit_arg)]
     pub const fn with_unit(mut self, unit: &'static str) -> Self {
-        self.unit = Some(unit);
+        self.unit = Some(label(unit));
         self
     }
 
-    pub fn with_value(mut self, value: f64) -> Self {
-        self.inner.as_param_mut().set_value(value);
+    pub const fn with_default_norm(mut self, v: f64) -> Self {
+        self.default = Init::Norm(v);
         self
     }
 
-    pub fn with_default_norm(mut self, v: f64) -> Self {
-        self.default = v;
-        self.as_param_mut().set_value(v);
+    pub const fn with_default_denorm(mut self, v: f64) -> Self {
+        self.default = Init::Denorm(v);
         self
     }
 
-    pub fn with_default_denorm(mut self, v: f64) -> Self {
-        self.inner.set_denorm(v);
-        self.default = self.inner.value();
-        self
-    }
-
-    pub fn reset_to_default(&mut self) {
-        let val = self.default;
-        self.as_param_mut().set_value(val);
-    }
-
-    pub fn format_value(&self, buf: &mut FixedStr<16>) {
-        match self.inner {
-            ParamTypes::Linear(p) => p.write_denorm_value(buf),
-            ParamTypes::Log(p) => p.write_denorm_value(buf),
-            ParamTypes::Int(p) => p.write_denorm_value(buf),
-            ParamTypes::Enum(p) => p.write_denorm_value(buf),
+    pub fn default_norm(&self) -> f64 {
+        match self.default {
+            Init::Norm(n) => n,
+            Init::Denorm(d) => self.normalize(d),
         }
-
-        if let Some(unit) = self.unit {
-            buf.push_str(" ");
-            buf.push_str(unit);
-        }
-    }
-
-    pub fn drag_from(&mut self, start_value: f64, delta_px: f64, precise: bool) {
-        let mul = 1.0 - 0.99 * (precise as u8 as f64);
-        self.inner.drag_from(start_value, delta_px * mul);
-    }
-
-    pub fn set_value_norm(&mut self, val: f64) {
-        self.as_param_mut().set_value(val);
-    }
-
-    pub fn set_value_denorm(&mut self, val: f64) {
-        let val = self.as_param().normalize(val);
-        self.as_param_mut().set_value(val);
-    }
-
-    /// The param's real-world (denormalized) numeric value — Hz, dB, etc.
-    /// for Linear/Log params, or the selected index for Enum params. This is
-    /// what DSP code should read; `value()` is the raw 0..1 slider position.
-    pub fn denorm(&self) -> f64 {
-        match self.inner {
-            ParamTypes::Linear(p) => p.denormalize(p.value),
-            ParamTypes::Log(p) => p.denormalize(p.value),
-            ParamTypes::Int(p) => p.denormalize(p.value) as f64,
-            ParamTypes::Enum(p) => p.value as f64,
-        }
-    }
-}
-
-impl ParamTypes {
-    pub fn name(&self) -> &'static str {
-        self.as_param().name()
     }
 
     pub fn value(&self) -> f64 {
-        self.as_param().value()
-    }
-
-    fn drag_from(&mut self, start_value: f64, delta_px: f64) {
-        let range_px = self.as_param().drag_range_px();
-        let delta_norm = delta_px / range_px;
-        let val = (start_value + delta_norm).clamp(0.0, 1.0);
-
-        self.as_param_mut().set_value(val);
-    }
-
-    fn set_denorm(&mut self, denorm: f64) {
-        match self {
-            Self::Linear(p) => {
-                let n = p.normalize(denorm);
-                p.set_value(n);
-            }
-            Self::Log(p) => {
-                let n = p.normalize(denorm);
-                p.set_value(n);
-            }
-            Self::Int(p) => {
-                let n = p.normalize(ffi::round(denorm));
-                p.set_value(n);
-            }
-            Self::Enum(p) => {
-                let idx = (denorm.max(0.0) as usize).min(p.data.len().saturating_sub(1));
-                p.value = idx as u8;
-            }
+        if self.value.is_nan() {
+            self.default_norm()
+        } else {
+            self.value
         }
     }
 
-    #[inline]
-    fn as_param(&self) -> &dyn ParamLogic {
-        match self {
-            Self::Linear(p) => p,
-            Self::Log(p) => p,
-            Self::Int(p) => p,
-            Self::Enum(p) => p,
+    pub fn set_norm(&mut self, v: f64) {
+        self.value = v.clamp(0.0, 1.0);
+    }
+
+    pub fn set_denorm(&mut self, d: f64) {
+        self.set_norm(self.normalize(d));
+    }
+
+    pub fn reset(&mut self) {
+        self.value = f64::NAN;
+    }
+
+    pub fn denorm(&self) -> f64 {
+        self.denormalize(self.value())
+    }
+
+    pub fn denormalize(&self, n: f64) -> f64 {
+        match self.kind {
+            Kind::Linear(lo, hi) => lo + n * (hi - lo),
+            Kind::Log(lo, hi) => {
+                let (a, b) = (sym_log(lo), sym_log(hi));
+                sym_exp(a + n * (b - a))
+            }
+            Kind::Int(lo, hi) => round(lo as f64 + n * (hi - lo) as f64),
+            Kind::Enum(_) => round(n * self.last()),
         }
     }
 
-    #[inline]
-    fn as_param_mut(&mut self) -> &mut dyn ParamLogic {
-        match self {
-            Self::Linear(p) => p,
-            Self::Log(p) => p,
-            Self::Int(p) => p,
-            Self::Enum(p) => p,
-        }
-    }
-}
-
-// --- Linear Param ---
-impl ParamLogic for LinearParam {
-    fn name(&self) -> &'static str {
-        self.name
-    }
-    fn value(&self) -> f64 {
-        self.value
-    }
-    fn set_value(&mut self, val: f64) {
-        self.value = val;
-    }
-    fn normalize(&self, denorm: f64) -> f64 {
-        let range = self.r_max - self.r_min;
-        if range == 0.0 {
+    pub fn normalize(&self, d: f64) -> f64 {
+        let (v, lo, hi) = match self.kind {
+            Kind::Linear(lo, hi) => (d, lo, hi),
+            Kind::Log(lo, hi) => (sym_log(d), sym_log(lo), sym_log(hi)),
+            Kind::Int(lo, hi) => (round(d), lo as f64, hi as f64),
+            Kind::Enum(_) => (d, 0.0, self.last()),
+        };
+        if hi == lo {
             0.0
         } else {
-            ((denorm - self.r_min) / range).clamp(0.0, 1.0)
+            ((v - lo) / (hi - lo)).clamp(0.0, 1.0)
         }
     }
-}
 
-impl ParamWriteDenorm for LinearParam {
-    type ParamType = f64;
-
-    fn denormalize(&self, n: f64) -> Self::ParamType {
-        self.r_min + n * (self.r_max - self.r_min)
+    pub fn drag_from(&mut self, start: f64, delta_px: f64, precise: bool) {
+        let mul = if precise { 0.01 } else { 1.0 };
+        self.set_norm(start + delta_px * mul / self.drag_range_px());
     }
 
-    fn write_denorm_value<const N: usize>(&self, buf: &mut FixedStr<N>) {
-        let val = self.denormalize(self.value);
-        buf.push_fixed2(val);
-    }
-}
-
-// --- Log Param ---
-impl ParamLogic for LogParam {
-    fn name(&self) -> &'static str {
-        self.name
-    }
-    fn value(&self) -> f64 {
-        self.value
-    }
-    fn set_value(&mut self, val: f64) {
-        self.value = val;
-    }
-    fn normalize(&self, denorm: f64) -> f64 {
-        let log_val = sym_log(denorm);
-        let range = self.log_max - self.log_min;
-        if range == 0.0 {
-            0.0
-        } else {
-            ((log_val - self.log_min) / range).clamp(0.0, 1.0)
-        }
-    }
-}
-
-impl ParamWriteDenorm for LogParam {
-    type ParamType = f64;
-
-    fn denormalize(&self, n: f64) -> Self::ParamType {
-        let log_val = self.log_min + n * (self.log_max - self.log_min);
-        sym_exp(log_val)
-    }
-
-    fn write_denorm_value<const N: usize>(&self, buf: &mut FixedStr<N>) {
-        let val = self.denormalize(self.value);
-        buf.push_fixed2(val);
-    }
-}
-
-// --- Int Param ---
-impl ParamLogic for IntParam {
-    fn name(&self) -> &'static str {
-        self.name
-    }
-    fn value(&self) -> f64 {
-        self.value
-    }
-    fn set_value(&mut self, val: f64) {
-        self.value = val;
-    }
-    fn normalize(&self, denorm: f64) -> f64 {
-        let range = (self.r_max - self.r_min) as f64;
-        if range == 0.0 {
-            0.0
-        } else {
-            ((denorm as i32 - self.r_min) as f64 / range).clamp(0.0, 1.0)
-        }
-    }
-}
-
-impl ParamWriteDenorm for IntParam {
-    type ParamType = i32;
-
-    fn denormalize(&self, n: f64) -> Self::ParamType {
-        let range = (self.r_max - self.r_min) as f64;
-        let denorm_f64 = self.r_min as f64 + (n * range);
-        ffi::round(denorm_f64) as i32
-    }
-
-    fn write_denorm_value<const N: usize>(&self, buf: &mut FixedStr<N>) {
-        let val = self.denormalize(self.value);
-        buf.push_int(val);
-    }
-}
-
-// --- Enum Param ---
-impl EnumParam {
-    fn last_index(&self) -> f64 {
-        (self.data.len().max(1) - 1) as f64
-    }
-}
-
-impl ParamLogic for EnumParam {
-    fn name(&self) -> &'static str {
-        self.name
-    }
-    fn value(&self) -> f64 {
-        let last = self.last_index();
-        if last == 0.0 {
-            0.0
-        } else {
-            self.value as f64 / last
-        }
-    }
-    fn set_value(&mut self, val: f64) {
-        self.value = ffi::round(val * self.last_index()) as u8;
-    }
-    fn normalize(&self, denorm: f64) -> f64 {
-        if self.data.is_empty() {
-            return 0.0;
-        }
-
-        denorm / self.last_index()
-    }
     fn drag_range_px(&self) -> f64 {
-        const PX_PER_STEP: f64 = 12.0;
-        PX_PER_STEP * self.last_index().max(1.0)
+        match self.kind {
+            Kind::Enum(_) => 12.0 * self.last().max(1.0),
+            _ => 150.0,
+        }
+    }
+
+    fn last(&self) -> f64 {
+        match self.kind {
+            Kind::Enum(n) => (n.max(1) - 1) as f64,
+            _ => 0.0,
+        }
     }
 }
 
-impl ParamWriteDenorm for EnumParam {
-    type ParamType = &'static str;
+#[cfg(test)]
+impl Param {
+    pub fn ts(&self) -> alloc::string::String {
+        use alloc::format;
+        let mut s = format!("{{ name: {:?}", self.name);
+        if let Some(o) = self.options {
+            s += &format!(", options: {o:?}");
+        }
+        s += &format!(", default: {}", self.default_norm());
+        if let Some(u) = self.unit {
+            s += &format!(", unit: {u:?}");
+        }
+        s + " }"
+    }
+}
 
-    fn denormalize(&self, val: f64) -> Self::ParamType {
-        let idx = ffi::round(val * self.last_index()) as usize;
-        self.data.get(idx).unwrap_or(&"")
+const TEXT_CAP: usize = 24;
+static mut TEXT: [u8; TEXT_CAP] = [0; TEXT_CAP];
+
+pub fn text_ptr() -> usize {
+    (&raw const TEXT) as usize
+}
+
+impl State {
+    pub fn param_text(&self, idx: usize, i: usize) -> usize {
+        let param = self
+            .kind(idx)
+            .and_then(|k| k.as_node().default_params().get(i).copied().flatten());
+        let (Some(p), Some(&v)) = (param, self.params(idx).get(i)) else {
+            return 0;
+        };
+        write_num(p.denormalize(v as f64), unsafe { &mut TEXT })
     }
 
-    fn write_denorm_value<const N: usize>(&self, buf: &mut FixedStr<N>) {
-        let val = self.denormalize(self.value());
-        buf.push_str(val);
+    /// Sets a param from its displayed (denormalized) value. False if no such param.
+    pub fn param_set_denorm(&mut self, idx: usize, i: usize, d: f64) -> bool {
+        let param = self
+            .kind(idx)
+            .and_then(|k| k.as_node().default_params().get(i).copied().flatten());
+        let (Some(p), Some(addr)) = (param, self.param_addr(idx, i)) else {
+            return false;
+        };
+        let off = (addr - self.arena.base()) as u32;
+        self.arena.slice_mut::<f32>(off, 1)[0] = p.normalize(d) as f32;
+        true
     }
+}
+
+fn write_num(v: f64, out: &mut [u8; TEXT_CAP]) -> usize {
+    let a = v.abs().min(1e9);
+    let decimals: usize = match a {
+        a if a >= 100.0 => 0,
+        a if a >= 10.0 => 1,
+        a if a >= 1.0 => 2,
+        a if a >= 0.1 => 3,
+        _ => 4,
+    };
+    let mut x = round(a * [1.0, 10.0, 100.0, 1e3, 1e4][decimals]) as u64;
+    let mut n = 0;
+    if v < 0.0 && x != 0 {
+        out[0] = b'-';
+        n = 1;
+    }
+    let mut digits = [0u8; 16];
+    let mut d = 0;
+    loop {
+        digits[d] = b'0' + (x % 10) as u8;
+        d += 1;
+        x /= 10;
+        if x == 0 && d > decimals {
+            break;
+        }
+    }
+    for k in (decimals..d).rev() {
+        out[n] = digits[k];
+        n += 1;
+    }
+    let lo = digits[..decimals]
+        .iter()
+        .take_while(|&&c| c == b'0')
+        .count();
+    if lo < decimals {
+        out[n] = b'.';
+        n += 1;
+        for k in (lo..decimals).rev() {
+            out[n] = digits[k];
+            n += 1;
+        }
+    }
+    n
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::graph::NodeKind;
+
+    fn num(v: f64) -> alloc::string::String {
+        let mut b = [0; TEXT_CAP];
+        let n = write_num(v, &mut b);
+        alloc::string::String::from_utf8(b[..n].to_vec()).unwrap()
+    }
+
+    #[test]
+    fn formats_numbers() {
+        for (v, s) in [
+            (0.0, "0"),
+            (-12.5, "-12.5"),
+            (440.0, "440"),
+            (0.025, "0.025"),
+            (7.0, "7"),
+            (99.96, "100"),
+            (-0.00001, "0"),
+            (3.14159, "3.14"),
+            (2048.0, "2048"),
+            (-0.5, "-0.5"),
+            (0.0001, "0.0001"),
+        ] {
+            assert_eq!(num(v), s, "{v}");
+        }
+    }
+
+    #[test]
+    fn param_text_reads_arena_value() {
+        let mut s = State::new();
+        s.add_node(NodeKind::Gain, [0.0; 2], [0.0; 2]).unwrap();
+        s.arena.slice_mut::<f32>(
+            s.param_addr(0, 0).unwrap() as u32 - s.arena.base() as u32,
+            1,
+        )[0] = 1.0;
+        let n = s.param_text(0, 0);
+        assert_eq!(unsafe { &TEXT[..n] }, b"30");
+        assert_eq!(s.param_text(0, 1), 0);
+    }
+
+    #[test]
+    fn param_set_denorm_maps_back() {
+        let mut s = State::new();
+        s.add_node(NodeKind::Gain, [0.0; 2], [0.0; 2]).unwrap();
+        assert!(s.param_set_denorm(0, 0, 30.0));
+        assert_eq!(s.params(0)[0], 1.0);
+        assert!(!s.param_set_denorm(0, 1, 0.0));
+    }
+}
+
+#[macro_export]
+macro_rules! params {
+    ($($p:expr),+ $(,)?) => {{
+        let mut a: [Option<$crate::graph::Param>; $crate::graph::MAX_PARAMS] =
+            [None; $crate::graph::MAX_PARAMS];
+        let mut i = 0;
+        $( a[i] = Some($p); i += 1; )+
+        let _ = i;
+        a
+    }};
 }

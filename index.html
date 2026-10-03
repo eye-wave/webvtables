@@ -1,34 +1,21 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <title>webvtable</title>
-
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>webvtabes</title>
     <script type="module" src="/src/main.ts"></script>
-    <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <div id="viewport">
-      <canvas id="canvas_graph"></canvas>
+    <div class="box box-playback"></div>
+    <div class="box box-node-grid">
+      <div id="gridBg"></div>
+      <div id="nodeGrid"></div>
+      <canvas class="overlay-canvas" id="canvas"></canvas>
+      <canvas class="heightmap" id="heightmap"></canvas>
     </div>
-    <div id="webgl_warning" style="display: none">
-      <strong>⚠ Degraded performance mode</strong><br />
-      <span>
-        WebGL is disabled. App remains fully functional, but rendering will be
-        significantly slower.
-      </span>
-    </div>
-    <input
-      class="param"
-      id="param_n_input"
-      type="number"
-      style="display: none"
-    />
-    <select class="param" id="param_e_input" style="display: none">
-      <option value=""></option>
-    </select>
-
-    <div class="menu" id="menu" style="display: none"></div>
-    <div class="search-menu menu" id="search_menu" style="display: none"></div>
+    <div class="resize-handle" id="kfHandle"></div>
+    <div class="box box-keyframes"></div>
   </body>
 </html>

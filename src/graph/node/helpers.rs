@@ -1,12 +1,12 @@
+use alloc::{boxed::Box, vec};
 use microfft::Complex32;
 
+use super::{BUFFER_LEN, Buffer, MAX_PARAMS, Param, ZERO_BUFFER};
 use crate::ffi;
-use crate::graph::{BUFFER_LEN, Buffer, Param, ZERO_BUFFER, consts::MAX_PARAMS};
 
 pub const PI32: f32 = core::f32::consts::PI;
 pub const TAU32: f32 = core::f32::consts::TAU;
 
-/// Denormalized value of `params[idx]`, or `default` if that slot is empty.
 #[inline]
 pub fn param(params: &[Option<Param>; MAX_PARAMS], idx: usize, default: f64) -> f64 {
     params
@@ -17,7 +17,7 @@ pub fn param(params: &[Option<Param>; MAX_PARAMS], idx: usize, default: f64) -> 
 }
 
 #[inline]
-pub fn normalize_buffer(out: &mut crate::graph::Buffer) {
+pub fn normalize_buffer(out: &mut Buffer) {
     let peak = out.iter().fold(0.0f32, |max, &x| max.max(x.abs()));
 
     if peak > 0.0 {
@@ -37,7 +37,7 @@ pub fn param_db(params: &[Option<Param>; MAX_PARAMS], idx: usize, default: f64) 
 
 #[inline]
 pub fn input<'a>(inputs: &[&'a Buffer], idx: usize) -> &'a Buffer {
-    inputs.get(idx).unwrap_or(&&ZERO_BUFFER)
+    inputs.get(idx).copied().unwrap_or(&ZERO_BUFFER)
 }
 
 #[inline]
@@ -51,7 +51,6 @@ pub fn db_to_value(db: f64) -> f64 {
     ffi::exp(db * core::f64::consts::LN_10 / 20.0)
 }
 
-/// Per-sample transform of input 0 into `out`. Covers every 1-in effect node.
 #[inline]
 pub fn map1(inputs: &[&Buffer], out: &mut Buffer, f: impl Fn(f32) -> f32) {
     let src = input(inputs, 0);
@@ -60,7 +59,6 @@ pub fn map1(inputs: &[&Buffer], out: &mut Buffer, f: impl Fn(f32) -> f32) {
     }
 }
 
-/// Per-sample transform of inputs 0 and 1 into `out`. Covers every 2-in combine node.
 #[inline]
 pub fn map2(inputs: &[&Buffer], out: &mut Buffer, f: impl Fn(f32, f32) -> f32) {
     let a = input(inputs, 0);
@@ -68,18 +66,6 @@ pub fn map2(inputs: &[&Buffer], out: &mut Buffer, f: impl Fn(f32, f32) -> f32) {
     for i in 0..BUFFER_LEN {
         out[i] = f(a[i], b[i]);
     }
-}
-
-/// Builds a `[Option<Param>; MAX_PARAMS]`, skipping the `[None; N]; p[i] = Some(..); p` dance.
-/// `params![a, b, c]` -> slots 0, 1, 2 filled, rest `None`.
-#[macro_export]
-macro_rules! params {
-    ($($p:expr),* $(,)?) => {{
-        let mut p = [None; $crate::graph::consts::MAX_PARAMS];
-        let set: [Option<$crate::graph::Param>; _] = [$(Some($p)),*];
-        p[..set.len()].copy_from_slice(&set);
-        p
-    }};
 }
 
 #[inline(always)]
@@ -108,9 +94,33 @@ pub fn from_mag_phase(mag: f32, phase: f32) -> Complex32 {
     }
 }
 
-#[inline(always)]
-pub fn unpack_real_fft(spectrum: &[Complex32; BUFFER_LEN / 2]) -> [Complex32; BUFFER_LEN] {
-    let mut full = [Complex32::new(0.0, 0.0); BUFFER_LEN];
+pub fn response_curve(out: &mut Buffer, mix: f32, ratio: impl Fn(f32) -> f32) -> usize {
+    const POINTS: usize = 256;
+    const DB_RANGE: f32 = 30.0;
+    let bins = (BUFFER_LEN / 2) as f32;
+    for (i, o) in out[..POINTS].iter_mut().enumerate() {
+        let bin = ffi::powf(bins, i as f32 / (POINTS - 1) as f32).clamp(1.0, bins - 1.0);
+        let mixed = (1.0 - mix) + mix * ratio(bin);
+        *o = 20.0 * ffi::log10f(mixed.max(1e-6)) / DB_RANGE;
+    }
+    POINTS
+}
+
+pub fn boxed<T: Clone, const M: usize>(v: T) -> Box<[T; M]> {
+    match vec![v; M].into_boxed_slice().try_into() {
+        Ok(b) => b,
+        Err(_) => unreachable!(),
+    }
+}
+
+pub fn copy_of(src: &Buffer) -> Box<Buffer> {
+    let mut b = boxed(0.0);
+    b.copy_from_slice(src);
+    b
+}
+
+pub fn unpack_real_fft(spectrum: &[Complex32; BUFFER_LEN / 2]) -> Box<[Complex32; BUFFER_LEN]> {
+    let mut full: Box<[Complex32; BUFFER_LEN]> = boxed(Complex32::new(0.0, 0.0));
 
     full[0] = Complex32::new(spectrum[0].re, 0.0);
     full[BUFFER_LEN / 2] = Complex32::new(spectrum[0].im, 0.0);

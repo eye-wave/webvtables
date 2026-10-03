@@ -1,0 +1,29 @@
+.bar {
+  min-width: 130px;
+  touch-action: none;
+}
+
+.bar:hover {
+  background: var(--surface-700);
+}
+
+.play {
+  width: 26px;
+  height: 22px;
+  background: var(--surface-600);
+  border: 1px solid var(--border-300);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.play:hover {
+  border-color: var(--border-500);
+}
+
+.play.active {
+  color: var(--on-accent);
+  background: var(--accent-200);
+  border-color: var(--accent-200);
+}

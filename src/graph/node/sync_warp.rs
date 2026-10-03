@@ -1,17 +1,24 @@
-use super::NodeLogic;
-use super::helpers;
+use super::{Label, label};
 use crate::ffi;
-use crate::graph::NodeCategory;
-use crate::graph::{BUFFER_LEN, Buffer, MAX_PARAMS, Param};
+use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::helpers::{self};
 
 pub struct SyncWarpNode;
 
+impl SyncWarpNode {
+    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+        Param::new_linear("Multiply", 0.0, 50.0)
+            .with_unit("x")
+            .with_default_denorm(1.0)
+    ];
+}
+
 impl NodeLogic for SyncWarpNode {
-    fn title(&self) -> &'static str {
-        "Sync warp"
+    fn title(&self) -> Label {
+        label("Sync warp")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
+    fn category(&self) -> &'static [NodeCategory] {
         &[NodeCategory::Effect, NodeCategory::Warp]
     }
 
@@ -24,11 +31,7 @@ impl NodeLogic for SyncWarpNode {
     }
 
     fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
-        crate::params![
-            Param::new_linear("Multiply", 0.0, 50.0)
-                .with_unit("x")
-                .with_default_denorm(1.0)
-        ]
+        Self::PARAMS
     }
 
     fn process(

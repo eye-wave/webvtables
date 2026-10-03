@@ -1,17 +1,23 @@
-use crate::graph::{BUFFER_LEN, Buffer, Param, consts::*};
-
-use super::NodeLogic;
-use super::helpers;
+use super::{Label, label};
+use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::helpers::{self};
 
 pub struct CombNode;
 
+impl CombNode {
+    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+        Param::new_int("Delay", 0, (BUFFER_LEN / 2) as i32).with_unit("samp"),
+        Param::new_int("Iter", 1, 35).with_unit("n")
+    ];
+}
+
 impl NodeLogic for CombNode {
-    fn title(&self) -> &'static str {
-        "Comb"
+    fn title(&self) -> Label {
+        label("Comb")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
-        &[super::NodeCategory::Effect]
+    fn category(&self) -> &'static [NodeCategory] {
+        &[NodeCategory::Effect]
     }
 
     fn input_count(&self) -> usize {
@@ -22,11 +28,8 @@ impl NodeLogic for CombNode {
         1
     }
 
-    fn default_params(&self) -> [Option<crate::graph::Param>; crate::graph::MAX_PARAMS] {
-        crate::params![
-            Param::new_int("Delay", 0, (BUFFER_LEN / 2) as i32).with_unit("samp"),
-            Param::new_int("Iter", 1, 35).with_unit("n")
-        ]
+    fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
+        Self::PARAMS
     }
 
     fn process(

@@ -1,14 +1,16 @@
-use crate::graph::{Buffer, MAX_PARAMS, NodeLogic, Param, node::helpers};
+use super::{Label, label};
+use super::{Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::helpers::{self};
 
 pub struct RingModNode;
 
 impl NodeLogic for RingModNode {
-    fn title(&self) -> &'static str {
-        "Ring Modulation"
+    fn title(&self) -> Label {
+        label("Ring Modulation")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
-        &[super::NodeCategory::Combine]
+    fn category(&self) -> &'static [NodeCategory] {
+        &[NodeCategory::Combine]
     }
 
     fn input_count(&self) -> usize {
@@ -21,7 +23,7 @@ impl NodeLogic for RingModNode {
 
     fn process(
         &self,
-        inputs: &[&crate::graph::Buffer],
+        inputs: &[&Buffer],
         _params: &[Option<Param>; MAX_PARAMS],
         outs: &mut [Buffer],
     ) {

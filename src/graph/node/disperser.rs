@@ -1,20 +1,20 @@
+use super::{Label, label};
 use crate::ffi;
-use crate::graph::{
-    BUFFER_LEN, BUFFER_LEN_F32, Param,
-    node::helpers::{self, TAU32},
-};
-use crate::graph::{Buffer, NodeCategory};
-
-use super::NodeLogic;
+use super::{BUFFER_LEN, BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::helpers::{self, TAU32};
 
 pub struct DisperserNode;
 
+impl DisperserNode {
+    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![Param::new_linear("Exponent", -10.0, 10.0).with_default_denorm(0.0)];
+}
+
 impl NodeLogic for DisperserNode {
-    fn title(&self) -> &'static str {
-        "Disperser"
+    fn title(&self) -> Label {
+        label("Disperser")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
+    fn category(&self) -> &'static [NodeCategory] {
         &[NodeCategory::Effect, NodeCategory::Fft]
     }
 
@@ -26,14 +26,14 @@ impl NodeLogic for DisperserNode {
         1
     }
 
-    fn default_params(&self) -> [Option<Param>; crate::graph::MAX_PARAMS] {
-        crate::params![Param::new_linear("Exponent", -10.0, 10.0).with_default_denorm(0.0)]
+    fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
+        Self::PARAMS
     }
 
     fn process(
         &self,
-        inputs: &[&crate::graph::Buffer],
-        params: &[Option<Param>; crate::graph::MAX_PARAMS],
+        inputs: &[&Buffer],
+        params: &[Option<Param>; MAX_PARAMS],
         outs: &mut [Buffer],
     ) {
         let out = &mut outs[0];
@@ -43,7 +43,7 @@ impl NodeLogic for DisperserNode {
         let direction = if exp >= 0.0 { 1.0 } else { -1.0 };
         let abs_exp = exp.abs();
 
-        let mut samples: [f32; BUFFER_LEN] = *src;
+        let mut samples = helpers::copy_of(src);
         let spectrum = microfft::real::rfft_2048(&mut samples);
 
         let step = TAU32 / BUFFER_LEN_F32;

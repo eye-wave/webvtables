@@ -1,11 +1,16 @@
-use crate::FixedStr;
-use crate::draw::{Color, Draw, DrawBuf, camera};
-use crate::geom::Interactive;
-use crate::graph::keyframes::gen_diamond;
-use crate::graph::{ZERO_BUFFER, output_pos};
+use crate::graph::{Label, MAX_PARAMS, Param, State, label};
+use alloc::{boxed::Box, vec};
 
-use super::consts::*;
-use super::{Buffer, GraphState, Param, SocketKind, input_pos, is_valid_target};
+pub const N: usize = 2048;
+pub type Buffer = [f32; N];
+pub const BUFFER_LEN: usize = N;
+pub const BUFFER_LEN_F32: f32 = N as f32;
+pub const BUFFER_LEN_F64: f64 = N as f64;
+pub static ZERO_BUFFER: Buffer = [0.0; N];
+
+pub fn zeroed(n: usize) -> Box<[f32]> {
+    vec![0.0; n * N].into_boxed_slice()
+}
 
 mod helpers;
 
@@ -14,27 +19,40 @@ macro_rules! define_nodes {
         paste::paste! {
             $(mod [<$variant:snake>];)+
 
-            #[derive(Clone, Copy, PartialEq)]
             #[repr(u8)]
+            #[derive(Clone, Copy, PartialEq)]
             pub enum NodeKind {
                 $($variant),+
             }
 
+
+            const NODES: &[NodeKind] = &[$(NodeKind::$variant),+];
+            const _: () = {
+                let mut i = 0;
+                while i < NODES.len() {
+                    assert!(NODES[i] as usize == i);
+                    i += 1;
+                }
+            };
+
             impl NodeKind {
                 #[inline]
-                pub fn as_node(&self) -> &dyn NodeLogic {
+                pub fn as_node(&self) -> &'static dyn NodeLogic {
                     match self {
                         $(NodeKind::$variant => &[<$variant:snake>]::[<$variant Node>]),+
                     }
                 }
 
-                pub fn iter() -> impl Iterator<Item = &'static Self> {
-                    const NODES: &[NodeKind] = &[$(NodeKind::$variant),+];
-                    NODES.iter()
+
+                #[cfg(test)]
+                pub fn ident(self) -> &'static str {
+                    match self {
+                        $(NodeKind::$variant => stringify!($variant)),+
+                    }
                 }
 
-                pub const fn count() -> usize {
-                    [$(stringify!($variant)),+].len()
+                pub fn from_u8(n: u8) -> Option<Self> {
+                    NODES.get(n as usize).copied()
                 }
             }
         }
@@ -42,9 +60,10 @@ macro_rules! define_nodes {
 }
 
 define_nodes!(
+    BasicShapes,
+    Output,
     Add,
     Am,
-    BasicShapes,
     BitCrush,
     BandSplit,
     Comb,
@@ -57,7 +76,6 @@ define_nodes!(
     InharmonicShift,
     Invert,
     Noise,
-    Output,
     Partials,
     PhaseShift,
     PhaseCopy,
@@ -70,18 +88,6 @@ define_nodes!(
     Window,
 );
 
-pub mod node_colors {
-    use crate::draw::Color;
-
-    pub const DEFAULT: Color = [70, 90, 200];
-
-    pub const INPUT: Color = [255, 60, 100];
-    pub const OUTPUT: Color = [220, 120, 50];
-    pub const EFFECT: Color = [75, 180, 100];
-}
-
-pub const MAX_CATEGORIES: usize = 4;
-
 pub enum NodeCategory {
     Fft,
     Inputs,
@@ -93,6 +99,7 @@ pub enum NodeCategory {
     Unknown,
 }
 
+#[cfg(test)]
 impl NodeCategory {
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -108,47 +115,28 @@ impl NodeCategory {
     }
 }
 
-impl NodeKind {
-    pub fn from_title(title: &str) -> Option<Self> {
-        for node in Self::iter() {
-            if node.as_node().title() != title {
-                continue;
-            }
-
-            return Some(*node);
-        }
-
-        None
-    }
-}
-
+#[cfg_attr(not(test), allow(dead_code))]
 pub trait NodeLogic {
-    fn title(&self) -> &'static str;
+    fn title(&self) -> Label;
     fn category(&self) -> &'static [NodeCategory] {
         &[NodeCategory::Unknown]
     }
-
-    fn header_color(&self) -> Color {
-        for cat in self.category() {
-            match cat {
-                NodeCategory::Effect => return node_colors::EFFECT,
-                NodeCategory::Inputs => return node_colors::INPUT,
-                NodeCategory::Outputs => return node_colors::OUTPUT,
-                _ => continue,
-            }
-        }
-
-        node_colors::DEFAULT
-    }
-
     fn input_count(&self) -> usize;
     fn output_count(&self) -> usize;
     fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
         [None; MAX_PARAMS]
     }
-
     fn has_widget(&self) -> bool {
         false
+    }
+
+    fn fill_widget(
+        &self,
+        _inputs: &[&Buffer],
+        _params: &[Option<Param>; MAX_PARAMS],
+        _out: &mut Buffer,
+    ) -> usize {
+        0
     }
 
     fn process(
@@ -158,61 +146,12 @@ pub trait NodeLogic {
         _outs: &mut [Buffer],
     ) {
     }
-
-    fn draw_widget(
-        &self,
-        _node: &Node,
-        _i: usize,
-        _s: &GraphState,
-        _ctx: &mut DrawBuf,
-        _rect: (f32, f32, f32, f32),
-    ) {
-    }
 }
 
-impl NodeLogic for NodeKind {
-    fn title(&self) -> &'static str {
-        self.as_node().title()
-    }
-
-    fn header_color(&self) -> [u8; 3] {
-        self.as_node().header_color()
-    }
-
-    fn input_count(&self) -> usize {
-        self.as_node().input_count()
-    }
-
-    fn output_count(&self) -> usize {
-        self.as_node().output_count()
-    }
-
-    fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
-        self.as_node().default_params()
-    }
-
-    fn has_widget(&self) -> bool {
-        self.as_node().has_widget()
-    }
-
-    fn process(
-        &self,
-        inputs: &[&Buffer],
-        params: &[Option<Param>; MAX_PARAMS],
-        outs: &mut [Buffer],
-    ) {
-        self.as_node().process(inputs, params, outs);
-    }
-
-    fn draw_widget(
-        &self,
-        node: &Node,
-        i: usize,
-        s: &GraphState,
-        ctx: &mut DrawBuf,
-        rect: (f32, f32, f32, f32),
-    ) {
-        self.as_node().draw_widget(node, i, s, ctx, rect)
+impl NodeKind {
+    pub fn sockets(self) -> (u8, u8) {
+        let n = self.as_node();
+        (n.input_count() as u8, n.output_count() as u8)
     }
 }
 
@@ -225,303 +164,203 @@ bitflags::bitflags! {
     }
 }
 
-/// 3-letter labels for the flag toggle row, in bit order (matches
-/// `Node::flag_rect` / `flag_hit` indexing 0..3).
-pub const FLAG_LABELS: [&str; 3] = ["Norm", "rem DC", "Clip"];
+#[cfg(test)]
+const FLAG_LABELS: [&str; 3] = ["Norm", "rem DC", "Clip"];
 
-pub const FLAG_BITS: [NodeFlags; 3] = [
-    NodeFlags::NORMALIZE,
-    NodeFlags::REMOVE_DC,
-    NodeFlags::HARD_CLIP,
-];
-
-#[derive(Clone, Copy)]
+#[repr(C)]
 pub struct Node {
-    pub x: f32,
-    pub y: f32,
+    pub position: [f32; 2],
+    pub size: [f32; 2],
     pub kind: NodeKind,
-    pub flags: NodeFlags,
-    pub params: [Option<Param>; MAX_PARAMS],
+    pub flags: u8,
+    pub params: NodeParams,
 }
 
-impl Node {
-    pub const HEADER_H: f32 = 20.0;
-    pub const PARAM_H: f32 = 18.0;
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct NodeParams {
+    start: u32,
+    len: u8,
+}
 
-    const VALUE_X: f32 = 80.0;
-    const VALUE_PAD: f32 = 6.0;
-    const VALUE_BOX_H: f32 = 14.0;
-
-    const WIDGET_MARGIN: f32 = 4.0;
-    pub const WAVE_H: f32 = 34.0;
-    pub const WIDGET_H: f32 = 40.0;
-    pub const FLAGS_H: f32 = 22.0;
-
-    const FLAGS_PAD: f32 = 4.0;
-
-    pub const KF_W: f32 = 8.0;
-    pub const KF_H: f32 = 12.0;
-
-    pub const W: f32 = 180.0;
-
-    fn param_count(&self) -> usize {
-        self.params.iter().flatten().count()
-    }
-
-    /// Computes total dynamic height based on active elements
-    pub fn height(&self) -> f32 {
-        let mut total_h = Self::HEADER_H
-            + (self.param_count() as f32 * Self::PARAM_H)
-            + Self::FLAGS_H
-            + Self::WAVE_H
-            + 10.0;
-
-        if self.kind.has_widget() {
-            total_h += Self::WIDGET_H;
+impl State {
+    pub fn add_node(&mut self, kind: NodeKind, position: [f32; 2], size: [f32; 2]) -> Option<u32> {
+        let defaults = kind.as_node().default_params();
+        let n_params = defaults.iter().flatten().count();
+        let start = self.arena.alloc::<f32>(n_params)?;
+        let off = self.arena.alloc::<Node>(1)?;
+        for (v, d) in self
+            .arena
+            .slice_mut::<f32>(start, n_params)
+            .iter_mut()
+            .zip(defaults)
+        {
+            *v = d.map_or(0.0, |p| p.default_norm() as f32);
         }
-
-        total_h
-    }
-
-    pub fn new(kind: NodeKind, x: f32, y: f32) -> Self {
-        Node {
-            x,
-            y,
+        self.arena.slice_mut::<Node>(off, 1)[0] = Node {
+            position,
+            size,
             kind,
-            flags: NodeFlags::empty(),
-            params: kind.default_params(),
-        }
+            flags: NodeFlags::empty().bits(),
+            params: NodeParams {
+                start,
+                len: n_params as u8,
+            },
+        };
+        self.nodes.push(off);
+        Some(off)
     }
 
-    /// Text baseline for param row `active_idx`. Single source of truth —
-    /// draw() and param_value_rect() both read from here instead of each
-    /// tracking the row offset separately.
-    const fn param_baseline_y(&self, active_idx: usize) -> f32 {
-        self.y + Self::HEADER_H + 12.0 + (active_idx as f32 * Self::PARAM_H)
+    pub fn param_slot(&self, node_off: u32, i: usize) -> Option<u32> {
+        let p = self.arena.slice::<Node>(node_off, 1)[0].params;
+        (i < p.len as usize).then(|| p.start + (i * 4) as u32)
     }
 
-    /// Calculate rect using active sequential index, not the array index slot
-    pub const fn param_value_rect(&self, active_idx: usize) -> (f32, f32, f32, f32) {
-        let box_x = self.x + Self::VALUE_X;
-        let box_w = Self::W - Self::VALUE_X - 8.0;
-        (
-            box_x,
-            self.param_baseline_y(active_idx) - 11.0,
-            box_w,
-            Self::VALUE_BOX_H,
+    pub fn nodes_valid(&self) -> bool {
+        use core::mem::{align_of, offset_of, size_of};
+        let top = self.arena.bytes().len();
+        self.nodes.len() < u16::MAX as usize
+            && self.nodes.iter().all(|&off| {
+                let o = off as usize;
+                if !o.is_multiple_of(align_of::<Node>()) || o + size_of::<Node>() > top {
+                    return false;
+                }
+                let Some(kind) = NodeKind::from_u8(self.arena.bytes()[o + offset_of!(Node, kind)])
+                else {
+                    return false;
+                };
+                let node = &self.arena.slice::<Node>(off, 1)[0];
+                let n = kind.as_node().default_params().iter().flatten().count();
+                let (start, len) = (node.params.start as usize, node.params.len as usize);
+                len == n
+                    && start % align_of::<f32>() == 0
+                    && start + n * 4 <= top
+                    && node
+                        .position
+                        .iter()
+                        .chain(&node.size)
+                        .all(|v| v.is_finite())
+                    && self
+                        .arena
+                        .slice::<f32>(node.params.start, n)
+                        .iter()
+                        .all(|v| v.is_finite())
+            })
+    }
+
+    pub fn kind(&self, idx: usize) -> Option<NodeKind> {
+        Some(self.arena.slice::<Node>(*self.nodes.get(idx)?, 1)[0].kind)
+    }
+
+    pub fn params(&self, idx: usize) -> &[f32] {
+        let Some(&off) = self.nodes.get(idx) else {
+            return &[];
+        };
+        let p = self.arena.slice::<Node>(off, 1)[0].params;
+        self.arena.slice(p.start, p.len as usize)
+    }
+
+    pub fn flags(&self, idx: usize) -> NodeFlags {
+        self.nodes.get(idx).map_or(NodeFlags::empty(), |&off| {
+            NodeFlags::from_bits_truncate(self.arena.slice::<Node>(off, 1)[0].flags)
+        })
+    }
+
+    pub fn sockets(&self, idx: usize) -> Option<(u8, u8)> {
+        let off = *self.nodes.get(idx)?;
+        Some(self.arena.slice::<Node>(off, 1)[0].kind.sockets())
+    }
+
+    pub fn param_addr(&self, idx: usize, i: usize) -> Option<usize> {
+        let p = self.arena.slice::<Node>(*self.nodes.get(idx)?, 1)[0].params;
+        (i < p.len as usize).then(|| self.arena.base() + p.start as usize + i * 4)
+    }
+}
+
+#[cfg(test)]
+pub trait Codegen {
+    fn ts(&self) -> alloc::string::String;
+}
+
+#[cfg(test)]
+impl<T: NodeLogic + ?Sized> Codegen for T {
+    fn ts(&self) -> alloc::string::String {
+        use alloc::{format, string::String, vec::Vec};
+        let cats: Vec<String> = self
+            .category()
+            .iter()
+            .map(|c| format!("{:?}", c.as_str()))
+            .collect();
+        let rows: String = self
+            .default_params()
+            .iter()
+            .flatten()
+            .map(|p| format!("  {},\n", p.ts()))
+            .collect();
+        let params = if rows.is_empty() {
+            String::from("[]")
+        } else {
+            format!("[\n{rows}]")
+        };
+        format!(
+            "export const name = {:?};\nexport const category = [{}] as const;\nexport const inputs = {};\nexport const outputs = {};\nexport const hasWidget = {};\nexport const params = {params} as const;\n",
+            self.title(),
+            cats.join(", "),
+            self.input_count(),
+            self.output_count(),
+            self.has_widget(),
         )
     }
-
-    /// Calculate rect using active sequential index, not the array index slot
-    pub fn keyframe_value_rect(&self, active_idx: usize) -> (f32, f32, f32, f32) {
-        let (bx, by, _, _) = self.param_value_rect(active_idx);
-        let cx = bx - 10.0;
-
-        (cx, by, Self::KF_W, Self::KF_H)
-    }
-
-    /// Top-left y of the flag toggle row, just below the param rows.
-    fn flags_y(&self) -> f32 {
-        self.y + Self::HEADER_H + (self.param_count() as f32 * Self::PARAM_H) + 4.0
-    }
-
-    /// Rect for flag button `idx` (0..3), evenly spaced across the node width.
-    pub fn flag_rect(&self, idx: usize) -> (f32, f32, f32, f32) {
-        let n = FLAG_LABELS.len() as f32;
-        let total_pad = Self::FLAGS_PAD * (n + 1.0);
-        let btn_w = (Self::W - total_pad) / n;
-        let btn_h = Self::FLAGS_H - Self::FLAGS_PAD;
-
-        let x = self.x + Self::FLAGS_PAD + (idx as f32 * (btn_w + Self::FLAGS_PAD));
-        let y = self.flags_y();
-
-        (x, y, btn_w, btn_h)
-    }
-
-    /// Top-left y of the waveform preview strip, based on actual active parameters
-    fn wave_y(&self) -> f32 {
-        self.flags_y() + Self::FLAGS_H
-    }
 }
 
-impl Interactive for Node {
-    /// Whole-body rect (used for drag pickup / hover checks; header and
-    /// param rows have their own tighter hit tests in api/input.rs).
-    fn rect(&self) -> (f32, f32, f32, f32) {
-        (self.x, self.y, Self::W, self.height())
+#[cfg(test)]
+fn snake(s: &str) -> alloc::string::String {
+    let mut o = alloc::string::String::new();
+    for (i, c) in s.char_indices() {
+        if c.is_ascii_uppercase() && i > 0 {
+            o.push('_');
+        }
+        o.push(c.to_ascii_lowercase());
     }
+    o
 }
 
-impl Draw for Node {
-    fn draw(&self, i: usize, s: &GraphState, ctx: &mut DrawBuf) {
-        let current_h = self.height();
+#[cfg(test)]
+pub fn codegen_file(idx: usize) -> Option<(alloc::string::String, alloc::string::String)> {
+    use alloc::{format, string::String};
+    if let Some(k) = NODES.get(idx) {
+        return Some((format!("{}.ts", snake(k.ident())), k.as_node().ts()));
+    }
+    if idx != NODES.len() {
+        return None;
+    }
+    let (mut imports, mut list) = (String::new(), String::new());
+    for k in NODES {
+        let n = snake(k.ident());
+        imports += &format!("import * as {n} from \"./{n}\";\n");
+        list += &format!("  {n},\n");
+    }
+    Some((
+        "index.ts".into(),
+        format!(
+            "{imports}\n// Index == NodeKind id.\nexport const nodes = [\n{list}] as const;\n\nexport const flagLabels = {FLAG_LABELS:?} as const;\n"
+        ),
+    ))
+}
 
-        // Dynamic background container
-        ctx.fill_style([40, 42, 48]);
-        ctx.fill_rect(self.x, self.y, Self::W, current_h, true);
-
-        // Header
-        ctx.fill_style(self.kind.header_color());
-        ctx.fill_rect(self.x, self.y, Self::W, Self::HEADER_H, true);
-
-        ctx.fill_style([230; 3]);
-        ctx.fill_text(self.kind.title(), 13.0, self.x + 6.0, self.y + 14.0, true);
-
-        // Parameters
-        for (active_idx, param) in self.params.iter().flatten().enumerate() {
-            let baseline_y = self.param_baseline_y(active_idx);
-
-            ctx.fill_style([180; 3]);
-            ctx.fill_text(param.name(), 13.0, self.x + 8.0, baseline_y, true);
-
-            let mut vbuf: FixedStr<16> = FixedStr::new();
-            param.format_value(&mut vbuf);
-
-            let (box_x, box_y, box_w, box_h) = self.param_value_rect(active_idx);
-            ctx.fill_style([25, 26, 32]);
-            ctx.fill_rect(box_x, box_y, box_w, box_h, true);
-
-            let (kx, ky, kw, kh) = self.keyframe_value_rect(active_idx);
-
-            let points = gen_diamond(kx, ky, kw, kh);
-            let has_keyframe_here = s.keyframes.iter().any(|k| {
-                k.lane.node_id == i as u16
-                    && k.lane.param_id == active_idx as u8
-                    && k.frame == s.current_frame
-            });
-
-            if has_keyframe_here {
-                ctx.fill_style([230, 200, 50]);
-                ctx.fill_points(&points, true);
-            } else {
-                ctx.line_width(1.0 * camera().zoom);
-                ctx.stroke_style([230, 200, 50]);
-                ctx.stroke_points(&points, true);
-            }
-
-            ctx.fill_style([140, 200, 140]);
-            ctx.fill_text(
-                vbuf.as_str(),
-                13.0,
-                box_x + Self::VALUE_PAD,
-                baseline_y,
-                true,
-            );
-        }
-
-        // Flag toggles
-        for (idx, &label) in FLAG_LABELS.iter().enumerate() {
-            let (bx, by, bw, bh) = self.flag_rect(idx);
-            let active = self.flags.contains(FLAG_BITS[idx]);
-
-            if active {
-                ctx.fill_style([90, 160, 220]);
-            } else {
-                ctx.fill_style([25, 26, 32]);
-            }
-            ctx.fill_rect(bx, by, bw, bh, true);
-
-            let len = label.len() as f32 * 3.33;
-            ctx.fill_style(if active { [20, 20, 24] } else { [160; 3] });
-            ctx.fill_text(label, 11.0, bx + bw * 0.5 - len, by + bh * 0.5 + 4.0, true);
-        }
-
-        // Waveform preview
-        {
-            let x = self.x + Self::WIDGET_MARGIN;
-            let y = self.wave_y();
-            let w = Self::W - Self::WIDGET_MARGIN * 2.0;
-            let h = Self::WAVE_H - 6.0;
-
-            ctx.fill_style([20, 20, 24]);
-            ctx.fill_rect(x, y, w, h, true);
-
-            let samples = match self.kind {
-                NodeKind::Output => {
-                    let src = s.links.iter().find(|l| l.to == i && l.to_socket == 0);
-                    match src {
-                        Some(l) => &s.buffers.as_ref().unwrap()[l.from][l.from_socket],
-                        None => &ZERO_BUFFER,
-                    }
-                }
-                _ => &s.buffers.as_ref().unwrap()[i][0],
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn generate_ts() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/generated/nodes");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for i in 0.. {
+            let Some((name, ts)) = super::codegen_file(i) else {
+                break;
             };
-
-            ctx.fill_wave(x, y, w, h, samples, true);
-        }
-
-        // Widget
-        if self.kind.has_widget() {
-            let x = self.x + Self::WIDGET_MARGIN;
-            let y = self.wave_y() + Self::WAVE_H;
-            let w = Self::W - Self::WIDGET_MARGIN * 2.0;
-            let h = Self::WIDGET_H;
-
-            ctx.fill_style([16, 16, 20]);
-            ctx.fill_rect(x, y, w, h, true);
-
-            self.kind.draw_widget(self, i, s, ctx, (x, y, w, h));
-        }
-
-        // Input Sockets
-        for inp in 0..self.kind.input_count() {
-            let (ix, iy) = input_pos(self, inp);
-            let is_hovered = s.hovered_socket == Some((i, SocketKind::Input, inp));
-            let is_valid_drop_zone = match s.pending_link_from {
-                Some((from, _)) => is_valid_target(s, from, i),
-                None => false,
-            };
-
-            if s.pending_link_from.is_some() {
-                if is_valid_drop_zone {
-                    if is_hovered {
-                        ctx.fill_style([255, 215, 0]);
-                        ctx.fill_circle(ix, iy, SOCKET_R + 4.0, true);
-                    } else {
-                        ctx.fill_style([100, 220, 100]);
-                        ctx.fill_circle(ix, iy, SOCKET_R + 2.0, true);
-                    }
-                } else {
-                    ctx.fill_style([50, 50, 50]);
-                    ctx.fill_circle(ix, iy, SOCKET_R, true);
-                }
-            } else {
-                ctx.fill_style([
-                    if is_hovered { 150 } else { 60 },
-                    if is_hovered { 255 } else { 180 },
-                    if is_hovered { 150 } else { 250 },
-                ]);
-                ctx.fill_circle(
-                    ix,
-                    iy,
-                    if is_hovered { SOCKET_R + 2.0 } else { SOCKET_R },
-                    true,
-                );
-            }
-        }
-
-        // Output Sockets
-        for out in 0..self.kind.output_count() {
-            let (ox, oy) = output_pos(self, out);
-            let output_active = match s.pending_link_from {
-                Some((from, from_socket)) => i == from && out == from_socket,
-                None => s.hovered_socket == Some((i, SocketKind::Output, out)),
-            };
-            ctx.fill_style([
-                250,
-                if output_active { 220 } else { 180 },
-                if output_active { 150 } else { 60 },
-            ]);
-            ctx.fill_circle(
-                ox,
-                oy,
-                if output_active {
-                    SOCKET_R + 2.0
-                } else {
-                    SOCKET_R
-                },
-                true,
-            );
+            let head = "// generated by `npm run codegen` (graph/node.rs), do not edit\n";
+            std::fs::write(dir.join(name), format!("{head}{ts}")).unwrap();
         }
     }
 }

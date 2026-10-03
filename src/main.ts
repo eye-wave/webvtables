@@ -1,231 +1,137 @@
-import {
-  getNodeNames,
-  HitType,
-  loadWasm,
-  makeBtnTextSetter,
-  makeBuf32Reader,
-  makeStrReader,
-  unpackBuffer,
-  unpackHitResult,
-  type WasmExports,
-} from "./wasm";
-import type { Renderer } from "./renderer/renderer";
-import { registerContextMenu } from "./context-menu";
-import { registerNodePicker } from "./node-picker";
-import { player } from "./audio/engine";
-import { math_ffi } from "./wasm/math";
-import {
-  hideInputs,
-  openEnumParam,
-  openFloatParam,
-  registerParamInputs,
-} from "./param-input";
+import "./styles/theme.css";
+import "./styles/shell.css";
+import { createAudio } from "./audio/audio";
+import { createContextMenu } from "./components/ctx/ctx";
+import { createInput } from "./editor/input";
+import { createPreview } from "./editor/preview";
+import { createMenu } from "./components/menu/menu";
+import { createHeightmap } from "./gfx/heightmap";
+import { createOverlay } from "./gfx/overlay";
+import { createRopes } from "./gfx/ropes";
+import { createScene } from "./editor/scene";
+import { createTransport } from "./components/transport/transport";
+import { createView } from "./gfx/view";
+import { loadWasm } from "./wasm";
+import { createSignal } from "solid-js";
+import { render } from "solid-js/web";
+import { createKf } from "./editor/kf";
+import { Keyframes } from "./components/keyframes/keyframes";
+import { createProject } from "./components/project/project";
 
-declare const viewport: HTMLDivElement;
-declare const canvas_graph: HTMLCanvasElement;
-declare const webgl_warning: HTMLDivElement;
+declare const nodeGrid: HTMLDivElement;
+declare const gridBg: HTMLDivElement;
+declare const canvas: HTMLCanvasElement;
+declare const heightmap: HTMLCanvasElement;
+declare const kfHandle: HTMLDivElement;
 
-const CURSORS = ["default", "grab", "grabbing", "pointer"];
+const draw = createOverlay(canvas);
+const drawMap = createHeightmap(heightmap);
 
-async function createRenderer(canvas: HTMLCanvasElement): Promise<Renderer> {
-  const gl = canvas.getContext("webgl2");
-  if (gl) {
-    const { WebGL2Renderer } = await import("./renderer/webgl2-renderer");
-    return new WebGL2Renderer(gl);
-  }
-
-  webgl_warning.style.display = "";
-  const { Canvas2DRenderer } = await import("./renderer/canvas2d-renderer");
-
-  const ctx2d = canvas.getContext("2d");
-  if (!ctx2d) throw "Failed to get a rendering context";
-  return new Canvas2DRenderer(ctx2d);
-}
-
-async function init() {
-  const renderer = await createRenderer(canvas_graph);
-  const { executeDrawBuffer } = await import("./renderer/renderer");
-
-  let logBuffer = "";
-  let readStr: (ptr: number, len: number) => string;
-  let readBuf32: (ptr: number, len: number) => Float32Array;
-  let setBtnText: (idx: usize, text: string) => void;
-
-  let exports: WasmExports;
-
-  let openMenu: (x: f32, y: f32, hit: HitType) => void;
-  let openPicker: (x: f32, y: f32) => void;
-
-  const virtualPos: [f32, f32] = [0 as f32, 0 as f32];
-
-  const wasm_ffi = {
-    log_str(ptr: const_u8, len: usize) {
-      logBuffer += readStr(ptr, len);
-    },
-    log_bool(n: bool) {
-      logBuffer += n ? "true" : "false";
-    },
-    log_i32(n: i32) {
-      logBuffer += `${n}`;
-    },
-    log_f64(n: f64) {
-      logBuffer += `${n}`;
-    },
-    log_flush() {
-      console.log(logBuffer);
-      logBuffer = "";
-    },
-
-    capture_mouse() {
-      canvas_graph.requestPointerLock();
-    },
-
-    release_mouse() {
-      document.exitPointerLock();
-    },
-
-    open_float_param(ptr: const_u8) {
-      openFloatParam(exports.memory, ptr);
-    },
-    open_enum_param(ptr: const_u8, len: usize) {
-      openEnumParam(exports.memory, ptr, len);
-    },
-
-    drag_knob(id: usize, value: number) {
-      if (id === 0)
-        try {
-          player.volume.setValueAtTime(value / 100, 0);
-        } catch {
-          player._cached_vol = value / 100;
-        }
-      else if (id === 1)
-        try {
-          player.frequency.setValueAtTime(value, 0);
-        } catch {
-          player._cached_freq = value;
-        }
-    },
-
-    perf_now: () => performance.now(),
-
-    click_btn: async (id: usize) => {
-      if (id === 0) {
-        if (player.status === "uninitialized") {
-          await player.initialize();
-          exports.render();
-        }
-
-        if (player.status === "paused") {
-          player.resume();
-          setBtnText(0 as usize, "Pause");
-        } else {
-          player.pause();
-          setBtnText(0 as usize, "Play");
-        }
-      }
-    },
-    open_context_menu: (x: f32, y: f32, raw_hit: u32) => {
-      const hit = unpackHitResult(raw_hit);
-      openMenu(x, y, hit);
-    },
-    open_node_picker: (x: f32, y: f32) => {
-      openPicker(x, y);
-    },
-
-    draw_flush(ptr: const_u8, len: usize) {
-      const fatptr = exports.get_generated_frame();
-      const addr = unpackBuffer(fatptr);
-      const buf = readBuf32(addr.ptr, addr.len);
-
-      player.setWaveform(buf);
-
-      executeDrawBuffer(
-        new Uint8Array(exports.memory.buffer, ptr, len),
-        renderer,
-        exports.memory,
-      );
-    },
+const kfBox = document.querySelector<HTMLElement>(".box-keyframes")!;
+kfHandle.onpointerdown = (e) => {
+  const y0 = e.clientY,
+    h0 = kfBox.offsetHeight;
+  kfHandle.setPointerCapture(e.pointerId);
+  kfHandle.onpointermove = (m) => {
+    const h = h0 + y0 - m.clientY;
+    kfBox.style.height = `${Math.min(innerHeight * 0.7, Math.max(80, h))}px`;
   };
+  kfHandle.onpointerup = () => (kfHandle.onpointermove = null);
+};
 
-  exports = await loadWasm({ ...wasm_ffi, ...math_ffi });
+loadWasm().then((wasm) => {
+  const scene = createScene(wasm, nodeGrid);
+  const view = createView(nodeGrid, gridBg);
+  const ropes = createRopes(wasm);
+  const audio = createAudio();
 
-  readStr = makeStrReader(exports);
-  readBuf32 = makeBuf32Reader(exports);
-  setBtnText = makeBtnTextSetter(exports);
+  const transport = createTransport(
+    document.querySelector<HTMLElement>(".box-playback")!,
+    audio,
+    () => schedule(),
+  );
+  const [head, setHead] = createSignal(0);
 
-  const nodeNames = getNodeNames(
-    exports.memory,
-    exports.get_node_names(),
-    exports.get_node_type_count(),
+  // Click the map to flip flat <-> 3D; keep the grid underneath from seeing it.
+  for (const ev of ["pointerdown", "dblclick", "contextmenu"])
+    heightmap.addEventListener(ev, (e) => e.stopPropagation());
+  heightmap.onclick = () => (drawMap.toggle(), schedule());
+
+  scene.add(0, 40, 40);
+  scene.add(1, 540, 100);
+
+  let queued = false;
+  let last = 0;
+  const schedule = () =>
+    queued || ((queued = true), requestAnimationFrame(frame));
+
+  const kf = createKf(wasm);
+  const preview = createPreview(wasm, scene, kf, drawMap);
+  render(
+    () =>
+      Keyframes({
+        host: {
+          ...kf,
+          nodes: scene.nodes,
+          onChange: scene.onChange,
+          schedule,
+          head,
+          setHead,
+        },
+      }),
+    kfBox,
+  );
+  createProject(
+    document.querySelector<HTMLElement>(".box-playback")!,
+    wasm,
+    scene,
+    kf,
+    head,
+    schedule,
   );
 
-  openMenu = registerContextMenu(exports, nodeNames);
-  openPicker = registerNodePicker(exports, nodeNames);
+  function frame(t: number) {
+    queued = false;
+    const dt = Math.min((t - last) / 1000, 0.1);
+    last = t;
 
-  registerParamInputs(exports.set_node_value);
+    if (transport.playing) setHead((h) => (h + dt * transport.speed) % 256);
+    view.apply();
+    const filling = preview.step();
+    wasm.scope_begin();
+    const driven = kf.apply(head());
+    const inst = scene.sync(driven);
+    for (const [id, a, b] of scene.links()) ropes.pin(id, a, b);
+    const table = scene.outputTable();
+    audio.table(table);
+    const moving = ropes.step(Math.min(dt, 0.05));
 
-  const posFromEvent = (e: MouseLikeEvent): [f32, f32] =>
-    [e.clientX - viewport.offsetLeft, e.clientY - viewport.offsetTop] as [
-      f32,
-      f32,
-    ];
-
-  const prevDef =
-    <F extends (e: E) => void, E extends Event>(cb: F) =>
-    (e: E) => {
-      e.preventDefault();
-      cb(e);
-    };
-
-  type MouseLikeEvent = { clientX: number; clientY: number; button?: number };
-
-  const mouseWrap =
-    (cb: (x: f32, y: f32, btn: i8) => void) => (e: MouseLikeEvent) =>
-      cb(...posFromEvent(e), (e.button ?? -1) as i8);
-
-  window.onmouseup = mouseWrap(exports.on_mouse_up);
-
-  canvas_graph.onmousedown = (e) => {
-    const pos = posFromEvent(e);
-    exports.on_mouse_down(...pos, e.button as i8, e.ctrlKey);
-  };
-
-  canvas_graph.ondblclick = mouseWrap(exports.on_dbl_click);
-  canvas_graph.oncontextmenu = prevDef(mouseWrap(exports.on_context_menu));
-  canvas_graph.onmousemove = (e) => {
-    const pos = (
-      document.pointerLockElement === canvas_graph
-        ? [virtualPos[0] + e.movementX, virtualPos[1] + e.movementY]
-        : posFromEvent(e)
-    ) as [f32, f32];
-
-    virtualPos[0] = pos[0];
-    virtualPos[1] = pos[1];
-
-    exports.on_mouse_move(...pos, e.altKey);
-    canvas_graph.style.cursor = CURSORS[exports.get_cursor_kind(...pos)];
-  };
-
-  canvas_graph.addEventListener(
-    "wheel",
-    prevDef((e) => {
-      const pos = posFromEvent(e);
-      hideInputs();
-      exports.on_wheel(...pos, e.deltaX, e.deltaY, e.ctrlKey);
-    }),
-    { passive: false },
-  );
-
-  exports.init();
-
-  function onCanvasResize() {
-    exports.on_resize(window.innerWidth, window.innerHeight);
-    renderer.resize(viewport.offsetWidth, viewport.offsetHeight);
-    exports.render();
+    draw({
+      nodes: inst,
+      view: view.v,
+      segs: ropes.segments(),
+      scopes: scene.scopes(),
+      rings: input.lit,
+      t: t / 1000,
+    });
+    drawMap.draw(head(), table);
+    if (moving || input.lit.length || transport.playing || filling) schedule();
   }
 
-  window.addEventListener("resize", onCanvasResize);
-  onCanvasResize();
-}
-
-init();
+  const input = createInput(canvas.parentElement!, {
+    scene,
+    view,
+    ropes,
+    schedule,
+  });
+  const add = createMenu(canvas.parentElement!, view, scene, schedule);
+  createContextMenu(canvas.parentElement!, {
+    scene,
+    view,
+    schedule,
+    kf,
+    openAdd: add.open,
+  });
+  new ResizeObserver(schedule).observe(nodeGrid);
+  schedule();
+});

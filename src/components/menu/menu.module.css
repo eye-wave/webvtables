@@ -1,0 +1,60 @@
+.menu {
+  position: fixed;
+  z-index: 10;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  background: var(--surface-400);
+  border: 1px solid var(--border-300);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px var(--shadow);
+  color: var(--text-600);
+  font:
+    13px system-ui,
+    sans-serif;
+}
+
+.menu[hidden],
+.menu li[hidden] {
+  display: none;
+}
+
+.menu input {
+  padding: 5px 8px;
+  background: var(--surface-100);
+  border: 1px solid var(--border-100);
+  border-radius: 4px;
+  outline: none;
+  color: var(--text-600);
+  font: inherit;
+}
+
+.menu input:focus {
+  border-color: var(--accent-200);
+}
+
+.menu ul {
+  max-height: 260px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.menu li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.menu li span {
+  color: var(--text-200);
+  font-size: 11px;
+}
+
+.menu li.sel {
+  background: var(--accent-100);
+}

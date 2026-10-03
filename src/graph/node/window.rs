@@ -1,10 +1,7 @@
-use super::NodeLogic;
-use super::helpers;
+use super::{Label, label};
 use crate::ffi;
-use crate::graph::BUFFER_LEN_F32;
-use crate::graph::NodeCategory;
-use crate::graph::node::helpers::PI32;
-use crate::graph::{BUFFER_LEN, Buffer, MAX_PARAMS, Param};
+use super::{BUFFER_LEN, BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::helpers::{self, PI32};
 
 pub struct WindowNode;
 
@@ -12,12 +9,21 @@ pub(super) const WINDOW_TYPES: &[&str] = &[
     "Hann", "Hamming", "Blackman", "BH", "Bartlett", "Welch", "Sine",
 ];
 
+impl WindowNode {
+    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+        Param::new_linear("Size", 0.0, 50.0)
+            .with_unit("%")
+            .with_default_denorm(15.0),
+        Param::new_enum("Type", WINDOW_TYPES),
+    ];
+}
+
 impl NodeLogic for WindowNode {
-    fn title(&self) -> &'static str {
-        "Window"
+    fn title(&self) -> Label {
+        label("Window")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
+    fn category(&self) -> &'static [NodeCategory] {
         &[NodeCategory::Effect, NodeCategory::Warp]
     }
 
@@ -30,12 +36,7 @@ impl NodeLogic for WindowNode {
     }
 
     fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
-        crate::params![
-            Param::new_linear("Size", 0.0, 50.0)
-                .with_unit("%")
-                .with_default_denorm(15.0),
-            Param::new_enum("Type", WINDOW_TYPES),
-        ]
+        Self::PARAMS
     }
 
     fn process(

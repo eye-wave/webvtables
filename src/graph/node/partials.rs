@@ -1,19 +1,21 @@
+use super::{Label, label};
 use crate::ffi;
-use crate::graph::node::helpers::PI32;
-use crate::graph::{BUFFER_LEN_F32, Buffer, Param, consts::*};
-
-use super::NodeLogic;
-use super::helpers;
+use super::{BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::helpers::{self, PI32};
 
 pub struct PartialsNode;
 
+impl PartialsNode {
+    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![Param::new_int("Count", 1, 48), Param::new_int("Gap", 0, 48),];
+}
+
 impl NodeLogic for PartialsNode {
-    fn title(&self) -> &'static str {
-        "Partials"
+    fn title(&self) -> Label {
+        label("Partials")
     }
 
-    fn category(&self) -> &'static [super::NodeCategory] {
-        &[super::NodeCategory::Inputs]
+    fn category(&self) -> &'static [NodeCategory] {
+        &[NodeCategory::Inputs]
     }
 
     fn input_count(&self) -> usize {
@@ -24,8 +26,8 @@ impl NodeLogic for PartialsNode {
         1
     }
 
-    fn default_params(&self) -> [Option<crate::graph::Param>; crate::graph::MAX_PARAMS] {
-        crate::params![Param::new_int("Count", 1, 48), Param::new_int("Gap", 0, 48),]
+    fn default_params(&self) -> [Option<Param>; MAX_PARAMS] {
+        Self::PARAMS
     }
 
     fn process(

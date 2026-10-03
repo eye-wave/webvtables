@@ -18,7 +18,7 @@ macro_rules! wasm_imports {
         }
 
         $(
-            #[allow(clippy::too_many_arguments)]
+            #[allow(clippy::too_many_arguments, dead_code)]
             pub fn $name(
                 $($arg: $argty),*
             ) $(-> $ret)? {
@@ -35,15 +35,13 @@ wasm_imports! {
     fn log_f64(val: f64);
     fn log_flush();
 
-    fn ln(x: f64) -> f64;
+    fn log(x: f64) -> f64;
     fn exp(x: f64) -> f64;
-    fn round(x: f64) -> f64;
     fn sin(x: f64) -> f64;
     fn floor(x: f64) -> f64;
 
     fn atan2f(x: f32,y:f32) -> f32;
     fn powf(x: f32,y:f32) -> f32;
-    fn expf(x: f32) -> f32;
     fn roundf(x: f32) -> f32;
     fn sinf(x: f32) -> f32;
     fn cosf(x: f32) -> f32;
@@ -51,18 +49,6 @@ wasm_imports! {
     fn sqrtf(x: f32) -> f32;
     fn log2f(x: f32) -> f32;
     fn log10f(x: f32) -> f32;
-
-    fn perf_now() -> f64;
-
-    fn click_btn(id: usize);
-    fn drag_knob(id:usize,value:f64);
-
-    fn open_float_param(ptr: *const u8);
-    fn open_enum_param(ptr: *const u8,len: usize);
-    fn open_context_menu(x:f32,y:f32,hit:u32);
-    fn open_node_picker(x:f32,y:f32);
-    fn draw_flush(ptr: *const u8, len: usize);
-
-    fn capture_mouse();
-    fn release_mouse();
 }
+
+pub use libm::hypot;
