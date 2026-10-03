@@ -3,6 +3,7 @@ import glsl from "vite-plugin-glsl";
 import solid from "vite-plugin-solid";
 
 export default defineConfig({
+  base: "/webvtables/",
   build: { modulePreload: false, assetsInlineLimit: 0 },
   resolve: { tsconfigPaths: true },
   plugins: [glsl({ minify: true }), solid()],
