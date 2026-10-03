@@ -1,12 +1,13 @@
+use super::helpers::{self, PI32};
+use super::{BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeParamDef, Param};
 use super::{Label, label};
 use crate::ffi;
-use super::{BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
-use super::helpers::{self, PI32};
 
 pub struct PartialsNode;
 
-impl PartialsNode {
-    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![Param::new_int("Count", 1, 48), Param::new_int("Gap", 0, 48),];
+impl NodeParamDef for PartialsNode {
+    const PARAMS: [Option<Param>; MAX_PARAMS] =
+        crate::params![Param::new_int("Count", 1, 48), Param::new_int("Gap", 0, 48),];
 }
 
 impl NodeLogic for PartialsNode {

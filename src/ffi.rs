@@ -39,6 +39,7 @@ wasm_imports! {
     fn exp(x: f64) -> f64;
     fn sin(x: f64) -> f64;
     fn floor(x: f64) -> f64;
+    fn round(x: f64) -> f64;
 
     fn atan2f(x: f32,y:f32) -> f32;
     fn powf(x: f32,y:f32) -> f32;

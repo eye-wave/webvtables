@@ -1,12 +1,15 @@
+use super::helpers::{self, TAU32};
+use super::{
+    BUFFER_LEN, BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeParamDef, Param,
+};
 use super::{Label, label};
 use crate::ffi;
-use super::{BUFFER_LEN, BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
-use super::helpers::{self, TAU32};
 
 pub struct DisperserNode;
 
-impl DisperserNode {
-    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![Param::new_linear("Exponent", -10.0, 10.0).with_default_denorm(0.0)];
+impl NodeParamDef for DisperserNode {
+    const PARAMS: [Option<Param>; MAX_PARAMS] =
+        crate::params![Param::new_linear("Exponent", -10.0, 10.0).with_default_denorm(0.0)];
 }
 
 impl NodeLogic for DisperserNode {

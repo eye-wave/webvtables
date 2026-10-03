@@ -1,12 +1,12 @@
+use super::helpers::{self, PI32};
+use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeParamDef, Param};
 use super::{Label, label};
 use crate::ffi;
-use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
-use super::helpers::{self, PI32};
 
 pub struct SaturationNode;
 
-impl SaturationNode {
-    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+impl NodeParamDef for SaturationNode {
+    const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
         Param::new_enum("Shape", &["Soft clip", "Hard clip", "Lin warp", "Sin warp"]),
         Param::new_linear("In", -40.0, 60.0)
             .with_unit("dB")

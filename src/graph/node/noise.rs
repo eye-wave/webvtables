@@ -1,11 +1,11 @@
-use super::{Label, label};
-use super::{Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
+use super::{Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeParamDef, Param};
+use super::{Label, label};
 
 pub struct NoiseNode;
 
-impl NoiseNode {
-    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+impl NodeParamDef for NoiseNode {
+    const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
         Param::new_enum(
             "Algorithm",
             &[

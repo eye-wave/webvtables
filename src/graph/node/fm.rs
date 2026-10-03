@@ -1,11 +1,14 @@
-use super::{Label, label};
-use super::{BUFFER_LEN, BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
+use super::{
+    BUFFER_LEN, BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeParamDef, Param,
+};
+use super::{Label, label};
 
 pub struct FmNode;
 
-impl FmNode {
-    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![Param::new_linear("Ammount", 0.0, 10.0).with_unit("x")];
+impl NodeParamDef for FmNode {
+    const PARAMS: [Option<Param>; MAX_PARAMS] =
+        crate::params![Param::new_linear("Ammount", 0.0, 10.0).with_unit("x")];
 }
 
 impl NodeLogic for FmNode {

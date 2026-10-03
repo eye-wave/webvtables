@@ -1,4 +1,4 @@
-import workletUrl from "./resampler.worklet.js?url";
+import workletUrl from "./resampler.worklet.js?worker&url";
 
 export const TABLE = 2048;
 

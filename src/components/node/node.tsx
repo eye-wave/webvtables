@@ -1,5 +1,7 @@
 import {
   createContext,
+  createSignal,
+  onCleanup,
   Show,
   useContext,
   type Component,
@@ -20,6 +22,15 @@ import nodeCss from "./node.module.css";
 // Derived UI: scene.sync sets each param's raw value as `--p<j>` on the .node,
 // so any element can read it in CSS, e.g. left: calc(var(--p0) * 100%).
 //
+// Params from code: useParam(j) gives { get, set, value, setValue, norm, denorm,
+// info } for custom controls and visuals (canvas, SVG, anything CSS vars can't
+// express). get/set work in the raw normalized 0..1 the engine stores; value/
+// setValue/norm/denorm convert through the engine's own mapping (linear, log,
+// int, enum), so nothing here needs to know a param's range. `get` and `value`
+// are Solid accessors, refreshed every frame by scene.sync, so they follow
+// knobs, keyframes and automation. Writes redraw. A custom control must
+// stopPropagation() its pointerdown, or the grid will start dragging the node.
+//
 // Knob contract: sets `--v` (0..1) on the .knob and fills its `.pval`
 // child with the value text. Custom children may use either or both.
 
@@ -30,11 +41,47 @@ export type ParamInfo = {
   default: number;
 };
 
-type Ctx = { wasm: WasmExports; i: number; kind: number; p: number };
+type NodeInit = {
+  wasm: WasmExports;
+  i: number;
+  kind: number;
+  p: number;
+  redraw: () => void;
+};
+type Ctx = NodeInit & { polls: Set<() => void>; el?: HTMLElement };
 const NodeCtx = createContext<Ctx>();
 export const useNode = () => useContext(NodeCtx)!;
 
 const params = (kind: number) => nodes[kind].params as readonly ParamInfo[];
+
+export function useParam(j: number) {
+  const { wasm, i, kind, polls, redraw, el } = useNode();
+  const a = wasm.get_param(i, j) >> 2; // addresses are stable for the node's life
+  // Node indices shift when an earlier node is removed; the element's data-n tracks it.
+  const n = () => +el!.dataset.n!;
+  const cell = () => new Float32Array(wasm.memory.buffer);
+  const [get, put] = createSignal(cell()[a]);
+  const poll = () => put(cell()[a]);
+  polls.add(poll);
+  onCleanup(() => polls.delete(poll));
+  const set = (v: number) => {
+    cell()[a] = Math.min(1, Math.max(0, v));
+    poll();
+    redraw();
+  };
+  const norm = (d: number) => wasm.param_norm(n(), j, d);
+  const denorm = (v: number) => wasm.param_denorm(n(), j, v);
+  return {
+    get,
+    set,
+    /** Current value in displayed units (dB, Hz, option index...). */
+    value: () => denorm(get()),
+    setValue: (d: number) => set(norm(d)),
+    norm,
+    denorm,
+    info: params(kind)[j],
+  };
+}
 
 export function Knob(props: {
   j: number;
@@ -142,18 +189,23 @@ function Sockets(props: { out: boolean }) {
   });
 }
 
-const disposers = new WeakMap<Element, () => void>();
+const mounted = new WeakMap<
+  Element,
+  { dispose: () => void; polls: Set<() => void> }
+>();
 
 export function mountNode(
   root: HTMLElement,
-  ctx: Ctx,
+  init: NodeInit,
   View: Component = DefaultView,
 ) {
+  const ctx: Ctx = { ...init, polls: new Set() };
   const frag = document.createDocumentFragment();
   const dispose = render(
     () => (
       <NodeCtx.Provider value={ctx}>
         <div
+          ref={(e) => (ctx.el = e)}
           class={nodeCss.node}
           data-p={ctx.p}
           data-n={ctx.i}
@@ -168,11 +220,14 @@ export function mountNode(
     ),
     frag,
   );
-  disposers.set(frag.firstElementChild!, dispose);
+  mounted.set(frag.firstElementChild!, { dispose, polls: ctx.polls });
   root.append(frag);
 }
 
+export const pollNode = (el: Element) =>
+  mounted.get(el)?.polls.forEach((poll) => poll());
+
 export const unmountNode = (el: Element) => {
-  disposers.get(el)?.();
+  mounted.get(el)?.dispose();
   el.remove();
 };

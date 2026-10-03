@@ -1,6 +1,8 @@
-use super::{Label, label};
-use super::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
+use super::{
+    BUFFER_LEN, BUFFER_LEN_F64, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeParamDef, Param,
+};
+use super::{Label, label};
 
 pub struct BandSplitNode;
 
@@ -24,8 +26,8 @@ impl BandSplitNode {
     }
 }
 
-impl BandSplitNode {
-    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+impl NodeParamDef for BandSplitNode {
+    const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
         Param::new_log("Low band", 1.0, BUFFER_LEN_F64)
             .with_unit("bins")
             .with_default_denorm(40.0),
@@ -74,5 +76,4 @@ impl NodeLogic for BandSplitNode {
         Self::band(src, &mut outs[1], lo, hi);
         Self::band(src, &mut outs[2], hi, bins);
     }
-
 }

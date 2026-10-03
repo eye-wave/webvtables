@@ -2,6 +2,7 @@ import { TABLE } from "../audio/audio";
 import { nodes } from "../generated/nodes";
 import {
   mountNode,
+  pollNode,
   unmountNode,
   type ParamInfo,
 } from "../components/node/node";
@@ -61,7 +62,11 @@ const offsetIn = (s: HTMLElement, node: HTMLElement): Pt => {
   return [x, y];
 };
 
-export function createScene(wasm: WasmExports, root: HTMLElement) {
+export function createScene(
+  wasm: WasmExports,
+  root: HTMLElement,
+  redraw: () => void = () => {},
+) {
   const listeners: (() => void)[] = [];
   const changed = () => listeners.forEach((f) => f());
   const f32 = () => new Float32Array(wasm.memory.buffer);
@@ -90,7 +95,7 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
   };
 
   const mount = (i: number, p: number, kind: number) =>
-    mountNode(root, { wasm, i, kind, p }, ui[nodes[kind].name]?.view);
+    mountNode(root, { wasm, i, kind, p, redraw }, ui[nodes[kind].name]?.view);
 
   return {
     socketPos,
@@ -155,6 +160,7 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
 
         for (let j = 0, a; (a = wasm.get_param(+el.dataset.n!, j)) >= 0; j++)
           el.style.setProperty(`--p${j}`, `${f[a >> 2]}`);
+        pollNode(el);
         el.querySelectorAll<HTMLElement>(`.${nodeCss.flag}`).forEach((b) =>
           b.classList.toggle(
             nodeCss.active,

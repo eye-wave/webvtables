@@ -68,6 +68,8 @@ export type WasmExports = {
   param_text(idx: number, i: number): number;
   param_text_ptr(): number;
   param_set_denorm(idx: number, i: number, v: number): boolean;
+  param_denorm(idx: number, i: number, n: number): number;
+  param_norm(idx: number, i: number, d: number): number;
   add_node(kind: number, x: number, y: number, w: number, h: number): number;
 } & { memory: WebAssembly.Memory };
 

@@ -1,13 +1,13 @@
+use super::helpers::{self, magnitude};
+use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeParamDef, Param};
 use super::{Label, label};
 use alloc::boxed::Box;
 use microfft::Complex32;
-use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
-use super::helpers::{self, magnitude};
 
 pub struct SpectralSubtractNode;
 
-impl SpectralSubtractNode {
-    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+impl NodeParamDef for SpectralSubtractNode {
+    const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
         Param::new_linear("Mix", 0.0, 100.0)
             .with_unit("%")
             .with_default_norm(1.0)

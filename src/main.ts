@@ -40,7 +40,7 @@ kfHandle.onpointerdown = (e) => {
 };
 
 loadWasm().then((wasm) => {
-  const scene = createScene(wasm, nodeGrid);
+  const scene = createScene(wasm, nodeGrid, () => schedule());
   const view = createView(nodeGrid, gridBg);
   const ropes = createRopes(wasm);
   const audio = createAudio();

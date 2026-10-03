@@ -1,11 +1,12 @@
-use super::{Label, label};
-use super::{Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
+use super::{Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeParamDef, Param};
+use super::{Label, label};
 
 pub struct AmNode;
 
-impl AmNode {
-    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![Param::new_linear("Depth", 0.0, 1.0)];
+impl NodeParamDef for AmNode {
+    const PARAMS: [Option<Param>; MAX_PARAMS] =
+        crate::params![Param::new_linear("Depth", 0.0, 1.0)];
 }
 
 impl NodeLogic for AmNode {

@@ -1,11 +1,14 @@
-use super::{Label, label};
-use super::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
+use super::{
+    BUFFER_LEN, BUFFER_LEN_F64, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeParamDef, Param,
+};
+use super::{Label, label};
 
 pub struct PhaseShiftNode;
 
-impl PhaseShiftNode {
-    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![Param::new_linear("Shift", 0.0, 360.0).with_unit("°")];
+impl NodeParamDef for PhaseShiftNode {
+    const PARAMS: [Option<Param>; MAX_PARAMS] =
+        crate::params![Param::new_linear("Shift", 0.0, 360.0).with_unit("°")];
 }
 
 impl NodeLogic for PhaseShiftNode {

@@ -1,6 +1,6 @@
 #![allow(dead_code)]
+use crate::ffi::{exp, log, round};
 use crate::graph::{Label, Labels, State, label, labels};
-use libm::{exp, log, round};
 
 #[derive(Clone, Copy)]
 enum Kind {
@@ -182,6 +182,20 @@ pub fn text_ptr() -> usize {
 }
 
 impl State {
+    fn param_def(&self, idx: usize, i: usize) -> Option<Param> {
+        self.kind(idx)
+            .and_then(|k| k.as_node().default_params().get(i).copied().flatten())
+    }
+
+    pub fn param_denorm(&self, idx: usize, i: usize, n: f64) -> f64 {
+        self.param_def(idx, i)
+            .map_or(f64::NAN, |p| p.denormalize(n))
+    }
+
+    pub fn param_norm(&self, idx: usize, i: usize, d: f64) -> f64 {
+        self.param_def(idx, i).map_or(f64::NAN, |p| p.normalize(d))
+    }
+
     pub fn param_text(&self, idx: usize, i: usize) -> usize {
         let param = self
             .kind(idx)
@@ -291,6 +305,17 @@ mod tests {
         let n = s.param_text(0, 0);
         assert_eq!(unsafe { &TEXT[..n] }, b"30");
         assert_eq!(s.param_text(0, 1), 0);
+    }
+
+    #[test]
+    fn param_denorm_and_norm_convert() {
+        let mut s = State::new();
+        s.add_node(NodeKind::Gain, [0.0; 2], [0.0; 2]).unwrap();
+        assert_eq!(s.param_denorm(0, 0, 1.0), 30.0);
+        assert_eq!(s.param_denorm(0, 0, 0.5), 0.0);
+        assert_eq!(s.param_norm(0, 0, -30.0), 0.0);
+        assert!(s.param_denorm(0, 1, 0.0).is_nan());
+        assert!(s.param_norm(0, 1, 0.0).is_nan());
     }
 
     #[test]

@@ -1,6 +1,6 @@
-use super::{Label, label};
-use super::{Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
+use super::{Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::{Label, label};
 
 pub struct InvertNode;
 

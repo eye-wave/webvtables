@@ -1,12 +1,12 @@
+use super::helpers::{self};
+use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeParamDef, Param};
 use super::{Label, label};
 use crate::ffi;
-use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
-use super::helpers::{self};
 
 pub struct SyncWarpNode;
 
-impl SyncWarpNode {
-    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+impl NodeParamDef for SyncWarpNode {
+    const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
         Param::new_linear("Multiply", 0.0, 50.0)
             .with_unit("x")
             .with_default_denorm(1.0)

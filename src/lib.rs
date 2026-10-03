@@ -281,6 +281,16 @@ pub extern "C" fn param_text(idx: u16, i: u8) -> u32 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn param_denorm(idx: u16, i: u8, n: f64) -> f64 {
+    state().param_denorm(idx as usize, i as usize, n)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn param_norm(idx: u16, i: u8, d: f64) -> f64 {
+    state().param_norm(idx as usize, i as usize, d)
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn param_set_denorm(idx: u16, i: u8, v: f64) -> bool {
     state().param_set_denorm(idx as usize, i as usize, v)
 }

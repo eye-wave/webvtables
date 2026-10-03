@@ -1,7 +1,9 @@
+use super::helpers::{self};
+use super::{
+    BUFFER_LEN, BUFFER_LEN_F64, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeParamDef, Param,
+};
 use super::{Label, label};
 use crate::ffi;
-use super::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
-use super::helpers::{self};
 
 pub struct FilterNode;
 
@@ -41,8 +43,8 @@ impl FilterNode {
     }
 }
 
-impl FilterNode {
-    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+impl NodeParamDef for FilterNode {
+    const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
         Param::new_enum(
             "Shape",
             &[
@@ -125,12 +127,19 @@ impl NodeLogic for FilterNode {
         true
     }
 
-    fn fill_widget(&self, _: &[&Buffer], p: &[Option<Param>; MAX_PARAMS], out: &mut Buffer) -> usize {
+    fn fill_widget(
+        &self,
+        _: &[&Buffer],
+        p: &[Option<Param>; MAX_PARAMS],
+        out: &mut Buffer,
+    ) -> usize {
         let shape = helpers::param(p, 0, 0.0) as u8;
         let freq = helpers::param(p, 1, 1000.0).max(1.0) as f32;
         let gain_db = helpers::param(p, 2, 0.0) as f32;
         let q = helpers::param(p, 3, 0.707).max(0.05) as f32;
         let mix = (helpers::param(p, 4, 100.0) / 100.0) as f32;
-        helpers::response_curve(out, mix, |bin| Self::magnitude(shape, bin / freq, q, gain_db))
+        helpers::response_curve(out, mix, |bin| {
+            Self::magnitude(shape, bin / freq, q, gain_db)
+        })
     }
 }

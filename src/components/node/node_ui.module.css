@@ -1,9 +1,5 @@
-.xfade {
-  flex: none;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.xfade,
+.xmerge {
   padding: 0 8px;
   background: var(--surface-100);
   border: 1px solid var(--border-100);
@@ -12,21 +8,50 @@
   color: var(--text-400);
 }
 
-.xfade .track {
+.xfade {
+  flex: none;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.track {
   flex: 1;
   position: relative;
   height: 2px;
   background: var(--border-200);
+  border-radius: 4px;
 }
 
-.xfade .ball {
-  position: absolute;
-  top: 50%;
-  left: calc(var(--p0) * 100%);
+.xfade .ball,
+.xmerge .ball {
   width: 10px;
   height: 10px;
-  margin: -5px;
   border-radius: 50%;
   background: var(--accent-200);
   pointer-events: none;
+  position: absolute;
+  margin: -5px;
+}
+
+.xfade .ball {
+  top: 50%;
+  left: calc(var(--p0) * 100%);
+}
+
+.xmerge {
+  display: grid;
+  grid-template-columns: 12px 1fr 12px;
+  grid-template-rows: 16px 1fr 16px;
+}
+
+.xmerge .track {
+  width: 120px;
+  height: 45px;
+}
+
+.xmerge .ball {
+  left: calc(var(--p0) * 100%);
+  top: calc(var(--p1) * 100%);
 }

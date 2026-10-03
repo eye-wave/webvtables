@@ -1,8 +1,8 @@
+use super::helpers::{self, from_mag_phase, magnitude, phase};
+use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::{Label, label};
 use alloc::boxed::Box;
 use microfft::Complex32;
-use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
-use super::helpers::{self, from_mag_phase, magnitude, phase};
 
 pub struct PhaseCopyNode;
 

@@ -1,11 +1,13 @@
-use super::{Label, label};
-use super::{BUFFER_LEN, BUFFER_LEN_F64, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
+use super::{
+    BUFFER_LEN, BUFFER_LEN_F64, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeParamDef, Param,
+};
+use super::{Label, label};
 
 pub struct PulseWaveNode;
 
-impl PulseWaveNode {
-    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+impl NodeParamDef for PulseWaveNode {
+    const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
         Param::new_linear("PWM", 0.0, 0.5).with_default_norm(0.5),
         Param::new_int("Repeats", 1, 100).with_unit("x"),
     ];

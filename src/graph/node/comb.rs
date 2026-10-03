@@ -1,11 +1,11 @@
 use super::helpers::{self};
-use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeParamDef, Param};
 use super::{Label, label};
 
 pub struct CombNode;
 
-impl CombNode {
-    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+impl NodeParamDef for CombNode {
+    const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
         Param::new_int("Delay", 0, (BUFFER_LEN) as i32).with_unit("samp"),
         Param::new_int("Iter", 1, 35).with_unit("n")
     ];

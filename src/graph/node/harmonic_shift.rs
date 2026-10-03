@@ -1,13 +1,14 @@
+use super::helpers::{self};
+use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeParamDef, Param};
 use super::{Label, label};
 use alloc::boxed::Box;
 use microfft::Complex32;
-use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
-use super::helpers::{self};
 
 pub struct HarmonicShiftNode;
 
-impl HarmonicShiftNode {
-    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![Param::new_log("Shift", -20.0, 512.0).with_default_denorm(0.0)];
+impl NodeParamDef for HarmonicShiftNode {
+    const PARAMS: [Option<Param>; MAX_PARAMS] =
+        crate::params![Param::new_log("Shift", -20.0, 512.0).with_default_denorm(0.0)];
 }
 
 impl NodeLogic for HarmonicShiftNode {
@@ -52,7 +53,8 @@ impl NodeLogic for HarmonicShiftNode {
         let spectrum = microfft::real::rfft_2048(&mut samples);
         let n = spectrum.len();
 
-        let mut shifted: Box<[Complex32; BUFFER_LEN / 2]> = helpers::boxed(Complex32::new(0.0, 0.0));
+        let mut shifted: Box<[Complex32; BUFFER_LEN / 2]> =
+            helpers::boxed(Complex32::new(0.0, 0.0));
         shifted.copy_from_slice(spectrum);
         for b in shifted.iter_mut().skip(1) {
             b.re = 0.0;

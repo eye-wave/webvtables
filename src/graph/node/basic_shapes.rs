@@ -1,12 +1,12 @@
+use super::helpers::{self, PI32};
+use super::{BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeParamDef, Param};
 use super::{Label, label};
 use crate::ffi;
-use super::{BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
-use super::helpers::{self, PI32};
 
 pub struct BasicShapesNode;
 
-impl BasicShapesNode {
-    pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
+impl NodeParamDef for BasicShapesNode {
+    const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
         Param::new_enum("Shape", &["Sine", "Triangle", "Square", "Sawtooth"]),
         Param::new_int("Repeats", 1, 100).with_unit("x"),
     ];

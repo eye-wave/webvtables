@@ -86,6 +86,7 @@ define_nodes!(
     SpectralSubtract,
     SyncWarp,
     Window,
+    XyMerge,
 );
 
 pub enum NodeCategory {
@@ -113,6 +114,10 @@ impl NodeCategory {
             Self::Unknown => "Other",
         }
     }
+}
+
+pub trait NodeParamDef {
+    const PARAMS: [Option<Param>; MAX_PARAMS];
 }
 
 #[cfg_attr(not(test), allow(dead_code))]
