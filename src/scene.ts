@@ -1,3 +1,4 @@
+import { TABLE } from "./audio";
 import { flagLabels, nodes } from "./generated/nodes";
 import { RADIUS, STRIDE, type Scope } from "./overlay";
 import type { Pt } from "./ropes";
@@ -6,7 +7,7 @@ import type { WasmExports } from "./wasm";
 export type Sock = { node: number; out: boolean; j: number };
 
 const KIND_AT = 16,
-  FLAGS_AT = KIND_AT + 1; // Node.flags follows Node.kind (repr(C))
+  FLAGS_AT = KIND_AT + 1;
 
 type ParamInfo = {
   name: string;
@@ -22,7 +23,7 @@ const WIDTH = 180,
   FLAGS = 20,
   SCOPE = 56,
   GAP = 4,
-  PAD = 12; // keep in sync with .node/.knob in style.css
+  PAD = 12;
 
 const sizeOf = (kind: number): [number, number] => {
   const n = nodes[kind];
@@ -34,6 +35,7 @@ const sizeOf = (kind: number): [number, number] => {
   ];
   return [WIDTH, parts.reduce((a, b) => a + b + GAP, PAD - GAP)];
 };
+const OUTPUT = nodes.findIndex((n) => n.name === "Output");
 const GREEN: [number, number, number] = [0.3, 1, 0.45];
 const ORANGE: [number, number, number] = [1, 0.6, 0.25];
 
@@ -65,12 +67,7 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
     socketPos,
 
     add(kind: number, x: number, y: number) {
-      const p = wasm.add_node(
-        kind,
-        x,
-        y,
-        ...sizeOf(kind),
-      );
+      const p = wasm.add_node(kind, x, y, ...sizeOf(kind));
       if (p < 0) return;
       const i = wasm.nodes_len() - 1;
       const el = div("node", root);
@@ -135,13 +132,16 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
         el.style.height = `${h}px`;
         inst.set([x, y, w, h, i, u[p + KIND_AT]], i * STRIDE);
         el.querySelectorAll<HTMLElement>(".flag").forEach((b) =>
-          b.classList.toggle("active", !!(u[p + FLAGS_AT] & (1 << +b.dataset.b!))),
+          b.classList.toggle(
+            "active",
+            !!(u[p + FLAGS_AT] & (1 << +b.dataset.b!)),
+          ),
         );
         const info = nodes[+el.dataset.k!].params as readonly ParamInfo[];
         el.querySelectorAll<HTMLElement>(".knob").forEach((k) => {
           k.style.setProperty("--v", `${f[+k.dataset.a! >> 2]}`);
           const j = +k.dataset.j!;
-          // param_text doesn't allocate, so views taken above stay valid
+
           const len = wasm.param_text(+el.dataset.n!, j);
           const v = utf8.decode(
             new Uint8Array(wasm.memory.buffer, wasm.param_text_ptr(), len),
@@ -186,7 +186,6 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
 
     *links(): Generator<[number, Pt, Pt]> {
       for (let i = 0; i < wasm.links_len(); i++) {
-        // fresh views: the caller may allocate (grow memory) between yields
         const u = u8(),
           w = u16();
         const p = wasm.get_link(i);
@@ -220,13 +219,31 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
 
     raise: (el: HTMLElement) => root.append(el),
 
+    outputTable(): Float32Array<ArrayBuffer> {
+      let first = -1;
+      Array.from(root.children as HTMLCollectionOf<HTMLElement>).forEach(
+        (el) => {
+          const n = +el.dataset.n!;
+          if (+el.dataset.k! === OUTPUT && (first < 0 || n < first)) first = n;
+        },
+      );
+      if (first < 0) return new Float32Array(TABLE);
+      const len = wasm.scope_fill(first, 0);
+      return new Float32Array(
+        wasm.memory.buffer,
+        wasm.scope_ptr(),
+        len,
+      ).slice();
+    },
+
     remove(el: HTMLElement) {
       const n = +el.dataset.n!;
       wasm.remove_node(n);
       el.remove();
-      // node indices above n shifted down: renumber the nodes and their sockets
-      for (const e of root.querySelectorAll<HTMLElement>(".node, .socket"))
+
+      root.querySelectorAll<HTMLElement>(".node, .socket").forEach((e) => {
         if (+e.dataset.n! > n) e.dataset.n = `${+e.dataset.n! - 1}`;
+      });
     },
 
     reset(el: HTMLElement) {
@@ -241,7 +258,7 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
       const i = at(el);
       const count = root.children.length;
       this.add(+el.dataset.k!, f32()[i] + 24, f32()[i + 1] + 24);
-      if (root.children.length === count) return; // arena full
+      if (root.children.length === count) return;
       const copy = root.lastElementChild as HTMLElement;
       const f = f32(),
         u = u8();

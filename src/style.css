@@ -21,6 +21,45 @@ body {
 
 .box-playback {
   height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 6px;
+  color: #ddd;
+  font:
+    13px system-ui,
+    sans-serif;
+  user-select: none;
+}
+
+.box-playback .knob {
+  min-width: 130px;
+  touch-action: none;
+}
+
+.box-playback .knob:hover {
+  background: #2a2a2a;
+}
+
+.play {
+  width: 26px;
+  height: 22px;
+  background: #262626;
+  border: 1px solid #555;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.play:hover {
+  border-color: #888;
+}
+
+.play.active {
+  color: #0c0c0c;
+  background: #6af;
+  border-color: #6af;
 }
 
 .box-node-grid {

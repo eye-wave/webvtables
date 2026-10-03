@@ -58,12 +58,14 @@ impl Param {
         Self::new(name, Kind::Int(min, max))
     }
 
+    #[allow(clippy::unit_arg)]
     pub const fn new_enum(name: &'static str, data: &'static [&'static str]) -> Self {
         let mut p = Self::new(name, Kind::Enum(data.len() as u8));
         p.options = Some(labels(data));
         p
     }
 
+    #[allow(clippy::unit_arg)]
     pub const fn with_unit(mut self, unit: &'static str) -> Self {
         self.unit = Some(label(unit));
         self
