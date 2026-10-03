@@ -1,0 +1,358 @@
+.kf {
+  height: 100%;
+  outline: none;
+  color: var(--text-500);
+  font:
+    12px system-ui,
+    sans-serif;
+  user-select: none;
+}
+
+.kfScroll {
+  position: relative;
+  height: 100%;
+  overflow: auto;
+  background: var(--surface-100);
+}
+
+.kfInner {
+  position: relative;
+  min-width: 100%;
+}
+
+.kfRow {
+  display: flex;
+  border-bottom: 1px solid #2d2d2d;
+}
+
+.kfLane {
+  height: var(--h);
+}
+
+.kfLabel {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  flex: none;
+  width: var(--label);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  background: var(--surface-300);
+  border-right: 1px solid var(--border-100);
+}
+
+.kfLfo {
+  position: sticky;
+  left: calc(var(--label) + 8px);
+  z-index: 2;
+  width: max-content;
+  height: 0;
+}
+
+.kfKnobs {
+  position: absolute;
+  top: 6px;
+  display: flex;
+  gap: 2px;
+  padding: 4px 6px;
+  background: #1c1c1cd4;
+  border: 1px solid var(--border-100);
+  border-radius: 6px;
+  backdrop-filter: blur(3px);
+  opacity: 0.3;
+  transition: opacity 0.15s;
+}
+
+.kfKnobs:hover {
+  opacity: 0.95;
+}
+
+.kfKnob {
+  width: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  line-height: 11px;
+  color: var(--text-400);
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.kfKnob .kfDial {
+  width: 30px;
+  height: 30px;
+  border-width: 3px;
+}
+
+.kfKnob .kfDial::after {
+  height: 7px;
+  width: 3px;
+}
+
+.kfKnob span {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.kfKnob .v,
+.kfKnob:hover .n {
+  display: none;
+}
+
+.kfKnob:hover .v {
+  display: block;
+  color: var(--accent-200);
+}
+
+.kfLabel {
+  flex-wrap: wrap;
+  align-content: center;
+  gap: 4px 6px;
+}
+
+.kfTarget {
+  flex-basis: 100%;
+  min-width: 0;
+  padding: 1px 4px;
+  overflow: hidden;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #bbb;
+  background: var(--surface-500);
+  border: 1px solid var(--surface-800);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.kfTarget:hover {
+  border-color: var(--border-400);
+}
+
+.kfPop {
+  position: fixed;
+  z-index: 100;
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  color: var(--text-500);
+  font:
+    12px system-ui,
+    sans-serif;
+  background: #242424;
+  border: 1px solid var(--border-200);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px var(--shadow);
+}
+
+.kfPop input {
+  margin: 6px;
+  padding: 4px 6px;
+  font: inherit;
+  color: var(--text-600);
+  background: var(--surface-100);
+  border: 1px solid var(--border-100);
+  border-radius: 4px;
+  outline: none;
+}
+
+.kfPop input:focus {
+  border-color: var(--accent-200);
+}
+
+.kfPopList {
+  overflow: auto;
+  padding: 0 0 6px;
+}
+
+.kfPopNode {
+  padding: 6px 10px 2px;
+  font-size: 11px;
+  color: var(--text-200);
+}
+
+.kfPopRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.kfPopRow:hover {
+  background: var(--surface-700);
+}
+
+.kfPopRow.on {
+  color: var(--accent-300);
+}
+
+.kfPopRow .kfPopTick {
+  width: 10px;
+}
+
+.kfPopRow em {
+  margin-left: auto;
+  font-style: normal;
+  color: var(--driven);
+}
+
+.kfPopEmpty {
+  padding: 8px 10px;
+  color: var(--text-100);
+}
+
+.kfLabel i {
+  width: 6px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--c);
+}
+
+.kfLabel input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: 0;
+  outline: none;
+  font: inherit;
+}
+
+.kfLabel input:focus {
+  background: var(--surface-500);
+}
+
+.kfLabel button {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: var(--text-300);
+  font: inherit;
+}
+
+.kfLabel button:hover {
+  color: var(--white);
+}
+
+.kfTrack {
+  position: relative;
+  flex: 1;
+  background-image:
+    linear-gradient(90deg, var(--surface-600) 1px, transparent 1px),
+    linear-gradient(90deg, #222 1px, transparent 1px);
+  background-position-x: var(--x0);
+  background-size:
+    calc(var(--z) * 32) 100%,
+    calc(var(--z) * 8) 100%;
+}
+
+.kfRuler {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  height: 24px;
+  background: var(--surface-300);
+}
+
+.kfRuler .kfTrack {
+  cursor: ew-resize;
+  background: none;
+}
+
+.kfTick {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  padding: 5px 0 0 4px;
+  border-left: 1px solid var(--border-200);
+  color: var(--text-300);
+  pointer-events: none;
+}
+
+.kfTick.end {
+  padding: 5px 4px 0 0;
+  transform: translateX(-100%);
+  border-left: 0;
+  border-right: 1px solid var(--border-200);
+}
+
+.kfLine {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.kfLine polygon {
+  fill: var(--c);
+  opacity: 0.16;
+}
+
+.kfLine polyline {
+  fill: none;
+  stroke: var(--c);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.kfKey {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  cursor: ns-resize;
+}
+
+.kfKey::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--c);
+  border: 1px solid #111;
+  transform: rotate(45deg);
+}
+
+.kfKey:hover::before {
+  filter: brightness(1.25);
+}
+
+.kfKey.on::before {
+  outline: 2px solid var(--white);
+  outline-offset: 1px;
+}
+
+.kfKey span {
+  visibility: hidden;
+  position: absolute;
+  padding: 1px 5px;
+  white-space: nowrap;
+  background: #111e;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.kfKey:hover span,
+.kfKey.on span {
+  visibility: visible;
+}
+
+.kfHead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  z-index: 2;
+  border-left: 1px solid #f66;
+  pointer-events: none;
+}
+
+.kfEmpty {
+  padding: 12px 8px 12px 154px;
+  color: var(--text-100);
+}

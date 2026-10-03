@@ -1,12 +1,18 @@
-import { TABLE } from "./audio";
-import { nodes } from "./generated/nodes";
-import { mountNode, unmountNode, type ParamInfo } from "./node";
-import { ui } from "./node_ui";
-import { STRIDE, type Scope } from "./overlay";
-import type { ParamEdit } from "./param_edit";
-import type { Pt } from "./ropes";
-import type { NodeInfo } from "./keyframes";
-import type { WasmExports } from "./wasm";
+import { TABLE } from "../audio/audio";
+import { nodes } from "../generated/nodes";
+import {
+  mountNode,
+  unmountNode,
+  type ParamInfo,
+} from "../components/node/node";
+import { ui } from "../components/node/node_ui";
+import { STRIDE, type Scope } from "../gfx/overlay";
+import type { ParamEdit } from "../components/param_edit/param_edit";
+import type { Pt } from "../gfx/ropes";
+import type { NodeInfo } from "../components/keyframes/keyframes";
+import type { WasmExports } from "../wasm";
+import knobCss from "../components/node/knob.module.css";
+import nodeCss from "../components/node/node.module.css";
 
 export type Sock = { node: number; out: boolean; j: number };
 
@@ -102,11 +108,13 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
         return {
           p: +el.dataset.p!,
           name: `${kind.name} ${nth}`,
-          params: [...el.querySelectorAll<HTMLElement>(".knob")].map((k) => ({
-            addr: +k.dataset.a!,
-            j: +k.dataset.j!,
-            name: info[+k.dataset.j!].name,
-          })),
+          params: [...el.querySelectorAll<HTMLElement>(`.${knobCss.knob}`)].map(
+            (k) => ({
+              addr: +k.dataset.a!,
+              j: +k.dataset.j!,
+              name: info[+k.dataset.j!].name,
+            }),
+          ),
         };
       });
     },
@@ -122,8 +130,12 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
 
     load() {
       [...root.children].forEach(unmountNode);
-      for (let i = 0; i < wasm.nodes_len(); i++)
-        mount(i, wasm.get_node(i), wasm.node_kind(i));
+      for (let i = 0; i < wasm.nodes_len(); i++) {
+        const [p, k] = [wasm.get_node(i), wasm.node_kind(i)];
+        // ponytail: size is derived, not trusted from old files; persist it only if users can resize nodes
+        f32().set(sizeOf(k), (p >> 2) + 2);
+        mount(i, p, k);
+      }
       changed();
     },
 
@@ -143,22 +155,22 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
 
         for (let j = 0, a; (a = wasm.get_param(+el.dataset.n!, j)) >= 0; j++)
           el.style.setProperty(`--p${j}`, `${f[a >> 2]}`);
-        el.querySelectorAll<HTMLElement>(".flag").forEach((b) =>
+        el.querySelectorAll<HTMLElement>(`.${nodeCss.flag}`).forEach((b) =>
           b.classList.toggle(
-            "active",
+            nodeCss.active,
             !!(u[p + FLAGS_AT] & (1 << +b.dataset.b!)),
           ),
         );
         const info = nodes[+el.dataset.k!].params as readonly ParamInfo[];
-        el.querySelectorAll<HTMLElement>(".knob").forEach((k) => {
+        el.querySelectorAll<HTMLElement>(`.${knobCss.knob}`).forEach((k) => {
           k.style.setProperty("--v", `${f[+k.dataset.a! >> 2]}`);
-          k.classList.toggle("driven", driven.has(+k.dataset.a!));
+          k.classList.toggle(knobCss.driven, driven.has(+k.dataset.a!));
           const j = +k.dataset.j!;
 
           const v = numText(+el.dataset.n!, j);
           const p = info[j];
           const text = p.options?.[+v] ?? (p.unit ? `${v} ${p.unit}` : v);
-          const out = k.querySelector(".pval");
+          const out = k.querySelector(`.${knobCss.pval}`);
           if (out && out.textContent !== text) out.textContent = text;
         });
       }
@@ -171,7 +183,7 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
         const el = root.children.item(order) as HTMLElement;
         const [x, y] = f32().subarray(at(el), at(el) + 2);
 
-        el.querySelectorAll<HTMLElement>(".scope").forEach((s) => {
+        el.querySelectorAll<HTMLElement>(`.${nodeCss.scope}`).forEach((s) => {
           const len = wasm.scope_fill(+el.dataset.n!, +s.dataset.w!);
           if (len < 2) return;
           const [ox, oy] = offsetIn(s, el);
@@ -249,14 +261,17 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
       unmountNode(el);
       changed();
 
-      root.querySelectorAll<HTMLElement>(".node, .socket").forEach((e) => {
-        if (+e.dataset.n! > n) e.dataset.n = `${+e.dataset.n! - 1}`;
-      });
+      root
+        .querySelectorAll<HTMLElement>(`.${nodeCss.node}, .${nodeCss.socket}`)
+        .forEach((e) => {
+          if (+e.dataset.n! > n) e.dataset.n = `${+e.dataset.n! - 1}`;
+        });
     },
 
     resetKnob(k: HTMLElement) {
-      const info = nodes[+k.closest<HTMLElement>(".node")!.dataset.k!]
-        .params as readonly ParamInfo[];
+      const info = nodes[
+        +k.closest<HTMLElement>(`.${nodeCss.node}`)!.dataset.k!
+      ].params as readonly ParamInfo[];
       f32()[+k.dataset.a! >> 2] = info[+k.dataset.j!].default;
     },
 
@@ -265,7 +280,7 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
     reset(el: HTMLElement) {
       const info = nodes[+el.dataset.k!].params as readonly ParamInfo[];
       const f = f32();
-      el.querySelectorAll<HTMLElement>(".knob").forEach((k) => {
+      el.querySelectorAll<HTMLElement>(`.${knobCss.knob}`).forEach((k) => {
         f[+k.dataset.a! >> 2] = info[+k.dataset.j!].default;
       });
     },
@@ -278,8 +293,8 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
       const copy = root.lastElementChild as HTMLElement;
       const f = f32(),
         u = u8();
-      const src = el.querySelectorAll<HTMLElement>(".knob");
-      copy.querySelectorAll<HTMLElement>(".knob").forEach((k, j) => {
+      const src = el.querySelectorAll<HTMLElement>(`.${knobCss.knob}`);
+      copy.querySelectorAll<HTMLElement>(`.${knobCss.knob}`).forEach((k, j) => {
         f[+k.dataset.a! >> 2] = f[+src[j].dataset.a! >> 2];
       });
       u[+copy.dataset.p! + FLAGS_AT] = u[+el.dataset.p! + FLAGS_AT];
@@ -299,14 +314,14 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
     },
 
     flag(b: HTMLElement) {
-      const p = +b.closest<HTMLElement>(".node")!.dataset.p!;
+      const p = +b.closest<HTMLElement>(`.${nodeCss.node}`)!.dataset.p!;
       u8()[p + FLAGS_AT] ^= 1 << +b.dataset.b!;
     },
 
     param(k: HTMLElement, after = () => {}): ParamEdit {
-      const n = +k.closest<HTMLElement>(".node")!.dataset.n!,
+      const n = +k.closest<HTMLElement>(`.${nodeCss.node}`)!.dataset.n!,
         j = +k.dataset.j!;
-      const kind = +k.closest<HTMLElement>(".node")!.dataset.k!;
+      const kind = +k.closest<HTMLElement>(`.${nodeCss.node}`)!.dataset.k!;
       return {
         options: (nodes[kind].params as readonly ParamInfo[])[j].options,
         value: numText(n, j),

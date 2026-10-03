@@ -6,9 +6,11 @@ import {
   type JSX,
 } from "solid-js";
 import { render } from "solid-js/web";
-import { flagLabels, nodes } from "./generated/nodes";
-import { RADIUS } from "./overlay";
-import type { WasmExports } from "./wasm";
+import { flagLabels, nodes } from "../../generated/nodes";
+import { RADIUS } from "../../gfx/overlay";
+import type { WasmExports } from "../../wasm";
+import knobCss from "./knob.module.css";
+import nodeCss from "./node.module.css";
 
 // Node API. A node view is any component built from these pieces.
 // Per-frame state (knob --v / .driven / .pval text, flag .active, scope
@@ -43,16 +45,16 @@ export function Knob(props: {
   const { wasm, i, kind } = useNode();
   return (
     <div
-      class={`knob ${props.class ?? ""}`}
+      class={`${knobCss.knob} ${props.class ?? ""}`}
       style={props.style}
       data-a={wasm.get_param(i, props.j)}
       data-j={props.j}
     >
       {props.children ?? (
         <>
-          <div class="dial" />
-          <div class="pname">{params(kind)[props.j].name}</div>
-          <div class="pval" />
+          <div class={knobCss.dial} />
+          <div class={knobCss.pname}>{params(kind)[props.j].name}</div>
+          <div class={knobCss.pval} />
         </>
       )}
     </div>
@@ -60,7 +62,7 @@ export function Knob(props: {
 }
 
 export const Flag = (props: { b: number; class?: string }) => (
-  <div class={`flag ${props.class ?? ""}`} data-b={props.b}>
+  <div class={`${nodeCss.flag} ${props.class ?? ""}`} data-b={props.b}>
     {flagLabels[props.b]}
   </div>
 );
@@ -71,15 +73,15 @@ export const Scope = (props: {
   style?: JSX.CSSProperties;
 }) => (
   <div
-    class={`scope ${props.class ?? ""}`}
+    class={`${nodeCss.scope} ${props.class ?? ""}`}
     style={props.style}
     data-w={props.w ?? 0}
   />
 );
 
 export const Head = () => (
-  <div class="head">
-    <div class="title">{nodes[useNode().kind].name}</div>
+  <div class={nodeCss.head}>
+    <div class={nodeCss.title}>{nodes[useNode().kind].name}</div>
   </div>
 );
 
@@ -87,7 +89,7 @@ export function Knobs() {
   const n = params(useNode().kind).length;
   return (
     <Show when={n}>
-      <div class="knobs">
+      <div class={nodeCss.knobs}>
         {Array.from({ length: n }, (_, j) => (
           <Knob j={j} />
         ))}
@@ -97,7 +99,7 @@ export function Knobs() {
 }
 
 export const Flags = () => (
-  <div class="flags">
+  <div class={nodeCss.flags}>
     {flagLabels.map((_, b) => (
       <Flag b={b} />
     ))}
@@ -127,7 +129,7 @@ function Sockets(props: { out: boolean }) {
     const t = (j + 1) / (count + 1);
     return (
       <div
-        class="socket"
+        class={nodeCss.socket}
         data-n={i}
         data-o={props.out ? 1 : 0}
         data-j={j}
@@ -152,7 +154,7 @@ export function mountNode(
     () => (
       <NodeCtx.Provider value={ctx}>
         <div
-          class="node"
+          class={nodeCss.node}
           data-p={ctx.p}
           data-n={ctx.i}
           data-k={ctx.kind}

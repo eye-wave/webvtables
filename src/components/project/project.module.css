@@ -1,0 +1,19 @@
+.tools {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+
+.tool {
+  padding: 2px 10px;
+  font: inherit;
+  color: var(--text-600);
+  background: var(--surface-600);
+  border: 1px solid var(--border-200);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tool:hover {
+  border-color: var(--border-400);
+}

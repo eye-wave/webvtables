@@ -1,10 +1,13 @@
 import { createSignal, For } from "solid-js";
 import { render } from "solid-js/web";
-import { nodes } from "./generated/nodes";
-import { editParam } from "./param_edit";
-import type { Kf } from "./kf";
-import type { Scene } from "./scene";
-import type { ViewCtl } from "./view";
+import { nodes } from "../../generated/nodes";
+import { editParam } from "../param_edit/param_edit";
+import type { Kf } from "../../editor/kf";
+import type { Scene } from "../../editor/scene";
+import type { ViewCtl } from "../../gfx/view";
+import knobCss from "../node/knob.module.css";
+import nodeCss from "../node/node.module.css";
+import ctxCss from "./ctx.module.css";
 
 type Item =
   | { label: string; run(): void; danger?: boolean }
@@ -50,7 +53,7 @@ export function createContextMenu(
   const esc = (e: KeyboardEvent) => e.key === "Escape" && close();
 
   const paramItems = (e: MouseEvent, node: HTMLElement): Item[] => {
-    const knob = (e.target as HTMLElement).closest<HTMLElement>(".knob");
+    const knob = (e.target as HTMLElement).closest<HTMLElement>(`.${knobCss.knob}`);
     if (!knob) return [];
     const [p, j, addr] = [+node.dataset.p!, +knob.dataset.j!, +knob.dataset.a!];
     const lanes = kf.lanes();
@@ -91,7 +94,7 @@ export function createContextMenu(
   };
 
   const itemsFor = (e: MouseEvent): Item[] => {
-    const node = (e.target as HTMLElement).closest<HTMLElement>(".node");
+    const node = (e.target as HTMLElement).closest<HTMLElement>(`.${nodeCss.node}`);
     if (!node)
       return [
         { label: "Add node…", run: () => openAdd(e) },
@@ -118,15 +121,17 @@ export function createContextMenu(
         it === "-" ? (
           <hr />
         ) : "sub" in it ? (
-          <div class="item has-sub" style={p.top ? { "--i": i() } : {}}>
+          <div class={`${ctxCss.item} ${ctxCss.hasSub}`} style={p.top ? { "--i": i() } : {}}>
             {it.label}
-            <div class="sub">
+            <div class={ctxCss.sub}>
               <Items items={it.sub} />
             </div>
           </div>
         ) : (
           <div
-            class={it.danger ? "item danger" : "item"}
+            class={
+              it.danger ? `${ctxCss.item} ${ctxCss.danger}` : ctxCss.item
+            }
             style={p.top ? { "--i": i() } : {}}
             onClick={() => {
               close();
@@ -144,9 +149,9 @@ export function createContextMenu(
   render(
     () => (
       <div
-        class="ctx"
+        class={ctxCss.ctx}
         ref={root}
-        classList={{ open: open(), flip: at().flip }}
+        classList={{ [ctxCss.open]: open(), [ctxCss.flip]: at().flip }}
         style={{
           left: `${at().left}px`,
           top: `${at().top}px`,
@@ -162,7 +167,7 @@ export function createContextMenu(
 
   grid.addEventListener("contextmenu", (e) => {
     e.preventDefault();
-    if (e.ctrlKey && (e.target as HTMLElement).closest(".knob")) return;
+    if (e.ctrlKey && (e.target as HTMLElement).closest(`.${knobCss.knob}`)) return;
     setOpen(false);
     setItems(itemsFor(e));
     const { offsetWidth: w, offsetHeight: h } = root;

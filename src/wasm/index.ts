@@ -1,5 +1,5 @@
 import wasmUrl from "~wasm/webvtlabes.wasm?url";
-import { math_ffi } from "./wasm/math";
+import { math_ffi } from "./math";
 
 declare const ptr: unique symbol;
 declare const int: unique symbol;

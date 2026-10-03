@@ -1,8 +1,10 @@
 import { createSignal } from "solid-js";
 import { render } from "solid-js/web";
-import type { Audio } from "./audio";
-import { fineScale } from "./fine";
-import { editParam } from "./param_edit";
+import type { Audio } from "../../audio/audio";
+import { fineScale } from "../../editor/fine";
+import { editParam } from "../param_edit/param_edit";
+import knobCss from "../node/knob.module.css";
+import transportCss from "./transport.module.css";
 
 const FREQ_MIN = 20,
   FREQ_MAX = 2000,
@@ -34,7 +36,7 @@ function BarKnob(props: {
 
   return (
     <div
-      class="knob"
+      class={`${knobCss.knob} ${transportCss.bar}`}
       style={{ "--v": v() }}
       onPointerDown={(e) => {
         if (e.button) return;
@@ -53,9 +55,9 @@ function BarKnob(props: {
       )}
       onContextMenu={(e) => (e.preventDefault(), edit(e.currentTarget))}
     >
-      <div class="dial" />
-      <div class="pname">{props.name}</div>
-      <div class="pval">
+      <div class={knobCss.dial} />
+      <div class={knobCss.pname}>{props.name}</div>
+      <div class={knobCss.pval}>
         {props.show(v())} {props.unit}
       </div>
     </div>
@@ -82,8 +84,8 @@ export function createTransport(
     () => (
       <>
         <button
-          class="play"
-          classList={{ active: on() }}
+          class={transportCss.play}
+          classList={{ [transportCss.active]: on() }}
           title="Play / pause"
           onClick={async () => {
             setOn((playing = await audio.toggle()));

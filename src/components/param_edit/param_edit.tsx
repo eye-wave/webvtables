@@ -1,5 +1,6 @@
 import { createSignal, For, Show } from "solid-js";
 import { render } from "solid-js/web";
+import peditCss from "./param_edit.module.css";
 
 export type ParamEdit = {
   options?: readonly string[];
@@ -36,7 +37,7 @@ function Popup() {
     <Show when={open()} keyed>
       {({ at, spec }) => (
         <div
-          class="pedit"
+          class={peditCss.pedit}
           ref={root}
           style={{
             left: `${Math.max(0, Math.min(at.left, innerWidth - 168))}px`,

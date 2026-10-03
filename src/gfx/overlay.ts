@@ -31,7 +31,7 @@ export type Frame = {
 };
 export type Draw = (f: Frame) => void;
 
-const createShaderCompiler =
+export const createShaderCompiler =
   (gl: WebGL2RenderingContext) =>
   (vs: string, fs: string): WebGLProgram => {
     const prog = gl.createProgram();

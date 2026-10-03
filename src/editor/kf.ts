@@ -1,4 +1,4 @@
-import type { WasmExports } from "./wasm";
+import type { WasmExports } from "../wasm";
 
 export type LaneView = {
   name: string;

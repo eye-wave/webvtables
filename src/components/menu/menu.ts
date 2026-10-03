@@ -1,7 +1,9 @@
-import { nodes } from "./generated/nodes";
-import type { Pt } from "./ropes";
-import type { Scene } from "./scene";
-import type { ViewCtl } from "./view";
+import { nodes } from "../../generated/nodes";
+import type { Pt } from "../../gfx/ropes";
+import type { Scene } from "../../editor/scene";
+import type { ViewCtl } from "../../gfx/view";
+import nodeCss from "../node/node.module.css";
+import menuCss from "./menu.module.css";
 
 export function createMenu(
   grid: HTMLElement,
@@ -10,7 +12,7 @@ export function createMenu(
   schedule: () => void,
 ) {
   const root = document.createElement("div");
-  root.className = "menu";
+  root.className = menuCss.menu;
   root.hidden = true;
   const input = document.createElement("input");
   input.placeholder = "Add node…";
@@ -38,9 +40,9 @@ export function createMenu(
   let sel = 0;
 
   const mark = (i: number) => {
-    list.querySelector(".sel")?.classList.remove("sel");
+    list.querySelector(`.${menuCss.sel}`)?.classList.remove(menuCss.sel);
     sel = (i + shown.length) % (shown.length || 1);
-    shown[sel]?.classList.add("sel");
+    shown[sel]?.classList.add(menuCss.sel);
     shown[sel]?.scrollIntoView({ block: "nearest" });
   };
 
@@ -94,7 +96,7 @@ export function createMenu(
   };
 
   grid.addEventListener("dblclick", (e) => {
-    if (!(e.target as HTMLElement).closest(".node")) open(e);
+    if (!(e.target as HTMLElement).closest(`.${nodeCss.node}`)) open(e);
   });
 
   return { open };

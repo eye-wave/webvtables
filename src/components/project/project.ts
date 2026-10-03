@@ -1,10 +1,11 @@
-import type { Kf } from "./kf";
-import type { Scene } from "./scene";
-import type { WasmExports } from "./wasm";
+import type { Kf } from "../../editor/kf";
+import type { Scene } from "../../editor/scene";
+import type { WasmExports } from "../../wasm";
+import projectCss from "./project.module.css";
 
 const button = (text: string, title: string, onclick: () => void) =>
   Object.assign(document.createElement("button"), {
-    className: "tool",
+    className: projectCss.tool,
     textContent: text,
     title,
     onclick,
@@ -93,7 +94,7 @@ export function createProject(
   });
 
   const tools = Object.assign(document.createElement("div"), {
-    className: "tools",
+    className: projectCss.tools,
   });
   tools.append(
     button("Save", "Save project", () => {

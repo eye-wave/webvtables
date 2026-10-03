@@ -1,0 +1,99 @@
+.node {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-400);
+  border: 2px solid var(--border-300);
+  color: var(--text-600);
+  font:
+    13px system-ui,
+    sans-serif;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.socket {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin: -7px;
+  border: 2px solid var(--border-500);
+  border-radius: 50%;
+  background: var(--surface-400);
+  cursor: crosshair;
+}
+
+.socket::before {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+}
+
+.head {
+  flex: none;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.title {
+  white-space: nowrap;
+}
+
+.knobs {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.flags {
+  flex: none;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  height: 20px;
+}
+
+.flag {
+  flex: 1;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: var(--text-400);
+  background: var(--surface-600);
+  border: 1px solid var(--border-200);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.flag:hover {
+  border-color: var(--border-400);
+}
+
+.flag.active {
+  color: var(--on-accent);
+  background: var(--accent-200);
+  border-color: var(--accent-200);
+}
+
+.knobs:empty {
+  display: none;
+}
+
+.scope {
+  align-self: stretch;
+  flex: 1;
+  min-height: 0;
+  background: var(--surface-100);
+  border: 1px solid var(--border-100);
+  border-radius: 3px;
+}

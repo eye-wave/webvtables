@@ -1,12 +1,14 @@
 import type { Component } from "solid-js";
-import type { nodes } from "./generated/nodes";
+import type { nodes } from "../../generated/nodes";
 import { Flags, Head, Knob, Scope } from "./node";
+import knobCss from "./knob.module.css";
+import nodeUiCss from "./node_ui.module.css";
 
 const Xfade = () => (
-  <div class="xfade">
+  <div class={nodeUiCss.xfade}>
     <span>A</span>
-    <div class="track">
-      <i class="ball" />
+    <div class={nodeUiCss.track}>
+      <i class={nodeUiCss.ball} />
     </div>
     <span>B</span>
   </div>
@@ -25,9 +27,9 @@ export const ui: Partial<Record<(typeof nodes)[number]["name"], NodeUi>> = {
       <>
         <Head />
         <Scope />
-        <div class="row">
-          <Knob j={0} class="tall" />
-          <Knob j={1} class="tall" />
+        <div class={knobCss.row}>
+          <Knob j={0} class={knobCss.tall} />
+          <Knob j={1} class={knobCss.tall} />
         </div>
         <Flags />
       </>
@@ -35,27 +37,13 @@ export const ui: Partial<Record<(typeof nodes)[number]["name"], NodeUi>> = {
   },
 
   Add: {
-    size: [160, 202],
+    size: [160, 240],
     view: () => (
       <>
         <Head />
         <Scope />
         <Xfade />
-        <Knob j={0} class="tall" />
-        <Flags />
-      </>
-    ),
-  },
-
-  Output: {
-    size: [240, 140],
-    view: () => (
-      <>
-        <Head />
-        <div class="row" style={{ flex: 1, "min-height": 0 }}>
-          <Scope w={0} style={{ flex: 2 }} />
-          <Scope w={1} />
-        </div>
+        <Knob j={0} class={knobCss.tall} />
         <Flags />
       </>
     ),

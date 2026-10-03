@@ -1,0 +1,102 @@
+.ctx {
+  position: fixed;
+  z-index: 11;
+  min-width: 170px;
+  padding: 4px;
+  background: var(--surface-400);
+  border: 1px solid var(--border-300);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px var(--shadow);
+  color: var(--text-600);
+  font:
+    13px system-ui,
+    sans-serif;
+  user-select: none;
+  visibility: hidden;
+  opacity: 0;
+  transform: scale(0.88) translateY(-6px);
+  transition:
+    opacity 0.12s ease-out,
+    transform 0.18s cubic-bezier(0.2, 1.2, 0.35, 1),
+    visibility 0s 0.18s;
+}
+
+.ctx.open {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  transition-delay: 0s;
+}
+
+.ctx hr {
+  margin: 4px 2px;
+  border: 0;
+  border-top: 1px solid var(--border-100);
+}
+
+.ctx .item {
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateX(-6px);
+  transition:
+    opacity 0.15s ease-out,
+    transform 0.2s ease-out,
+    background 0.1s;
+}
+
+.ctx.open .item {
+  opacity: 1;
+  transform: none;
+  transition-delay:
+    calc(var(--i) * 25ms + 40ms), calc(var(--i) * 25ms + 40ms), 0s;
+}
+
+.ctx .item:hover {
+  background: var(--accent-100);
+}
+
+.ctx .item.danger {
+  color: var(--danger-200);
+}
+
+.ctx .item.danger:hover {
+  background: var(--danger-100);
+}
+
+.ctx .item.hasSub {
+  position: relative;
+}
+
+.ctx .item.hasSub::after {
+  content: "▸";
+  float: right;
+  margin-left: 12px;
+  color: var(--text-200);
+}
+
+.ctx .sub {
+  display: none;
+  position: absolute;
+  top: -5px;
+  left: 100%;
+  min-width: 150px;
+  max-height: 180px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  background: var(--surface-400);
+  border: 1px solid var(--border-300);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px var(--shadow);
+}
+
+.ctx.flip .sub {
+  left: auto;
+  right: 100%;
+}
+
+.ctx .hasSub:hover > .sub {
+  display: block;
+}

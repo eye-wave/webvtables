@@ -1,8 +1,10 @@
 import { fineScale } from "./fine";
-import { editParam } from "./param_edit";
-import type { Pt, Ropes } from "./ropes";
+import { editParam } from "../components/param_edit/param_edit";
+import type { Pt, Ropes } from "../gfx/ropes";
 import type { Scene, Sock } from "./scene";
-import type { ViewCtl } from "./view";
+import type { ViewCtl } from "../gfx/view";
+import knobCss from "../components/node/knob.module.css";
+import nodeCss from "../components/node/node.module.css";
 
 const PENDING = -1;
 const HIT = 8;
@@ -24,8 +26,8 @@ export function createInput(
   let hot: HTMLElement | null = null;
   const hover = (k: HTMLElement | null) => {
     if (k === hot) return;
-    hot?.classList.remove("on");
-    k?.classList.add("on");
+    hot?.classList.remove(knobCss.on);
+    k?.classList.add(knobCss.on);
     hot = k;
     schedule();
   };
@@ -80,7 +82,7 @@ export function createInput(
       move: pin,
       up(e) {
         lit = [];
-        const el = (e.target as HTMLElement).closest<HTMLElement>(".socket");
+        const el = (e.target as HTMLElement).closest<HTMLElement>(`.${nodeCss.socket}`);
         const i = el ? scene.connect(from, scene.socket(el)) : -1;
         if (i < 0) ropes.drop(PENDING);
         else ropes.rename(PENDING, i);
@@ -99,12 +101,12 @@ export function createInput(
   grid.addEventListener("pointerdown", (e) => {
     if (e.button) return;
     const t = e.target as HTMLElement;
-    const flag = t.closest<HTMLElement>(".flag");
+    const flag = t.closest<HTMLElement>(`.${nodeCss.flag}`);
     if (flag) return (scene.flag(flag), schedule());
-    const knob = t.closest<HTMLElement>(".knob");
+    const knob = t.closest<HTMLElement>(`.${knobCss.knob}`);
     if (knob && e.ctrlKey) return editParam(knob, scene.param(knob, schedule));
-    const sock = t.closest<HTMLElement>(".socket");
-    const node = t.closest<HTMLElement>(".node");
+    const sock = t.closest<HTMLElement>(`.${nodeCss.socket}`);
+    const node = t.closest<HTMLElement>(`.${nodeCss.node}`);
     const link =
       knob || sock || node ? -1 : ropes.hit(view.world(e), HIT / view.v[2]);
     hover(knob);
@@ -125,10 +127,10 @@ export function createInput(
 
     const t = e.target as HTMLElement;
     const id =
-      grid.contains(t) && !t.closest(".node")
+      grid.contains(t) && !t.closest(`.${nodeCss.node}`)
         ? ropes.hit(view.world(e), HIT / view.v[2])
         : -1;
-    hover(grid.contains(t) ? t.closest<HTMLElement>(".knob") : null);
+    hover(grid.contains(t) ? t.closest<HTMLElement>(`.${knobCss.knob}`) : null);
     if (ropes.highlight(id)) schedule();
     grid.style.cursor = id < 0 ? "" : "pointer";
   });
@@ -136,12 +138,12 @@ export function createInput(
     if (!drag) return;
     drag.up?.(e);
     drag = null;
-    hover((e.target as HTMLElement).closest<HTMLElement>(".knob"));
+    hover((e.target as HTMLElement).closest<HTMLElement>(`.${knobCss.knob}`));
     schedule();
   });
 
   grid.addEventListener("dblclick", (e) => {
-    const k = (e.target as HTMLElement).closest<HTMLElement>(".knob");
+    const k = (e.target as HTMLElement).closest<HTMLElement>(`.${knobCss.knob}`);
     if (!k || e.ctrlKey) return;
     scene.resetKnob(k);
     schedule();
