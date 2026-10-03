@@ -142,6 +142,11 @@ pub extern "C" fn rope_out() -> i32 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn scope_begin() {
+    graph::scope::begin(state())
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn scope_fill(node: u16, widget: u8) -> u32 {
     graph::scope::fill(state(), node as usize, widget) as u32
 }

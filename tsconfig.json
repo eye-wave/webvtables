@@ -5,6 +5,8 @@
     "lib": ["ES2023", "DOM"],
     "types": ["vite/client", "vite-plugin-glsl/ext"],
     "allowArbitraryExtensions": true,
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
     "skipLibCheck": true,
 
     "paths": {

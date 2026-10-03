@@ -14,6 +14,7 @@ export type float = number & { readonly [float]: never };
 export type WasmExports = {
   links_len(): number;
 
+  scope_begin(): void;
   scope_fill(node: number, widget: number): number;
   scope_ptr(): number;
 

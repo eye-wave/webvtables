@@ -228,8 +228,289 @@ body {
   height: 100%;
 }
 
-.box-keyframes {
+.box-node-grid {
   min-height: 120px;
+}
+
+.resize-handle {
+  height: 8px;
+  margin: -4px 0;
+  z-index: 1;
+  cursor: row-resize;
+  touch-action: none;
+  border-radius: 4px;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background: #6af6;
+}
+
+.box-keyframes {
+  flex: none;
+  height: 220px;
+  min-height: 80px;
+  overflow: hidden;
+}
+
+.kf {
+  height: 100%;
+  outline: none;
+  color: #ccc;
+  font:
+    12px system-ui,
+    sans-serif;
+  user-select: none;
+}
+
+.kf-scroll {
+  position: relative;
+  height: 100%;
+  overflow: auto;
+  background: #0c0c0c;
+}
+
+.kf-inner {
+  position: relative;
+  min-width: 100%;
+}
+
+.kf-row {
+  display: flex;
+  border-bottom: 1px solid #222;
+}
+
+.kf-lane {
+  height: var(--h);
+}
+
+.kf-label {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  flex: none;
+  width: var(--label);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  background: #151515;
+  border-right: 1px solid #333;
+}
+
+.kf-lfo {
+  position: sticky;
+  left: calc(var(--label) + 8px);
+  z-index: 2;
+  width: max-content;
+  height: 0;
+}
+
+.kf-knobs {
+  position: absolute;
+  top: 6px;
+  display: flex;
+  gap: 2px;
+  padding: 4px 6px;
+  background: #0c0c0cc4;
+  border: 1px solid #333;
+  border-radius: 6px;
+  backdrop-filter: blur(3px);
+  opacity: 0.2;
+  transition: opacity 0.15s;
+}
+
+.kf-knobs:hover {
+  opacity: 0.95;
+}
+
+.kf-knob {
+  width: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  line-height: 11px;
+  color: #999;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.kf-knob .dial {
+  width: 30px;
+  height: 30px;
+  border-width: 3px;
+}
+
+.kf-knob .dial::after {
+  height: 7px;
+  width: 3px;
+}
+
+.kf-knob span {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.kf-knob .v,
+.kf-knob:hover .n {
+  display: none;
+}
+
+.kf-knob:hover .v {
+  display: block;
+  color: #6af;
+}
+
+.kf-label i {
+  width: 6px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--c);
+}
+
+.kf-label input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: 0;
+  outline: none;
+  font: inherit;
+}
+
+.kf-label input:focus {
+  background: #222;
+}
+
+.kf-label button {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: #888;
+  font: inherit;
+}
+
+.kf-label button:hover {
+  color: #fff;
+}
+
+.kf-track {
+  position: relative;
+  flex: 1;
+  background-image:
+    linear-gradient(90deg, #262626 1px, transparent 1px),
+    linear-gradient(90deg, #181818 1px, transparent 1px);
+  background-position-x: var(--x0);
+  background-size:
+    calc(var(--z) * 32) 100%,
+    calc(var(--z) * 8) 100%;
+}
+
+.kf-ruler {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  height: 24px;
+  background: #151515;
+}
+
+.kf-ruler .kf-track {
+  cursor: ew-resize;
+  background: none;
+}
+
+.kf-tick {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  padding: 5px 0 0 4px;
+  border-left: 1px solid #444;
+  color: #888;
+  pointer-events: none;
+}
+
+.kf-tick.end {
+  padding: 5px 4px 0 0;
+  transform: translateX(-100%);
+  border-left: 0;
+  border-right: 1px solid #444;
+}
+
+.kf-line {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.kf-line polygon {
+  fill: var(--c);
+  opacity: 0.12;
+}
+
+.kf-line polyline {
+  fill: none;
+  stroke: var(--c);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.kf-key {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  cursor: ns-resize;
+}
+
+.kf-key::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--c);
+  border: 1px solid #000;
+  transform: rotate(45deg);
+}
+
+.kf-key:hover::before {
+  filter: brightness(1.25);
+}
+
+.kf-key.on::before {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+
+.kf-key span {
+  visibility: hidden;
+  position: absolute;
+  padding: 1px 5px;
+  white-space: nowrap;
+  background: #000d;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.kf-key:hover span,
+.kf-key.on span {
+  visibility: visible;
+}
+
+.kf-head {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  z-index: 2;
+  border-left: 1px solid #f55;
+  pointer-events: none;
+}
+
+.kf-empty {
+  padding: 12px 8px 12px 154px;
+  color: #666;
 }
 
 .knobs:empty {

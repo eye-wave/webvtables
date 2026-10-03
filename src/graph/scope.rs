@@ -1,11 +1,20 @@
 use super::node::{Buffer, N, NodeFlags, zeroed};
 use crate::graph::{MAX_PARAMS, NodeKind, Param, State};
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{boxed::Box, vec::Vec};
 
-// ponytail: per-call memo, every node evaluated once, so shared inputs and cycles are cheap
+// ponytail: memo shared by every fill() of a frame (reset by begin()), so the whole graph is
+// evaluated once per frame instead of once per scope. Cycles read silence, result depends on entry order.
 type Memo = Vec<Option<Box<[f32]>>>;
 
 static mut BUF: Buffer = [0.0; N];
+static mut MEMO: Memo = Vec::new();
+
+/// Call once per frame, before the first fill(): params may have changed since the last one.
+pub fn begin(s: &State) {
+    let memo = unsafe { &mut MEMO };
+    memo.clear();
+    memo.resize(s.nodes.len(), None);
+}
 
 pub fn buf() -> usize {
     (&raw const BUF) as usize
@@ -16,14 +25,17 @@ pub fn fill(s: &State, node: usize, widget: u8) -> usize {
         return 0;
     };
     let buf = unsafe { &mut BUF };
-    let mut memo: Memo = vec![None; s.nodes.len()];
+    let memo = unsafe { &mut MEMO };
+    if memo.len() != s.nodes.len() {
+        begin(s);
+    }
     match widget {
         0 => {
-            eval(s, node, 0, &mut memo, buf);
+            eval(s, node, 0, memo, buf);
             N
         }
         1 if kind.as_node().has_widget() => {
-            let ins = inputs(s, node, kind, &mut memo);
+            let ins = inputs(s, node, kind, memo);
             let refs: Vec<&Buffer> = ins.as_chunks::<N>().0.iter().collect();
             kind.as_node()
                 .fill_widget(&refs, &params(s, node, kind), buf)
@@ -126,10 +138,28 @@ mod tests {
             s.link((g, 0), (m, 1));
             prev = m;
         }
+        begin(&s);
         assert_eq!(fill(&s, prev as usize, 0), N);
         let (a, b) = (add(&mut s), add(&mut s));
         s.link((a, 0), (b, 0));
         s.link((b, 0), (a, 0));
+        begin(&s);
         assert_eq!(fill(&s, a as usize, 0), N);
+    }
+
+    #[test]
+    fn long_chain_all_scopes_share_one_memo() {
+        let mut s = State::new();
+        let mut prev = add(&mut s);
+        for _ in 0..600 {
+            let g = add(&mut s);
+            s.link((prev, 0), (g, 0));
+            prev = g;
+        }
+        begin(&s);
+        // was O(n^2) (1.7s native): each scope re-evaluated the whole upstream graph
+        let t = std::time::Instant::now();
+        (0..s.nodes.len()).for_each(|i| assert_eq!(fill(&s, i, 0), N));
+        assert!(t.elapsed().as_millis() < 500, "{:?}", t.elapsed());
     }
 }

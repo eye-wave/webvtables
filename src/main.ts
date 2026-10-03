@@ -9,12 +9,28 @@ import { createScene } from "./scene";
 import { createTransport } from "./transport";
 import { createView } from "./view";
 import { loadWasm } from "./wasm";
+import { render as mount } from "solid-js/web";
+import { Keyframes } from "./keyframes";
 
 declare const nodeGrid: HTMLDivElement;
 declare const gridBg: HTMLDivElement;
 declare const canvas: HTMLCanvasElement;
+declare const kfHandle: HTMLDivElement;
 
 const draw = createOverlay(canvas);
+
+const kf = document.querySelector<HTMLElement>(".box-keyframes")!;
+mount(Keyframes, kf);
+kfHandle.onpointerdown = (e) => {
+  const y0 = e.clientY,
+    h0 = kf.offsetHeight;
+  kfHandle.setPointerCapture(e.pointerId);
+  kfHandle.onpointermove = (m) => {
+    const h = h0 + y0 - m.clientY;
+    kf.style.height = `${Math.min(innerHeight * 0.7, Math.max(80, h))}px`;
+  };
+  kfHandle.onpointerup = () => (kfHandle.onpointermove = null);
+};
 
 loadWasm().then((wasm) => {
   const scene = createScene(wasm, nodeGrid);
@@ -35,6 +51,7 @@ loadWasm().then((wasm) => {
   function frame(t: number) {
     queued = false;
     view.apply();
+    wasm.scope_begin();
     const inst = scene.sync();
     for (const [id, a, b] of scene.links()) ropes.pin(id, a, b);
     audio.table(scene.outputTable());

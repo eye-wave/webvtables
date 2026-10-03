@@ -229,6 +229,7 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
       );
       if (first < 0) return new Float32Array(TABLE);
       const len = wasm.scope_fill(first, 0);
+      if (!len) return new Float32Array(TABLE);
       return new Float32Array(
         wasm.memory.buffer,
         wasm.scope_ptr(),
