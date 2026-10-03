@@ -1,6 +1,9 @@
 import { TABLE } from "./audio";
-import { flagLabels, nodes } from "./generated/nodes";
-import { RADIUS, STRIDE, type Scope } from "./overlay";
+import { nodes } from "./generated/nodes";
+import { mountNode, unmountNode, type ParamInfo } from "./node";
+import { ui } from "./node_ui";
+import { STRIDE, type Scope } from "./overlay";
+import type { ParamEdit } from "./param_edit";
 import type { Pt } from "./ropes";
 import type { NodeInfo } from "./keyframes";
 import type { WasmExports } from "./wasm";
@@ -10,12 +13,6 @@ export type Sock = { node: number; out: boolean; j: number };
 const KIND_AT = 16,
   FLAGS_AT = KIND_AT + 1;
 
-type ParamInfo = {
-  name: string;
-  options?: readonly string[];
-  unit?: string;
-  default: number;
-};
 const utf8 = new TextDecoder();
 
 const WIDTH = 180,
@@ -28,6 +25,8 @@ const WIDTH = 180,
 
 const sizeOf = (kind: number): [number, number] => {
   const n = nodes[kind];
+  const custom = ui[n.name]?.size;
+  if (custom) return custom;
   const parts = [
     HEAD,
     ...(n.params.length ? [n.params.length * ROW] : []),
@@ -45,11 +44,15 @@ const ROLE = nodes.map((n) => {
 const GREEN: [number, number, number] = [0.3, 1, 0.45];
 const ORANGE: [number, number, number] = [1, 0.6, 0.25];
 
-const div = (cls: string, parent: Element) => {
-  const el = document.createElement("div");
-  el.className = cls;
-  parent.append(el);
-  return el;
+const offsetIn = (s: HTMLElement, node: HTMLElement): Pt => {
+  let x = node.clientLeft,
+    y = node.clientTop;
+  for (let e: HTMLElement | null = s; e && e !== node;) {
+    x += e.offsetLeft;
+    y += e.offsetTop;
+    e = e.offsetParent as HTMLElement | null;
+  }
+  return [x, y];
 };
 
 export function createScene(wasm: WasmExports, root: HTMLElement) {
@@ -59,6 +62,15 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
   const u8 = () => new Uint8Array(wasm.memory.buffer);
   const u16 = () => new Uint16Array(wasm.memory.buffer);
   const at = (el: HTMLElement) => +el.dataset.p! >> 2;
+
+  const numText = (node: number, j: number) =>
+    utf8.decode(
+      new Uint8Array(
+        wasm.memory.buffer,
+        wasm.param_text_ptr(),
+        wasm.param_text(node, j),
+      ),
+    );
 
   const sockets = (node: number) => {
     const n = wasm.node_sockets(node);
@@ -71,54 +83,8 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
     return [x + (out ? w : 0), y + (h * (j + 1)) / (sockets(node)[+out] + 1)];
   };
 
-  const mount = (i: number, p: number, kind: number) => {
-    const el = div("node", root);
-    el.dataset.p = `${p}`;
-    el.dataset.n = `${i}`;
-    el.dataset.k = `${kind}`;
-    el.style.borderRadius = `${RADIUS}px`;
-
-    const head = div("head", el);
-    div("title", head).textContent = nodes[kind].name;
-
-    const knobs = div("knobs", el);
-    for (let j = 0, a; (a = wasm.get_param(i, j)) >= 0; j++) {
-      const k = div("knob", knobs);
-      k.dataset.a = `${a}`;
-      k.dataset.j = `${j}`;
-      div("dial", k);
-      div("pname", k).textContent = (
-        nodes[kind].params as readonly ParamInfo[]
-      )[j].name;
-      div("pval", k);
-    }
-
-    const flags = div("flags", el);
-    flagLabels.forEach((label, b) => {
-      const f = div("flag", flags);
-      f.dataset.b = `${b}`;
-      f.textContent = label;
-    });
-
-    for (let j = 0; j < 1 + +wasm.node_has_widget(i); j++)
-      div("scope", el).dataset.w = `${j}`;
-
-    const [ins, outs] = sockets(i);
-    for (const [out, count] of [
-      [false, ins],
-      [true, outs],
-    ] as const)
-      for (let j = 0; j < count; j++) {
-        const s = div("socket", el);
-        const t = (j + 1) / (count + 1);
-
-        s.style.left = out ? "calc(100% + 2px)" : "-2px";
-        s.style.top = `calc(${100 * t}% + ${4 * t - 2}px)`;
-        s.dataset.n = `${i}`;
-        s.dataset.o = out ? "1" : "0";
-        s.dataset.j = `${j}`;
-      }
-  };
+  const mount = (i: number, p: number, kind: number) =>
+    mountNode(root, { wasm, i, kind, p }, ui[nodes[kind].name]?.view);
 
   return {
     socketPos,
@@ -155,7 +121,7 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
     },
 
     load() {
-      root.replaceChildren();
+      [...root.children].forEach(unmountNode);
       for (let i = 0; i < wasm.nodes_len(); i++)
         mount(i, wasm.get_node(i), wasm.node_kind(i));
       changed();
@@ -174,6 +140,9 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
         el.style.width = `${w}px`;
         el.style.height = `${h}px`;
         inst.set([x, y, w, h, i, ROLE[u[p + KIND_AT]]], i * STRIDE);
+
+        for (let j = 0, a; (a = wasm.get_param(+el.dataset.n!, j)) >= 0; j++)
+          el.style.setProperty(`--p${j}`, `${f[a >> 2]}`);
         el.querySelectorAll<HTMLElement>(".flag").forEach((b) =>
           b.classList.toggle(
             "active",
@@ -186,14 +155,11 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
           k.classList.toggle("driven", driven.has(+k.dataset.a!));
           const j = +k.dataset.j!;
 
-          const len = wasm.param_text(+el.dataset.n!, j);
-          const v = utf8.decode(
-            new Uint8Array(wasm.memory.buffer, wasm.param_text_ptr(), len),
-          );
+          const v = numText(+el.dataset.n!, j);
           const p = info[j];
           const text = p.options?.[+v] ?? (p.unit ? `${v} ${p.unit}` : v);
-          const out = k.lastElementChild!;
-          if (out.textContent !== text) out.textContent = text;
+          const out = k.querySelector(".pval");
+          if (out && out.textContent !== text) out.textContent = text;
         });
       }
       return inst;
@@ -208,13 +174,9 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
         el.querySelectorAll<HTMLElement>(".scope").forEach((s) => {
           const len = wasm.scope_fill(+el.dataset.n!, +s.dataset.w!);
           if (len < 2) return;
+          const [ox, oy] = offsetIn(s, el);
           out.push({
-            rect: [
-              x + el.clientLeft + s.offsetLeft,
-              y + el.clientTop + s.offsetTop,
-              s.offsetWidth,
-              s.offsetHeight,
-            ],
+            rect: [x + ox, y + oy, s.offsetWidth, s.offsetHeight],
             order,
             color: s.dataset.w === "0" ? GREEN : ORANGE,
             pts: new Float32Array(
@@ -284,7 +246,7 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
     remove(el: HTMLElement) {
       const n = +el.dataset.n!;
       wasm.remove_node(n);
-      el.remove();
+      unmountNode(el);
       changed();
 
       root.querySelectorAll<HTMLElement>(".node, .socket").forEach((e) => {
@@ -339,6 +301,21 @@ export function createScene(wasm: WasmExports, root: HTMLElement) {
     flag(b: HTMLElement) {
       const p = +b.closest<HTMLElement>(".node")!.dataset.p!;
       u8()[p + FLAGS_AT] ^= 1 << +b.dataset.b!;
+    },
+
+    param(k: HTMLElement, after = () => {}): ParamEdit {
+      const n = +k.closest<HTMLElement>(".node")!.dataset.n!,
+        j = +k.dataset.j!;
+      const kind = +k.closest<HTMLElement>(".node")!.dataset.k!;
+      return {
+        options: (nodes[kind].params as readonly ParamInfo[])[j].options,
+        value: numText(n, j),
+        commit: (v) => {
+          const d = parseFloat(v);
+          if (!isNaN(d)) wasm.param_set_denorm(n, j, d);
+          after();
+        },
+      };
     },
 
     knob(el: HTMLElement) {

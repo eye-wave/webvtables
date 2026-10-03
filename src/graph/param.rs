@@ -191,6 +191,19 @@ impl State {
         };
         write_num(p.denormalize(v as f64), unsafe { &mut TEXT })
     }
+
+    /// Sets a param from its displayed (denormalized) value. False if no such param.
+    pub fn param_set_denorm(&mut self, idx: usize, i: usize, d: f64) -> bool {
+        let param = self
+            .kind(idx)
+            .and_then(|k| k.as_node().default_params().get(i).copied().flatten());
+        let (Some(p), Some(addr)) = (param, self.param_addr(idx, i)) else {
+            return false;
+        };
+        let off = (addr - self.arena.base()) as u32;
+        self.arena.slice_mut::<f32>(off, 1)[0] = p.normalize(d) as f32;
+        true
+    }
 }
 
 fn write_num(v: f64, out: &mut [u8; TEXT_CAP]) -> usize {
@@ -278,6 +291,15 @@ mod tests {
         let n = s.param_text(0, 0);
         assert_eq!(unsafe { &TEXT[..n] }, b"30");
         assert_eq!(s.param_text(0, 1), 0);
+    }
+
+    #[test]
+    fn param_set_denorm_maps_back() {
+        let mut s = State::new();
+        s.add_node(NodeKind::Gain, [0.0; 2], [0.0; 2]).unwrap();
+        assert!(s.param_set_denorm(0, 0, 30.0));
+        assert_eq!(s.params(0)[0], 1.0);
+        assert!(!s.param_set_denorm(0, 1, 0.0));
     }
 }
 

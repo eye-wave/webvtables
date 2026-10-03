@@ -37,7 +37,12 @@ export type WasmExports = {
   lane_targets_ptr(): number;
   lane_add(lfo: boolean): number;
   lane_remove(lane: number): void;
-  lane_link(lane: number, nodeAddr: number, param: number, on: boolean): boolean;
+  lane_link(
+    lane: number,
+    nodeAddr: number,
+    param: number,
+    on: boolean,
+  ): boolean;
   lane_rename(lane: number, len: number): boolean;
   lane_name(lane: number): number;
   lane_name_ptr(): number;
@@ -62,6 +67,7 @@ export type WasmExports = {
   get_param(idx: number, i: number): number;
   param_text(idx: number, i: number): number;
   param_text_ptr(): number;
+  param_set_denorm(idx: number, i: number, v: number): boolean;
   add_node(kind: number, x: number, y: number, w: number, h: number): number;
 } & { memory: WebAssembly.Memory };
 

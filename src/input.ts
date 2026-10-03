@@ -1,10 +1,11 @@
+import { fineScale } from "./fine";
+import { editParam } from "./param_edit";
 import type { Pt, Ropes } from "./ropes";
 import type { Scene, Sock } from "./scene";
 import type { ViewCtl } from "./view";
 
 const PENDING = -1;
 const HIT = 8;
-const FINE = 0.05;
 
 type Drag = { move(e: PointerEvent): void; up?(e: PointerEvent): void };
 
@@ -35,12 +36,7 @@ export function createInput(
       move(e) {
         const dy = y - e.clientY;
         y = e.clientY;
-        k.set(
-          Math.min(
-            1,
-            Math.max(0, k.get() + (dy / 150) * (e.altKey ? FINE : 1)),
-          ),
-        );
+        k.set(Math.min(1, Math.max(0, k.get() + (dy / 150) * fineScale(e))));
       },
     };
   };
@@ -106,6 +102,7 @@ export function createInput(
     const flag = t.closest<HTMLElement>(".flag");
     if (flag) return (scene.flag(flag), schedule());
     const knob = t.closest<HTMLElement>(".knob");
+    if (knob && e.ctrlKey) return editParam(knob, scene.param(knob, schedule));
     const sock = t.closest<HTMLElement>(".socket");
     const node = t.closest<HTMLElement>(".node");
     const link =
@@ -145,7 +142,7 @@ export function createInput(
 
   grid.addEventListener("dblclick", (e) => {
     const k = (e.target as HTMLElement).closest<HTMLElement>(".knob");
-    if (!k) return;
+    if (!k || e.ctrlKey) return;
     scene.resetKnob(k);
     schedule();
   });

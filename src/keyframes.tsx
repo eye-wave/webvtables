@@ -8,9 +8,9 @@ import {
 } from "solid-js";
 import { Portal } from "solid-js/web";
 import { createStore, reconcile } from "solid-js/store";
+import { fineScale } from "./fine";
 import type { Kf, LaneView } from "./kf";
 
-const FINE = 0.05;
 const FRAMES = 255,
   LABEL = 148,
   PADX = 10,
@@ -377,9 +377,7 @@ export function Keyframes(props: { host: Host }) {
                               let [y, v] = [e.clientY, l.lfo![j]];
                               drag(e, (m) => {
                                 v = clamp(
-                                  v +
-                                    ((y - m.clientY) / 150) *
-                                      (m.altKey ? FINE : 1),
+                                  v + ((y - m.clientY) / 150) * fineScale(m),
                                   0,
                                   1,
                                 );
@@ -432,7 +430,7 @@ export function Keyframes(props: { host: Host }) {
                           let [x, y, t, v] = [e.clientX, e.clientY, k.t, k.v];
 
                           drag(e, (m) => {
-                            const f = m.altKey ? FINE : 1;
+                            const f = fineScale(m);
                             t = clamp(
                               t + ((m.clientX - x) / z()) * f,
                               0,

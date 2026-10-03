@@ -281,6 +281,11 @@ pub extern "C" fn param_text(idx: u16, i: u8) -> u32 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn param_set_denorm(idx: u16, i: u8, v: f64) -> bool {
+    state().param_set_denorm(idx as usize, i as usize, v)
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn param_text_ptr() -> i32 {
     graph::param_text_ptr() as i32
 }
