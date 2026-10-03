@@ -82,7 +82,9 @@ export function createInput(
       move: pin,
       up(e) {
         lit = [];
-        const el = (e.target as HTMLElement).closest<HTMLElement>(`.${nodeCss.socket}`);
+        const el = (e.target as HTMLElement).closest<HTMLElement>(
+          `.${nodeCss.socket}`,
+        );
         const i = el ? scene.connect(from, scene.socket(el)) : -1;
         if (i < 0) ropes.drop(PENDING);
         else ropes.rename(PENDING, i);
@@ -138,12 +140,20 @@ export function createInput(
     if (!drag) return;
     drag.up?.(e);
     drag = null;
-    hover((e.target as HTMLElement).closest<HTMLElement>(`.${knobCss.knob}`));
+    const target = e.target;
+    hover(
+      target instanceof Element
+        ? target.closest<HTMLElement>(`.${knobCss.knob}`)
+        : null,
+    );
+
     schedule();
   });
 
   grid.addEventListener("dblclick", (e) => {
-    const k = (e.target as HTMLElement).closest<HTMLElement>(`.${knobCss.knob}`);
+    const k = (e.target as HTMLElement).closest<HTMLElement>(
+      `.${knobCss.knob}`,
+    );
     if (!k || e.ctrlKey) return;
     scene.resetKnob(k);
     schedule();

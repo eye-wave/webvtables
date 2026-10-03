@@ -1,12 +1,12 @@
-use super::{Label, label};
-use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::helpers::{self};
+use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
+use super::{Label, label};
 
 pub struct CombNode;
 
 impl CombNode {
     pub const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
-        Param::new_int("Delay", 0, (BUFFER_LEN / 2) as i32).with_unit("samp"),
+        Param::new_int("Delay", 0, (BUFFER_LEN) as i32).with_unit("samp"),
         Param::new_int("Iter", 1, 35).with_unit("n")
     ];
 }
@@ -44,18 +44,26 @@ impl NodeLogic for CombNode {
 
         let src = helpers::input(inputs, 0);
 
-        for i in 0..BUFFER_LEN {
-            let val = (src[i] + src[(i + delay) % BUFFER_LEN]) / 2.0;
-            out[i] = val
+        if iter == 0 {
+            out[..BUFFER_LEN].copy_from_slice(&src[..BUFFER_LEN]);
+            return;
         }
 
-        if iter > 1 {
-            for _ in 0..(iter - 1) {
-                for i in 0..BUFFER_LEN {
-                    let val = (out[i] + out[(i + delay) % BUFFER_LEN]) / 2.0;
-                    out[i] = val
-                }
-            }
+        let mut a = [0.0; BUFFER_LEN];
+        let mut b = [0.0; BUFFER_LEN];
+
+        for i in 0..BUFFER_LEN {
+            a[i] = (src[i] + src[(i + delay) % BUFFER_LEN]) * 0.5;
         }
+
+        for _ in 1..iter {
+            for i in 0..BUFFER_LEN {
+                b[i] = (a[i] + a[(i + delay) % BUFFER_LEN]) * 0.5;
+            }
+
+            core::mem::swap(&mut a, &mut b);
+        }
+
+        out[..BUFFER_LEN].copy_from_slice(&a[..BUFFER_LEN]);
     }
 }
