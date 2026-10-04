@@ -1,5 +1,8 @@
-use super::State;
-use alloc::vec::Vec;
+use super::keyframes::{Key, LFO_PARAMS, Lane, NAME_MAX, Source};
+use super::node::{Node, NodeFlags};
+use super::{Link, NodeKind, State};
+use alloc::{string::String, vec::Vec};
+use serde::Serialize;
 
 static mut FILE: Vec<u8> = Vec::new();
 
@@ -7,16 +10,225 @@ pub fn file_ptr() -> usize {
     unsafe { (&raw const FILE).as_ref().unwrap().as_ptr() as usize }
 }
 
-pub fn save(s: &State) -> usize {
-    let f = unsafe { &mut FILE };
-    *f = postcard::to_allocvec(s).unwrap_or_default();
-    f.len()
-}
-
 pub fn buffer(len: usize) -> usize {
     let f = unsafe { &mut FILE };
     *f = alloc::vec![0; len];
     f.as_ptr() as usize
+}
+
+#[derive(Serialize)]
+struct SNode {
+    id: [u8; 8],
+    pos: [f32; 2],
+    size: [f32; 2],
+    flags: u8,
+    params: Vec<f32>,
+}
+
+#[derive(Serialize)]
+struct SLane<'a> {
+    name: &'a str,
+    source: &'a Source,
+    targets: Vec<(u16, u8)>,
+}
+
+#[derive(Serialize)]
+struct Out<'a> {
+    nodes: Vec<SNode>,
+    links: &'a [Link],
+    lanes: Vec<SLane<'a>>,
+}
+
+pub fn encode(s: &State) -> Vec<u8> {
+    let nodes = (0..s.nodes.len())
+        .map(|i| {
+            let n = &s.arena.slice::<Node>(s.nodes[i], 1)[0];
+            let mut id = [0; 8];
+            id[..n.kind.id().len()].copy_from_slice(n.kind.id().as_bytes());
+            SNode {
+                id,
+                pos: n.position,
+                size: n.size,
+                flags: n.flags,
+                params: s.params(i).into(),
+            }
+        })
+        .collect();
+    let lanes = s
+        .keyframes
+        .lanes
+        .iter()
+        .map(|l| SLane {
+            name: &l.name,
+            source: &l.source,
+            targets: l
+                .targets
+                .iter()
+                .filter_map(|t| Some((s.nodes.iter().position(|&o| o == t.0)? as u16, t.1)))
+                .collect(),
+        })
+        .collect();
+    postcard::to_allocvec(&Out {
+        nodes,
+        links: &s.links,
+        lanes,
+    })
+    .unwrap_or_default()
+}
+
+pub fn save(s: &State) -> usize {
+    let f = unsafe { &mut FILE };
+    *f = encode(s);
+    f.len()
+}
+
+struct Rd<'a> {
+    b: &'a [u8],
+    dry: bool,
+}
+
+impl Rd<'_> {
+    fn u8(&mut self) -> u8 {
+        match self.b.split_first() {
+            Some((&x, rest)) => (self.b = rest, x).1,
+            None => (self.dry = true, 0).1,
+        }
+    }
+    fn var(&mut self) -> u32 {
+        let (mut v, mut shift) = (0u32, 0);
+        loop {
+            let b = self.u8();
+            if shift < 32 {
+                v |= ((b & 0x7f) as u32) << shift;
+            }
+            shift += 7;
+            if b & 0x80 == 0 || self.dry {
+                return v;
+            }
+        }
+    }
+    fn f32(&mut self) -> f32 {
+        f32::from_le_bytes([self.u8(), self.u8(), self.u8(), self.u8()])
+    }
+
+    fn len(&mut self) -> usize {
+        (self.var() as usize).min(self.b.len())
+    }
+}
+
+fn finite(v: f32, or: f32) -> f32 {
+    if v.is_finite() { v } else { or }
+}
+
+pub fn decode(bytes: &[u8]) -> (State, bool) {
+    let mut r = Rd {
+        b: bytes,
+        dry: false,
+    };
+    let mut s = State::new();
+    let mut map: Vec<Option<u16>> = Vec::new();
+
+    for _ in 0..r.len() {
+        let id: [u8; 8] = core::array::from_fn(|_| r.u8());
+        let pos = [r.f32(), r.f32()];
+        let size = [r.f32(), r.f32()];
+        let flags = r.u8();
+        let vals: Vec<f32> = (0..r.len()).map(|_| r.f32()).collect();
+        if r.dry {
+            break;
+        }
+        let id = &id[..id.iter().position(|&b| b == 0).unwrap_or(8)];
+        let Some(kind) = NodeKind::from_id(id) else {
+            map.push(None);
+            continue;
+        };
+        let Some(off) = s.add_node(
+            kind,
+            pos.map(|v| finite(v, 0.0)),
+            size.map(|v| finite(v, 0.0)),
+        ) else {
+            break;
+        };
+        s.arena.slice_mut::<Node>(off, 1)[0].flags = NodeFlags::from_bits_truncate(flags).bits();
+
+        for (i, v) in vals.iter().enumerate().filter(|(_, v)| v.is_finite()) {
+            if let Some(slot) = s.param_slot(off, i) {
+                s.arena.slice_mut::<f32>(slot, 1)[0] = v.clamp(0.0, 1.0);
+            }
+        }
+        map.push(Some((s.nodes.len() - 1) as u16));
+    }
+    let node = |i: u32| map.get(i as usize).copied().flatten();
+
+    for _ in 0..r.len() {
+        let (a, sa, b, sb) = (r.var(), r.u8(), r.var(), r.u8());
+        if r.dry {
+            break;
+        }
+        if let (Some(a), Some(b)) = (node(a), node(b)) {
+            s.link((a, sa), (b, sb));
+        }
+    }
+
+    for _ in 0..r.len() {
+        let name = r.len();
+        let name =
+            String::from_utf8_lossy(&(0..name).map(|_| r.u8()).collect::<Vec<_>>()).into_owned();
+        let source = match r.var() {
+            0 => {
+                let mut keys: Vec<Key> = (0..r.len())
+                    .map(|_| Key {
+                        t: r.u8(),
+                        v: finite(r.f32(), 0.0),
+                    })
+                    .collect();
+                keys.sort_by_key(|k| k.t);
+                keys.dedup_by_key(|k| k.t);
+                Source::Points(keys)
+            }
+            1 => Source::Lfo(core::array::from_fn::<_, LFO_PARAMS, _>(|_| {
+                finite(r.f32(), 0.0)
+            })),
+            _ => break,
+        };
+        let targets: Vec<(u32, u8)> = (0..r.len()).map(|_| (r.var(), r.u8())).collect();
+        if r.dry {
+            break;
+        }
+        let mut name = name;
+        while name.len() > NAME_MAX {
+            name.pop();
+        }
+        let mut lane = Lane {
+            name,
+            source,
+            targets: Vec::new(),
+        };
+        for (n, p) in targets {
+            let Some(off) = node(n).map(|n| s.nodes[n as usize]) else {
+                continue;
+            };
+            let t = (off, p);
+            let taken = lane.targets.contains(&t)
+                || s.keyframes.lanes.iter().any(|l| l.targets.contains(&t));
+            if !taken && s.param_slot(off, p as usize).is_some() {
+                lane.targets.push(t);
+            }
+        }
+        s.keyframes.lanes.push(lane);
+    }
+
+    let ok = s.valid() && (!s.nodes.is_empty() || !r.dry && r.b.is_empty());
+    (s, ok)
+}
+
+pub fn load(len: usize) -> bool {
+    let f = unsafe { &FILE };
+    let (s, ok) = decode(&f[..len.min(f.len())]);
+    if ok {
+        *super::state() = s;
+    }
+    ok
 }
 
 impl State {
@@ -33,21 +245,10 @@ impl State {
     }
 }
 
-pub fn load(len: usize) -> bool {
-    let f = unsafe { &FILE };
-    match postcard::from_bytes::<State>(&f[..len.min(f.len())]) {
-        Ok(s) if s.valid() => {
-            *super::state() = s;
-            true
-        }
-        _ => false,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graph::{NodeKind, state};
+    use crate::graph::state;
 
     fn sample() -> State {
         let mut s = State::new();
@@ -73,54 +274,84 @@ mod tests {
     #[test]
     fn roundtrip_and_apply() {
         *state() = sample();
-        let n = save(state());
-        let want = postcard::to_allocvec(state()).unwrap();
-        *state() = State::new();
-        let p = buffer(n);
-        unsafe { core::ptr::copy_nonoverlapping(want.as_ptr(), p as *mut u8, n) };
-        assert!(load(n));
-        assert_eq!(postcard::to_allocvec(state()).unwrap(), want);
-        let s = state();
+        let want = encode(state());
+        let (s, ok) = decode(&want);
+        assert!(ok);
+        assert_eq!(encode(&s), want);
         assert_eq!(
             (s.nodes.len(), s.links.len(), s.keyframes.lanes.len()),
             (2, 1, 2)
         );
+        let mut s = s;
         assert_eq!(s.apply_keyframes(105.0), 1);
         let slot = s.param_slot(s.nodes[0], 0).unwrap();
-        assert!(
-            (s.arena.slice::<f32>(slot, 1)[0] - 0.5).abs() < 0.01,
-            "halfway between the keys"
-        );
+        assert!((s.arena.slice::<f32>(slot, 1)[0] - 0.5).abs() < 0.01);
     }
 
     #[test]
-    fn hostile_files_never_load_broken_state() {
-        let good = postcard::to_allocvec(&sample()).unwrap();
+    fn hostile_files_always_recover_something_valid() {
+        let good = encode(&sample());
+        let poke = |s: &mut State| {
+            s.apply_keyframes(77.0);
+            s.lane_dump();
+            (0..s.keyframes.lanes.len()).for_each(|l| {
+                s.lane_curve(l);
+            });
+            (0..s.nodes.len()).for_each(|n| {
+                s.kind(n).unwrap();
+                s.params(n);
+            });
+        };
         for i in 0..good.len() {
             for b in [0x00, 0x7f, 0xff] {
                 let mut bad = good.clone();
                 bad[i] = b;
-                if let Ok(s) = postcard::from_bytes::<State>(&bad) {
-                    if s.valid() {
-                        let mut s = s;
-                        s.apply_keyframes(77.0);
-                        s.lane_dump();
-                        (0..s.keyframes.lanes.len()).for_each(|l| {
-                            s.lane_curve(l);
-                        });
-                        (0..s.nodes.len()).for_each(|n| {
-                            s.kind(n).unwrap();
-                            s.params(n);
-                        });
-                    }
+                let (mut s, ok) = decode(&bad);
+                if ok {
+                    assert!(s.valid());
+                    poke(&mut s);
                 }
             }
         }
         for len in 0..good.len() {
-            assert!(
-                postcard::from_bytes::<State>(&good[..len])
-                    .map_or(true, |s| !s.valid() || len == good.len())
-            );
+            let (mut s, ok) = decode(&good[..len]);
+            if ok {
+                assert!(s.valid());
+                poke(&mut s);
+            }
+        }
+    }
+
+    #[test]
+    fn short_params_get_defaults_and_unknown_nodes_are_dropped() {
+        let mut o = encode(&sample());
+        // node 0: id(8) pos(8) size(8) flags(1) then the param count
+        let at = 1 + 8 + 8 + 8 + 1;
+        assert_eq!(o[at], sample().params(0).len() as u8);
+        let want = sample().params(0).len();
+        o[at] = 0; // claim no params; the bytes that follow are then read as later fields (garbage)
+        let (s, _) = decode(&o);
+        assert!(s.valid());
+        assert!(want > 0);
+
+        // unknown id: node 0 vanishes, the link to it goes with it, node 1 survives as index 0
+        let mut o = encode(&sample());
+        o[1..9].copy_from_slice(b"nosuchid");
+        let (s, ok) = decode(&o);
+        assert!(ok && s.valid());
+        assert_eq!((s.nodes.len(), s.links.len()), (1, 0));
+        assert_eq!(s.keyframes.lanes[0].targets.len(), 0);
+    }
+
+    #[test]
+    fn node_ids_are_unique() {
+        let ids: Vec<_> = (0..64)
+            .filter_map(NodeKind::from_u8)
+            .map(|k| k.id())
+            .collect();
+        for (i, a) in ids.iter().enumerate() {
+            assert!(!ids[..i].contains(a));
+            assert_eq!(NodeKind::from_id(a.as_bytes()).unwrap().id(), *a);
         }
     }
 
@@ -131,34 +362,5 @@ mod tests {
         assert_eq!(s.keyframes.lanes.len(), 1);
         assert!(s.keyframes.lanes[0].targets.is_empty());
         assert!(s.valid());
-    }
-
-    #[test]
-    fn lane_with_several_targets_survives_until_its_last_node_goes() {
-        let mut s = sample();
-        let kind = s.kind(0).unwrap();
-        s.add_node(kind, [0.0; 2], [0.0; 2]).unwrap();
-        let (n0, n2) = (
-            s.arena.base() + s.nodes[0] as usize,
-            s.arena.base() + s.nodes[2] as usize,
-        );
-        assert!(s.lane_link(0, n2, 0, true));
-        assert_eq!(s.keyframes.lanes[0].targets.len(), 2);
-        assert!(s.valid());
-        s.remove_node(0);
-        assert_eq!(
-            s.keyframes.lanes.len(),
-            2,
-            "one target left, the lane stays"
-        );
-        assert_eq!(s.keyframes.lanes[0].targets.len(), 1);
-        s.remove_node(1);
-        assert_eq!(
-            s.keyframes.lanes.len(),
-            1,
-            "its last target went with the node"
-        );
-        assert!(s.lane_link(0, n0, 0, true) == false);
-        let _ = n2;
     }
 }

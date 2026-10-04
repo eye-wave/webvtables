@@ -1,6 +1,5 @@
 use alloc::vec;
 use alloc::vec::Vec;
-use serde::{Deserialize, Serialize};
 
 pub use self::arena::Arena;
 pub use self::keyframes::Keyframes;
@@ -22,17 +21,13 @@ pub mod scope;
 
 pub const MAX_PARAMS: usize = 8;
 
-#[derive(Serialize, Deserialize)]
 pub struct State {
     pub links: Vec<Link>,
     pub nodes: Vec<u32>,
     pub arena: Arena,
     pub keyframes: Keyframes,
-    #[serde(skip)]
     pub ropes: Vec<Rope>,
-    #[serde(skip)]
     pub rope_acc: f64,
-    #[serde(skip)]
     pub rope_out: Vec<f32>,
 }
 

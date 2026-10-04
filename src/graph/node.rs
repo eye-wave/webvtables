@@ -15,7 +15,7 @@ pub fn zeroed(n: usize) -> Box<[f32]> {
 mod helpers;
 
 macro_rules! define_nodes {
-    ($($variant:ident),+ $(,)?) => {
+    ($($variant:ident = $id:literal),+ $(,)?) => {
         paste::paste! {
             $(mod [<$variant:snake>];)+
 
@@ -25,6 +25,14 @@ macro_rules! define_nodes {
                 $($variant),+
             }
 
+            const IDS: &[&str] = &[$($id),+];
+            const _: () = {
+                let mut i = 0;
+                while i < IDS.len() {
+                    assert!(IDS[i].len() <= 8);
+                    i += 1;
+                }
+            };
 
             const NODES: &[NodeKind] = &[$(NodeKind::$variant),+];
             const _: () = {
@@ -51,6 +59,14 @@ macro_rules! define_nodes {
                     }
                 }
 
+                pub fn id(self) -> &'static str {
+                    IDS[self as usize]
+                }
+
+                pub fn from_id(id: &[u8]) -> Option<Self> {
+                    IDS.iter().position(|s| s.as_bytes() == id).and_then(|i| Self::from_u8(i as u8))
+                }
+
                 pub fn from_u8(n: u8) -> Option<Self> {
                     NODES.get(n as usize).copied()
                 }
@@ -60,34 +76,34 @@ macro_rules! define_nodes {
 }
 
 define_nodes!(
-    BasicShapes,
-    Output,
-    Add,
-    Am,
-    BitCrush,
-    BandSplit,
-    Bend,
-    Comb,
-    Disperser,
-    Filter,
-    Fm,
-    Gain,
-    HarmonicShift,
-    IirFilter,
-    InharmonicShift,
-    Invert,
-    Noise,
-    Partials,
-    PhaseShift,
-    PhaseCopy,
-    PulseWave,
-    RingMod,
-    Saturation,
-    SpectralGate,
-    SpectralSubtract,
-    SyncWarp,
-    Window,
-    XyMerge,
+    BasicShapes = "shapes",
+    Output = "output",
+    Add = "add",
+    Am = "am",
+    BitCrush = "bitcrush",
+    BandSplit = "bandsplt",
+    Bend = "bend",
+    Comb = "comb",
+    Disperser = "disperse",
+    Filter = "filter",
+    Fm = "fm",
+    Gain = "gain",
+    HarmonicShift = "harmshft",
+    IirFilter = "iir",
+    InharmonicShift = "inharmsh",
+    Invert = "invert",
+    Noise = "noise",
+    Partials = "partials",
+    PhaseShift = "phshift",
+    PhaseCopy = "phcopy",
+    PulseWave = "pulse",
+    RingMod = "ringmod",
+    Saturation = "saturate",
+    SpectralGate = "specgate",
+    SpectralSubtract = "specsub",
+    SyncWarp = "syncwarp",
+    Window = "window",
+    XyMerge = "xymerge",
 );
 
 pub enum NodeCategory {

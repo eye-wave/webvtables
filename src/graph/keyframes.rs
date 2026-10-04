@@ -22,7 +22,7 @@ pub enum Source {
     Lfo([f32; LFO_PARAMS]),
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone)]
 pub struct Lane {
     pub name: String,
     pub source: Source,
@@ -30,7 +30,6 @@ pub struct Lane {
     pub targets: Vec<(u32, u8)>,
 }
 
-#[derive(Serialize, Deserialize)]
 pub struct Keyframes {
     pub lanes: Vec<Lane>,
 }
