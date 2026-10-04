@@ -10,7 +10,7 @@ import nodeCss from "../node/node.module.css";
 import ctxCss from "./ctx.module.css";
 
 type Item =
-  | { label: string; run(): void; danger?: boolean; add?: boolean; key?: boolean }
+  | { label: string; run(): void; danger?: boolean; add?: boolean; key?: boolean; off?: string }
   | { label: string; sub: Item[] }
   | "-";
 
@@ -72,6 +72,16 @@ export function createContextMenu(
       kf.rename(lane, nodes[+node.dataset.k!].params[j].name);
       take(lane);
     };
+    // A node may have only one spectral-blended param (mirrors Keyframes::spectral_ok in Rust).
+    const mine = new Set(
+      [...node.querySelectorAll<HTMLElement>("[data-a]")].map((n) => +n.dataset.a!),
+    );
+    const busy = lanes.some(
+      (l) => l.mode === 2 && l.addrs.some((a) => a !== addr && mine.has(a)),
+    );
+    const off = busy
+      ? "This node already has a spectral lane on another parameter. Only one spectral lane per node is allowed - remove it first."
+      : undefined;
     const frame = Math.round(head());
     const lane = lanes[owner];
     const addKey = () => {
@@ -104,13 +114,14 @@ export function createContextMenu(
       { label: "New points lane", add: true, run: fresh(false) },
       { label: "New LFO lane", add: true, run: fresh(true) },
       { label: "New crossfade lane", add: true, run: fresh(false, 1) },
-      { label: "New spectral lane", add: true, run: fresh(false, 2) },
+      { label: "New spectral lane", add: true, run: fresh(false, 2), off },
       ...(lanes.length
         ? [
             {
               label: "Add to existing",
               sub: lanes.map((l, i): Item => ({
                 label: `${i === owner ? "✓ " : ""}${l.name}`,
+                off: l.mode === 2 && i !== owner ? off : undefined,
                 run: () =>
                   i === owner ? (kf.link(i, p, j, false), done()) : take(i),
               })),
@@ -158,7 +169,9 @@ export function createContextMenu(
         ) : (
           <div
             class={
-              it.danger
+              it.off
+                ? `${ctxCss.item} ${ctxCss.off}`
+                : it.danger
                 ? `${ctxCss.item} ${ctxCss.danger}`
                 : it.key
                   ? `${ctxCss.item} ${ctxCss.addKey}`
@@ -167,7 +180,9 @@ export function createContextMenu(
                     : ctxCss.item
             }
             style={p.top ? { "--i": i() } : {}}
+            title={it.off}
             onClick={() => {
+              if (it.off) return;
               close();
               it.run();
               schedule();

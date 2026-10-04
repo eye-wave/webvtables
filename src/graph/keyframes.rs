@@ -45,9 +45,20 @@ impl Keyframes {
         Self { lanes: Vec::new() }
     }
 
+    // A node may have at most one spectral-blended param (spectral blends don't compose across params).
+    fn spectral_ok(&self) -> bool {
+        let t: Vec<_> = (self.lanes.iter().filter(|l| l.mode == 2))
+            .flat_map(|l| &l.targets)
+            .collect();
+        t.iter()
+            .enumerate()
+            .all(|(i, a)| t[..i].iter().all(|b| a.0 != b.0))
+    }
+
     pub fn valid(&self, s: &State) -> bool {
         let unit = |v: &f32| v.is_finite();
         self.lanes.len() <= LANES_MAX
+            && self.spectral_ok()
             && self.lanes.iter().enumerate().all(|(i, l)| {
                 l.name.len() <= NAME_MAX
                     && match &l.source {
@@ -143,14 +154,22 @@ fn unit(v: f32) -> f32 {
     }
 }
 
-static mut MORPH: [f32; 4] = [0.0; 4];
+// Active crossfade/spectral lane targets at the current frame: (node offset, param, mode, value a, value b, blend).
+// scope::eval renders such a node at both values and blends its outputs, so downstream nodes see the blend.
+pub static mut MORPHS: Vec<(u32, u8, u8, f32, f32, f32)> = Vec::new();
 static mut MIX: [[f32; N]; 3] = [[0.0; N]; 3]; // a, b, result
 
-pub fn morph_ptr() -> usize {
-    (&raw const MORPH) as usize
-}
 pub fn mix_ptr() -> usize {
     (&raw const MIX) as usize
+}
+
+pub fn blend(mode: u8, m: f32, a: &[f32], b: &[f32], out: &mut [f32]) {
+    unsafe {
+        MIX[0].copy_from_slice(a);
+        MIX[1].copy_from_slice(b);
+    }
+    mix(mode, m);
+    out.copy_from_slice(unsafe { &MIX[2] });
 }
 
 // MIX[2] = blend of MIX[0] and MIX[1] by m. Crossfade is sample-wise; spectral lerps magnitude and
@@ -204,6 +223,30 @@ impl State {
     pub fn apply_keyframes(&mut self, frame: f32) -> usize {
         let driven = unsafe { &mut DRIVEN };
         driven.clear();
+        let morphs = unsafe { &mut MORPHS };
+        morphs.clear();
+        for l in &self.keyframes.lanes {
+            let Source::Points(k) = &l.source else {
+                continue;
+            };
+            if l.mode == 0 {
+                continue;
+            }
+            let mut k = k.clone();
+            k.sort_by_key(|k| k.t);
+            let Some(w) = k
+                .windows(2)
+                .find(|w| w[0].t < w[1].t && w[0].t as f32 <= frame && frame <= w[1].t as f32)
+            else {
+                continue;
+            };
+            let x = bend((frame - w[0].t as f32) / (w[1].t - w[0].t) as f32, w[0].c);
+            morphs.extend(
+                l.targets
+                    .iter()
+                    .map(|&(n, j)| (n, j, l.mode, unit(w[0].v), unit(w[1].v), x)),
+            );
+        }
         for i in 0..self.keyframes.lanes.len() {
             let Some(v) = self.keyframes.lanes[i].source.at(frame) else {
                 continue;
@@ -307,7 +350,13 @@ impl State {
             .count();
         match self.keyframes.lanes.get_mut(lane) {
             Some(l) if matches!(l.source, Source::Points(_)) && mode <= 2 => {
+                let old = l.mode;
                 l.mode = mode;
+                if !self.keyframes.spectral_ok() {
+                    self.keyframes.lanes[lane].mode = old;
+                    return false;
+                }
+                let l = &mut self.keyframes.lanes[lane];
                 if mode > 0 {
                     l.name = format!(
                         "{} {}",
@@ -319,26 +368,6 @@ impl State {
             }
             _ => false,
         }
-    }
-
-    // First morph lane whose keys bracket `frame`: writes [mode, value a, value b, blend] to MORPH.
-    pub fn morph_query(&self, frame: f32) -> Option<usize> {
-        self.keyframes.lanes.iter().enumerate().find_map(|(i, l)| {
-            let Source::Points(k) = &l.source else {
-                return None;
-            };
-            if l.mode == 0 || l.targets.is_empty() {
-                return None;
-            }
-            let mut k = k.clone();
-            k.sort_by_key(|k| k.t);
-            let w = k
-                .windows(2)
-                .find(|w| w[0].t < w[1].t && w[0].t as f32 <= frame && frame <= w[1].t as f32)?;
-            let x = (frame - w[0].t as f32) / (w[1].t - w[0].t) as f32;
-            unsafe { MORPH = [l.mode as f32, w[0].v, w[1].v, bend(x, w[0].c)] };
-            Some(i)
-        })
     }
 
     pub fn lane_remove(&mut self, lane: usize) {
@@ -389,6 +418,10 @@ impl State {
         }
         if !ls[lane].targets.contains(&t) {
             ls[lane].targets.push(t);
+            if !self.keyframes.spectral_ok() {
+                self.keyframes.lanes[lane].targets.pop();
+                return false;
+            }
         }
         true
     }

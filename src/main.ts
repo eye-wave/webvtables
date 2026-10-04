@@ -102,7 +102,7 @@ loadWasm().then((wasm) => {
     const driven = kf.apply(head());
     const inst = scene.sync(driven);
     for (const [id, a, b] of scene.links()) ropes.pin(id, a, b);
-    const table = kf.table(head(), () => scene.outputTable());
+    const table = scene.outputTable();
     audio.table(table);
     const moving = ropes.step(Math.min(dt, 0.05));
 
@@ -110,7 +110,7 @@ loadWasm().then((wasm) => {
       nodes: inst,
       view: view.v,
       segs: ropes.segments(),
-      scopes: kf.scopes(() => scene.scopes()),
+      scopes: scene.scopes(),
       rings: input.lit,
       t: t / 1000,
     });

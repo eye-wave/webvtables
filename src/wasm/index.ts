@@ -37,10 +37,6 @@ export type WasmExports = {
   lane_targets_ptr(): number;
   lane_add(lfo: boolean): number;
   lane_mode(lane: number, mode: number): boolean;
-  kf_morph(frame: number): number;
-  morph_ptr(): number;
-  mix_ptr(): number;
-  mix(mode: number, m: number): void;
   lane_remove(lane: number): void;
   lane_link(
     lane: number,

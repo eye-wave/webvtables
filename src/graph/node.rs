@@ -84,6 +84,7 @@ define_nodes!(
     Am = "am",
     BitCrush = "bitcrush",
     BandSplit = "bandsplt",
+    Bend = "bend",
     Comb = "comb",
     Disperser = "disperse",
     Filter = "filter",

@@ -208,17 +208,6 @@ pub extern "C" fn lane_mode(lane: u16, mode: u8) -> bool {
     state().lane_mode(lane as usize, mode)
 }
 
-/// 0 = no morph at this frame, else lane index + 1 (details at morph_ptr: mode, a, b, blend).
-#[unsafe(no_mangle)]
-pub extern "C" fn kf_morph(frame: f32) -> u32 {
-    state().morph_query(frame).map_or(0, |i| i as u32 + 1)
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn morph_ptr() -> i32 {
-    keyframes::morph_ptr() as i32
-}
-
 #[unsafe(no_mangle)]
 pub extern "C" fn mix_ptr() -> i32 {
     keyframes::mix_ptr() as i32

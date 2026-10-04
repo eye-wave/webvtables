@@ -110,7 +110,7 @@ export function createProject(
       const tables = Array.from({ length: 256 }, (_, f) => {
         kf.apply(f);
         wasm.scope_begin();
-        return kf.table(f, () => scene.outputTable());
+        return scene.outputTable();
       });
       kf.apply(head());
       download("wavetable.wav", encodeWav(tables), "audio/wav");

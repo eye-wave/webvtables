@@ -1,3 +1,4 @@
+use super::keyframes::{MORPHS, blend};
 use super::node::{Buffer, N, NodeFlags, zeroed};
 use crate::graph::{MAX_PARAMS, NodeKind, Param, State};
 use alloc::{boxed::Box, vec::Vec};
@@ -56,8 +57,54 @@ fn eval(s: &State, node: usize, sock: usize, memo: &mut Memo, dst: &mut Buffer) 
             let mut outs = zeroed(no as usize);
             let refs: Vec<&Buffer> = ins.as_chunks::<N>().0.iter().collect();
             let ps = params(s, node, kind);
-            kind.as_node()
-                .process(&refs, &ps, outs.as_chunks_mut::<N>().0);
+            let nd = kind.as_node();
+            let off = s.nodes[node];
+            let es: Vec<_> = unsafe { MORPHS.iter() }
+                .filter(|e| e.0 == off && ps.get(e.1 as usize).is_some_and(Option::is_some))
+                .collect();
+            let call = |ov: Option<(u8, f32)>| {
+                let mut p = ps;
+                if let Some((j, v)) = ov {
+                    p[j as usize].as_mut().unwrap().set_norm(v as f64);
+                }
+                let mut o = zeroed(no as usize);
+                nd.process(&refs, &p, o.as_chunks_mut::<N>().0);
+                o
+            };
+            if es.is_empty() {
+                outs = call(None);
+            } else {
+                // ponytail: k morph params = 2k+1 process calls; each param's blend is added as a delta
+                // over the unmorphed result. Exact for k=1, approximate when morphed params interact.
+                let base = (es.len() > 1).then(|| call(None));
+                for &&(_, j, mode, va, vb, m) in &es {
+                    let (a, b) = (call(Some((j, va))), call(Some((j, vb))));
+                    for (i, ((o, a), b)) in outs
+                        .as_chunks_mut::<N>()
+                        .0
+                        .iter_mut()
+                        .zip(a.as_chunks::<N>().0)
+                        .zip(b.as_chunks::<N>().0)
+                        .enumerate()
+                    {
+                        let mut t = [0.0; N];
+                        blend(mode, m, a, b, &mut t);
+                        match &base {
+                            None => *o = t,
+                            Some(base) => {
+                                let d = &base.as_chunks::<N>().0[i];
+                                o.iter_mut()
+                                    .zip(t.iter().zip(d))
+                                    .for_each(|(o, (t, d))| *o += t - d)
+                            }
+                        }
+                    }
+                }
+                if let Some(base) = &base {
+                    // outs started at zero: add the base once
+                    outs.iter_mut().zip(base.iter()).for_each(|(o, d)| *o += d);
+                }
+            }
             outs
         };
         let f = s.flags(node);
