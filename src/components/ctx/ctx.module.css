@@ -65,6 +65,26 @@
   background: var(--danger-100);
 }
 
+.ctx .item.add {
+  color: var(--accent-300);
+  background: var(--surface-200);
+}
+
+.ctx .item.addKey {
+  color: #9e9;
+}
+
+.ctx .item.addKey::before,
+.ctx .item.add::before {
+  content: "+ ";
+  font-weight: 700;
+}
+
+.ctx .item.addKey:hover,
+.ctx .item.add:hover {
+  background: var(--accent-100);
+}
+
 .ctx .item.hasSub {
   position: relative;
 }

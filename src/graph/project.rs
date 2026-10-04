@@ -30,6 +30,7 @@ struct SNode {
 #[derive(Serialize)]
 struct SLane<'a> {
     name: &'a str,
+    mode: u8,
     source: &'a Source,
     targets: Vec<(u16, u8)>,
 }
@@ -62,6 +63,7 @@ pub fn encode(s: &State) -> Vec<u8> {
         .iter()
         .map(|l| SLane {
             name: &l.name,
+            mode: l.mode,
             source: &l.source,
             targets: l
                 .targets
@@ -178,6 +180,7 @@ pub fn decode(bytes: &[u8]) -> (State, bool) {
         let name = r.len();
         let name =
             String::from_utf8_lossy(&(0..name).map(|_| r.u8()).collect::<Vec<_>>()).into_owned();
+        let mode = r.u8().min(2);
         let source = match r.var() {
             0 => {
                 let mut keys: Vec<Key> = (0..r.len())
@@ -206,6 +209,7 @@ pub fn decode(bytes: &[u8]) -> (State, bool) {
         }
         let mut lane = Lane {
             name,
+            mode,
             source,
             targets: Vec::new(),
         };
@@ -274,6 +278,7 @@ mod tests {
         assert!(s.lane_link(a, node, 0, true));
         assert!(!s.lane_link(b, node, 0, true), "a param has one lane");
         s.lfo_set(b, 3, 0.5);
+        assert!(s.lane_mode(a, 2));
         s
     }
 

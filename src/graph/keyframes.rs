@@ -1,5 +1,7 @@
 use super::State;
+use super::node::N;
 use alloc::{format, string::String, vec::Vec};
+use microfft::Complex32;
 use serde::{Deserialize, Serialize};
 
 pub const FRAMES: f32 = 255.0;
@@ -27,6 +29,8 @@ pub enum Source {
 #[derive(Clone)]
 pub struct Lane {
     pub name: String,
+    // 0 plain, 1 crossfade, 2 spectral: how a points lane blends between keys (see morph_query).
+    pub mode: u8,
     pub source: Source,
 
     pub targets: Vec<(u32, u8)>,
@@ -139,6 +143,41 @@ fn unit(v: f32) -> f32 {
     }
 }
 
+static mut MORPH: [f32; 4] = [0.0; 4];
+static mut MIX: [[f32; N]; 3] = [[0.0; N]; 3]; // a, b, result
+
+pub fn morph_ptr() -> usize {
+    (&raw const MORPH) as usize
+}
+pub fn mix_ptr() -> usize {
+    (&raw const MIX) as usize
+}
+
+// MIX[2] = blend of MIX[0] and MIX[1] by m. Crossfade is sample-wise; spectral lerps magnitude and
+// takes the shortest-arc phase path per bin (bin 0 packs DC and Nyquist, so it is lerped plain).
+pub fn mix(mode: u8, m: f32) {
+    let [a, b, o] = unsafe { &mut MIX };
+    if mode != 2 {
+        for i in 0..N {
+            o[i] = a[i] + (b[i] - a[i]) * m;
+        }
+        return;
+    }
+    let sa = microfft::real::rfft_2048(a);
+    let sb = microfft::real::rfft_2048(b);
+    sa[0] = sa[0] + (sb[0] - sa[0]) * m;
+    for k in 1..sa.len() {
+        let (x, y) = (sa[k], sb[k]);
+        let (ma, mb) = (libm::hypotf(x.re, x.im), libm::hypotf(y.re, y.im));
+        let (pa, pb) = (libm::atan2f(x.im, x.re), libm::atan2f(y.im, y.re));
+        let d = pb - pa;
+        let d = d - core::f32::consts::TAU * libm::roundf(d / core::f32::consts::TAU);
+        let (mag, ph) = (ma + (mb - ma) * m, pa + d * m);
+        sa[k] = Complex32::new(mag * libm::cosf(ph), mag * libm::sinf(ph));
+    }
+    super::node::helpers::irfft_2048(sa, o);
+}
+
 static mut DRIVEN: Vec<u32> = Vec::new();
 static mut DUMP: Vec<f32> = Vec::new();
 static mut CURVE: [f32; CURVE_LEN] = [0.0; CURVE_LEN];
@@ -188,7 +227,10 @@ impl State {
         for l in &self.keyframes.lanes {
             match &l.source {
                 Source::Points(k) => {
-                    d.extend([0.0, k.len() as f32]);
+                    d.extend([
+                        if l.mode > 0 { 1.0 + l.mode as f32 } else { 0.0 },
+                        k.len() as f32,
+                    ]);
                     k.iter().for_each(|k| d.extend([k.t as f32, k.v, k.c]));
                 }
                 Source::Lfo(p) => {
@@ -245,6 +287,7 @@ impl State {
             } else {
                 format!("Points {}", same + 1)
             },
+            mode: 0,
             source: if lfo {
                 Source::Lfo([0.0, 0.0, 1.0, 0.2, 0.5, 0.5])
             } else {
@@ -253,6 +296,49 @@ impl State {
             targets: Vec::new(),
         });
         Some(ls.len() - 1)
+    }
+
+    pub fn lane_mode(&mut self, lane: usize, mode: u8) -> bool {
+        let same = self
+            .keyframes
+            .lanes
+            .iter()
+            .filter(|l| l.mode == mode)
+            .count();
+        match self.keyframes.lanes.get_mut(lane) {
+            Some(l) if matches!(l.source, Source::Points(_)) && mode <= 2 => {
+                l.mode = mode;
+                if mode > 0 {
+                    l.name = format!(
+                        "{} {}",
+                        ["", "Crossfade", "Spectral"][mode as usize],
+                        same + 1
+                    );
+                }
+                true
+            }
+            _ => false,
+        }
+    }
+
+    // First morph lane whose keys bracket `frame`: writes [mode, value a, value b, blend] to MORPH.
+    pub fn morph_query(&self, frame: f32) -> Option<usize> {
+        self.keyframes.lanes.iter().enumerate().find_map(|(i, l)| {
+            let Source::Points(k) = &l.source else {
+                return None;
+            };
+            if l.mode == 0 || l.targets.is_empty() {
+                return None;
+            }
+            let mut k = k.clone();
+            k.sort_by_key(|k| k.t);
+            let w = k
+                .windows(2)
+                .find(|w| w[0].t < w[1].t && w[0].t as f32 <= frame && frame <= w[1].t as f32)?;
+            let x = (frame - w[0].t as f32) / (w[1].t - w[0].t) as f32;
+            unsafe { MORPH = [l.mode as f32, w[0].v, w[1].v, bend(x, w[0].c)] };
+            Some(i)
+        })
     }
 
     pub fn lane_remove(&mut self, lane: usize) {
@@ -378,5 +464,34 @@ mod curve_tests {
             }
         ]);
         assert!((s.at(50.0).unwrap() - 0.2).abs() < 1e-4);
+    }
+}
+
+#[cfg(test)]
+mod mix_tests {
+    use super::*;
+
+    #[test]
+    fn crossfade_and_spectral_blend() {
+        let sine = |f: f32| {
+            core::array::from_fn::<f32, N, _>(|i| {
+                libm::sinf(core::f32::consts::TAU * f * i as f32 / N as f32)
+            })
+        };
+        let (a, b) = (sine(3.0), sine(5.0));
+        for mode in [1, 2] {
+            for (m, want) in [(0.0, &a), (1.0, &b)] {
+                unsafe { (MIX[0], MIX[1]) = (a, b) } // spectral mode transforms its inputs in place
+                mix(mode, m);
+                let o = unsafe { &MIX[2] };
+                assert!(
+                    o.iter().zip(want.iter()).all(|(x, y)| (x - y).abs() < 1e-3),
+                    "mode {mode} m {m}"
+                );
+            }
+        }
+        unsafe { (MIX[0], MIX[1]) = (a, b) }
+        mix(1, 0.5);
+        assert!((unsafe { MIX[2][100] } - (a[100] + b[100]) / 2.0).abs() < 1e-5);
     }
 }

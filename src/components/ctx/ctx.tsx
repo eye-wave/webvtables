@@ -10,7 +10,7 @@ import nodeCss from "../node/node.module.css";
 import ctxCss from "./ctx.module.css";
 
 type Item =
-  | { label: string; run(): void; danger?: boolean }
+  | { label: string; run(): void; danger?: boolean; add?: boolean; key?: boolean }
   | { label: string; sub: Item[] }
   | "-";
 
@@ -66,8 +66,8 @@ export function createContextMenu(
       kf.link(lane, p, j, true);
       done();
     };
-    const fresh = (lfo: boolean) => () => {
-      const lane = kf.addLane(lfo);
+    const fresh = (lfo: boolean, mode = 0) => () => {
+      const lane = kf.addLane(lfo, mode);
       if (lane < 0) return;
       kf.rename(lane, nodes[+node.dataset.k!].params[j].name);
       take(lane);
@@ -79,6 +79,7 @@ export function createContextMenu(
       return [
         {
           label: `Add keyframe at ${frame}`,
+          key: true,
           run() {
             let l = owner;
             if (l < 0) {
@@ -100,8 +101,10 @@ export function createContextMenu(
         run: () => editParam(knob, scene.param(knob, schedule)),
       },
       ...addKey(),
-      { label: "New points lane", run: fresh(false) },
-      { label: "New LFO lane", run: fresh(true) },
+      { label: "New points lane", add: true, run: fresh(false) },
+      { label: "New LFO lane", add: true, run: fresh(true) },
+      { label: "New crossfade lane", add: true, run: fresh(false, 1) },
+      { label: "New spectral lane", add: true, run: fresh(false, 2) },
       ...(lanes.length
         ? [
             {
@@ -155,7 +158,13 @@ export function createContextMenu(
         ) : (
           <div
             class={
-              it.danger ? `${ctxCss.item} ${ctxCss.danger}` : ctxCss.item
+              it.danger
+                ? `${ctxCss.item} ${ctxCss.danger}`
+                : it.key
+                  ? `${ctxCss.item} ${ctxCss.addKey}`
+                  : it.add
+                    ? `${ctxCss.item} ${ctxCss.add}`
+                    : ctxCss.item
             }
             style={p.top ? { "--i": i() } : {}}
             onClick={() => {

@@ -12,7 +12,7 @@ pub fn zeroed(n: usize) -> Box<[f32]> {
     vec![0.0; n * N].into_boxed_slice()
 }
 
-mod helpers;
+pub(super) mod helpers;
 
 macro_rules! define_nodes {
     ($($variant:ident = $id:literal),+ $(,)?) => {
@@ -25,6 +25,8 @@ macro_rules! define_nodes {
                 $($variant),+
             }
 
+
+            // Stable on-disk names (<= 8 bytes). Never change one; reordering variants is then safe.
             const IDS: &[&str] = &[$($id),+];
             const _: () = {
                 let mut i = 0;
@@ -82,7 +84,6 @@ define_nodes!(
     Am = "am",
     BitCrush = "bitcrush",
     BandSplit = "bandsplt",
-    Bend = "bend",
     Comb = "comb",
     Disperser = "disperse",
     Filter = "filter",

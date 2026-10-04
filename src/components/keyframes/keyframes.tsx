@@ -60,6 +60,7 @@ export function Keyframes(props: { host: Host }) {
   const [width, setWidth] = createSignal(0);
   const [mult, setMult] = createSignal(1);
   const [sel, setSel] = createSignal<[lane: number, key: number]>();
+  const [add, setAdd] = createSignal<{ x: number; y: number }>();
   const [menu, setMenu] = createSignal<{ x: number; y: number }>();
   const { head, setHead } = host;
   let scroll!: HTMLDivElement;
@@ -111,6 +112,18 @@ export function Keyframes(props: { host: Host }) {
     if (!menu()) return;
     const away = (e: Event) => pop?.contains(e.target as Node) || setMenu();
     const esc = (e: KeyboardEvent) => e.key === "Escape" && setMenu();
+    addEventListener("pointerdown", away, true);
+    addEventListener("keydown", esc, true);
+    onCleanup(() => {
+      removeEventListener("pointerdown", away, true);
+      removeEventListener("keydown", esc, true);
+    });
+  });
+
+  createEffect(() => {
+    if (!add()) return;
+    const away = (e: Event) => pop?.contains(e.target as Node) || setAdd();
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setAdd();
     addEventListener("pointerdown", away, true);
     addEventListener("keydown", esc, true);
     onCleanup(() => {
@@ -264,7 +277,7 @@ export function Keyframes(props: { host: Host }) {
           {label()}
         </button>
         <Show when={open()}>
-          <Portal>
+          <Portal ref={(el) => (el.style.display = "contents")}>
             <div class={kfCss.kfPop} ref={pop} style={pos()}>
               <input
                 placeholder="Search params…"
@@ -343,16 +356,15 @@ export function Keyframes(props: { host: Host }) {
         >
           <div class={`${kfCss.kfRow} ${kfCss.kfRuler}`}>
             <div class={kfCss.kfLabel}>
-              {[false, true].map((lfo) => (
-                <button
-                  onClick={() => {
-                    host.addLane(lfo);
-                    refresh();
-                  }}
-                >
-                  {lfo ? "+ LFO" : "+ Points"}
-                </button>
-              ))}
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect();
+                  setAdd(add() ? undefined : { x: r.left, y: r.bottom + 2 });
+                }}
+              >
+                + New
+              </button>
             </div>
             <div
               class={kfCss.kfTrack}
@@ -457,6 +469,7 @@ export function Keyframes(props: { host: Host }) {
                     {([ki, a, b]) => (
                       <i
                         class={kfCss.kfMid}
+                        classList={{ [kfCss.kfFade]: l.mode === 1, [kfCss.kfSpec]: l.mode === 2 }}
                         title="Curve (double-click to reset)"
                         style={{
                           left: `${X((a.t + b.t) / 2)}px`,
@@ -553,9 +566,43 @@ export function Keyframes(props: { host: Host }) {
             <p class={kfCss.kfEmpty}>No lanes - add one</p>
           </Show>
 
+          <Show when={add()}>
+            {(m) => (
+              <Portal ref={(el) => (el.style.display = "contents")}>
+                <div
+                  class={`${ctxCss.ctx} ${ctxCss.open}`}
+                  ref={pop}
+                  style={{ left: `${m().x}px`, top: `${m().y}px` }}
+                  onContextMenu={(e) => e.preventDefault()}
+                >
+                  {(
+                    [
+                      ["Points lane", false, 0],
+                      ["LFO lane", true, 0],
+                      ["Crossfade lane", false, 1],
+                      ["Spectral lane", false, 2],
+                    ] as const
+                  ).map(([label, lfo, mode], n) => (
+                    <div
+                      class={`${ctxCss.item} ${ctxCss.add}`}
+                      style={{ "--i": n }}
+                      onClick={() => {
+                        setAdd();
+                        host.addLane(lfo, mode);
+                        refresh();
+                      }}
+                    >
+                      {label}
+                    </div>
+                  ))}
+                </div>
+              </Portal>
+            )}
+          </Show>
+
           <Show when={menu()}>
             {(m) => (
-              <Portal>
+              <Portal ref={(el) => (el.style.display = "contents")}>
                 <div
                   class={`${ctxCss.ctx} ${ctxCss.open}`}
                   ref={pop}

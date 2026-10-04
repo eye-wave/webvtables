@@ -372,3 +372,12 @@
 .kfMid:hover {
   opacity: 1;
 }
+
+.kfFade {
+  border-radius: 1px;
+}
+
+.kfSpec {
+  border-radius: 1px;
+  transform: rotate(45deg);
+}

@@ -41,7 +41,7 @@ export function createPreview(
       do {
         kf.apply(next);
         wasm.scope_begin();
-        map.row(next, scene.outputTable());
+        map.row(next, kf.table(next, () => scene.outputTable()));
         next = (next + 1) % FRAMES;
       } while (--todo && performance.now() - t0 < budgetMs);
       return todo > 0;
