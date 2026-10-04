@@ -167,3 +167,27 @@ pub fn irfft_2048(spec: &[Complex32; BUFFER_LEN / 2], out: &mut Buffer) {
         out[2 * m + 1] = v.im;
     }
 }
+
+pub fn fft_combine(
+    a: &Buffer,
+    b: &Buffer,
+    out: &mut Buffer,
+    f: impl Fn(f32, f32, f32, f32) -> (f32, f32),
+) {
+    let mut sa = copy_of(a);
+    let mut sb = copy_of(b);
+    let fa = microfft::real::rfft_2048(&mut sa);
+    let fb = microfft::real::rfft_2048(&mut sb);
+    let (dc, ny) = (
+        f(fa[0].re, 0.0, fb[0].re, 0.0).0,
+        f(fa[0].im, 0.0, fb[0].im, 0.0).0,
+    );
+    for (x, y) in fa.iter_mut().zip(fb.iter()) {
+        let (re, im) = f(x.re, x.im, y.re, y.im);
+        x.re = re;
+        x.im = im;
+    }
+    fa[0].re = dc;
+    fa[0].im = ny;
+    irfft_2048(fa, out);
+}
