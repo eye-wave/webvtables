@@ -29,9 +29,16 @@ export function createMenu(
         textContent: n.category.join(" · "),
       }),
     );
+
     list.append(el);
-    return { el, text: `${n.name} ${n.category.join(" ")}`.toLowerCase() };
+
+    return {
+      el,
+      name: n.name.toLowerCase(),
+      category: n.category.join(" ").toLowerCase(),
+    };
   });
+
   root.append(input, list);
   document.body.append(root);
 
@@ -48,11 +55,37 @@ export function createMenu(
 
   const filter = () => {
     const q = input.value.toLowerCase().split(/\s+/).filter(Boolean);
-    shown = [];
-    for (const { el, text } of items) {
-      el.hidden = !q.every((t) => text.includes(t));
-      if (!el.hidden) shown.push(el);
+    const matches = [];
+
+    for (const item of items) {
+      let score = 0;
+      let matched = true;
+
+      for (const t of q) {
+        if (item.name.includes(t)) {
+          score += 100;
+        } else if (item.category.includes(t)) {
+          score += 10;
+        } else {
+          matched = false;
+          break;
+        }
+      }
+
+      item.el.hidden = !matched;
+
+      if (matched) {
+        matches.push({ el: item.el, score });
+      }
     }
+
+    matches.sort((a, b) => b.score - a.score);
+
+    for (const { el } of matches) {
+      list.append(el);
+    }
+
+    shown = matches.map(({ el }) => el);
     mark(0);
   };
 

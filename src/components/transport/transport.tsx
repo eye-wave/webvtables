@@ -1,7 +1,7 @@
 import { createSignal } from "solid-js";
 import { render } from "solid-js/web";
 import type { Audio } from "../../audio/audio";
-import { fineScale } from "../../editor/fine";
+import { knobDrag, unlock } from "../../editor/fine";
 import { editParam } from "../param_edit/param_edit";
 import knobCss from "../node/knob.module.css";
 import transportCss from "./transport.module.css";
@@ -22,7 +22,7 @@ function BarKnob(props: {
 }) {
   const [v, setV] = createSignal(props.v0);
   const set = (x: number) => (setV(clamp(x)), props.apply(v()));
-  let drag: { y: number; v: number } | undefined;
+  let drag: ((m: PointerEvent) => number) | undefined;
   props.apply(props.v0);
 
   const edit = (el: Element) =>
@@ -42,13 +42,12 @@ function BarKnob(props: {
         if (e.button) return;
         if (e.ctrlKey) return edit(e.currentTarget);
         e.currentTarget.setPointerCapture(e.pointerId);
-        drag = { y: e.clientY, v: v() };
+        drag = knobDrag(e);
       }}
-      onPointerMove={(e) =>
-        drag && set(drag.v + ((drag.y - e.clientY) / 150) * fineScale(e))
-      }
-      onPointerUp={() => (drag = undefined)}
-      onPointerCancel={() => (drag = undefined)}
+      onPointerMove={(e) => drag && set(v() + drag(e))}
+      onPointerUp={() => ((drag = undefined), unlock())}
+      onPointerCancel={() => ((drag = undefined), unlock())}
+      onDblClick={() => set(props.v0)}
       onWheel={(e) => (
         e.preventDefault(),
         set(v() - Math.sign(e.deltaY) * 0.02)

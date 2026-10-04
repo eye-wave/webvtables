@@ -66,6 +66,7 @@ define_nodes!(
     Am,
     BitCrush,
     BandSplit,
+    Bend,
     Comb,
     Disperser,
     Filter,

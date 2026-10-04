@@ -1,4 +1,4 @@
-import { fineScale } from "./fine";
+import { knobDrag, unlock } from "./fine";
 import { editParam } from "../components/param_edit/param_edit";
 import type { Pt, Ropes } from "../gfx/ropes";
 import type { Scene, Sock } from "./scene";
@@ -33,13 +33,10 @@ export function createInput(
   };
 
   const dragKnob = (e: PointerEvent, k: ReturnType<Scene["knob"]>): Drag => {
-    let y = e.clientY;
+    const d = knobDrag(e);
     return {
-      move(e) {
-        const dy = y - e.clientY;
-        y = e.clientY;
-        k.set(Math.min(1, Math.max(0, k.get() + (dy / 150) * fineScale(e))));
-      },
+      move: (e) => k.set(Math.min(1, Math.max(0, k.get() + d(e)))),
+      up: unlock,
     };
   };
 

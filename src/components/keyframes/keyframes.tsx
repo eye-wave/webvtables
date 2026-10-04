@@ -8,8 +8,9 @@ import {
 } from "solid-js";
 import { Portal } from "solid-js/web";
 import { createStore, reconcile } from "solid-js/store";
-import { fineScale } from "../../editor/fine";
+import { fineScale, knobDrag, unlock } from "../../editor/fine";
 import type { Kf, LaneView } from "../../editor/kf";
+import { editParam } from "../param_edit/param_edit";
 import ctxCss from "../ctx/ctx.module.css";
 import knobCss from "../node/knob.module.css";
 import kfCss from "./keyframes.module.css";
@@ -421,14 +422,11 @@ export function Keyframes(props: { host: Host }) {
                             style={{ "--v": l.lfo![j] }}
                             title={`${P.name} (double-click to reset)`}
                             onPointerDown={(e) => {
-                              let [y, v] = [e.clientY, l.lfo![j]];
+                              let v = l.lfo![j];
+                              const d = knobDrag(e);
+                              addEventListener("pointerup", unlock, { once: true });
                               drag(e, (m) => {
-                                v = clamp(
-                                  v + ((y - m.clientY) / 150) * fineScale(m),
-                                  0,
-                                  1,
-                                );
-                                y = m.clientY;
+                                v = clamp(v + d(m), 0, 1);
                                 host.setLfo(i(), j, v);
                                 refresh();
                               });
@@ -481,6 +479,18 @@ export function Keyframes(props: { host: Host }) {
                           e.stopPropagation();
                           if (e.button) return;
                           setSel([i(), ki()]);
+                          if (e.ctrlKey) {
+                            const t = k.t;
+                            return editParam(e.currentTarget, {
+                              value: k.v.toFixed(4),
+                              commit(s) {
+                                const n = parseFloat(s);
+                                if (isNaN(n)) return;
+                                host.setKey(i(), ki(), t, clamp(n, 0, 1));
+                                refresh();
+                              },
+                            });
+                          }
                           let [x, y, t, v] = [e.clientX, e.clientY, k.t, k.v];
 
                           drag(e, (m) => {
@@ -498,7 +508,7 @@ export function Keyframes(props: { host: Host }) {
                         }}
                       >
                         <span>
-                          {k.t} · {k.v.toFixed(2)}
+                          {k.t} · {k.v.toFixed(4)}
                         </span>
                       </b>
                     )}

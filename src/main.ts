@@ -130,6 +130,7 @@ loadWasm().then((wasm) => {
     view,
     schedule,
     kf,
+    head,
     openAdd: add.open,
   });
   new ResizeObserver(schedule).observe(nodeGrid);

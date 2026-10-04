@@ -24,8 +24,10 @@ export function createContextMenu(
     schedule,
     openAdd,
     kf,
+    head,
   }: {
     kf: Kf;
+    head: () => number;
     scene: Scene;
     view: ViewCtl;
     schedule: () => void;
@@ -70,11 +72,34 @@ export function createContextMenu(
       kf.rename(lane, nodes[+node.dataset.k!].params[j].name);
       take(lane);
     };
+    const frame = Math.round(head());
+    const lane = lanes[owner];
+    const addKey = () => {
+      if (lane?.lfo || lane?.keys.some((k) => k.t === frame)) return [];
+      return [
+        {
+          label: `Add keyframe at ${frame}`,
+          run() {
+            let l = owner;
+            if (l < 0) {
+              l = kf.addLane(false);
+              if (l < 0) return;
+              kf.rename(l, nodes[+node.dataset.k!].params[j].name);
+            }
+            const v = scene.knob(knob).get();
+            if (l !== owner) take(l);
+            kf.addKey(l, frame, v);
+            done();
+          },
+        } satisfies Item,
+      ];
+    };
     return [
       {
         label: "Enter value…",
         run: () => editParam(knob, scene.param(knob, schedule)),
       },
+      ...addKey(),
       { label: "New points lane", run: fresh(false) },
       { label: "New LFO lane", run: fresh(true) },
       ...(lanes.length
