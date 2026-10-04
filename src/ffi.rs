@@ -38,7 +38,6 @@ wasm_imports! {
     fn log(x: f64) -> f64;
     fn exp(x: f64) -> f64;
     fn sin(x: f64) -> f64;
-    fn floor(x: f64) -> f64;
     fn round(x: f64) -> f64;
 
     fn atan2f(x: f32,y:f32) -> f32;
@@ -47,9 +46,34 @@ wasm_imports! {
     fn sinf(x: f32) -> f32;
     fn cosf(x: f32) -> f32;
     fn tanhf(x: f32) -> f32;
-    fn sqrtf(x: f32) -> f32;
     fn log2f(x: f32) -> f32;
     fn log10f(x: f32) -> f32;
 }
 
 pub use libm::hypot;
+
+#[inline]
+pub fn sqrtf(x: f32) -> f32 {
+    #[cfg(target_arch = "wasm32")]
+    {
+        core::arch::wasm32::f32_sqrt(x)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        x.sqrt()
+    }
+}
+
+#[inline]
+pub fn floor(x: f64) -> f64 {
+    #[cfg(target_arch = "wasm32")]
+    {
+        core::arch::wasm32::f64_floor(x)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        x.floor()
+    }
+}

@@ -1,7 +1,8 @@
-use super::helpers::{self, PI32};
+use super::helpers::{self};
 use super::{BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeParamDef, Param};
 use super::{Label, label};
-use crate::ffi;
+use crate::graph::node::BUFFER_LEN;
+use crate::graph::node::helpers::sine_table;
 
 pub struct BasicShapesNode;
 
@@ -46,9 +47,9 @@ impl NodeLogic for BasicShapesNode {
         let mut phase = 0.0;
         let phase_inc = freq / BUFFER_LEN_F32;
 
-        for sample in out.iter_mut() {
+        for (i, sample) in out.iter_mut().enumerate() {
             *sample = match shape {
-                0 => ffi::sin((2.0 * PI32 * phase) as f64) as f32,
+                0 => sine_table()[(freq as usize * i) & (BUFFER_LEN - 1)],
                 1 => {
                     if phase < 0.5 {
                         4.0 * phase - 1.0

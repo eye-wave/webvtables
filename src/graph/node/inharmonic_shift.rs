@@ -87,12 +87,7 @@ impl NodeLogic for InharmonicShiftNode {
 
         spectrum.copy_from_slice(&shifted[..]);
 
-        let mut full = helpers::unpack_real_fft(spectrum);
-        let time = microfft::inverse::ifft_2048(&mut full);
-
-        for i in 0..BUFFER_LEN {
-            out[i] = time[i].re;
-        }
+        helpers::irfft_2048(spectrum, out);
 
         let in_peak = src.iter().fold(0.0f32, |m, &x| m.max(x.abs()));
         let out_peak = out.iter().fold(0.0f32, |m, &x| m.max(x.abs()));

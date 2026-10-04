@@ -6,14 +6,12 @@ for (const name of [
   "atan2",
   "cos",
   "exp",
-  "floor",
   "log",
   "log2",
   "log10",
   "pow",
   "round",
   "sin",
-  "sqrt",
   "tanh",
 ] as const) {
   math_ffi[name] = Math[name];

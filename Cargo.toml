@@ -26,7 +26,7 @@ postcard = { version = "1", default-features = false, features = ["alloc"] }
 [profile.release]
 codegen-units = 1
 lto = "fat"
-opt-level = "z"
+opt-level = 3
 panic = "abort"
 strip = true
 trim-paths = "all"

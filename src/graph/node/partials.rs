@@ -1,7 +1,8 @@
-use super::helpers::{self, PI32};
-use super::{BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeParamDef, Param};
+use super::helpers::{self};
+use super::{Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeParamDef, Param};
 use super::{Label, label};
-use crate::ffi;
+
+use crate::graph::node::BUFFER_LEN;
 
 pub struct PartialsNode;
 
@@ -38,22 +39,15 @@ impl NodeLogic for PartialsNode {
         outs: &mut [Buffer],
     ) {
         let out = &mut outs[0];
-        let count = helpers::param(params, 0, 0.0) as u16;
-        let gap = helpers::param(params, 1, 0.0) as u16;
-
+        let (count, gap) = (
+            helpers::param(params, 0, 0.0) as usize,
+            helpers::param(params, 1, 0.0) as usize,
+        );
+        let t = helpers::sine_table();
         for i in 0..count {
-            let harmonic = 1 + i * (gap + 1);
-
-            let mut phase = 0.0;
-            let phase_inc = harmonic as f32 / BUFFER_LEN_F32;
-
-            for sample in out.iter_mut() {
-                *sample += ffi::sin((2.0 * PI32 * phase) as f64) as f32;
-
-                phase += phase_inc;
-                if phase >= 1.0 {
-                    phase -= 1.0;
-                }
+            let h = 1 + i * (gap + 1);
+            for (n, s) in out.iter_mut().enumerate() {
+                *s += t[(h * n) & (BUFFER_LEN - 1)];
             }
         }
 

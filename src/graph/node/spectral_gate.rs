@@ -45,26 +45,26 @@ impl NodeLogic for SpectralGateNode {
     ) {
         let out = &mut outs[0];
         let threshold_db = helpers::param(params, 0, 0.0) as f32;
-        let threshold = ffi::powf(10.0, threshold_db / 20.0);
 
         let src = helpers::input(inputs, 0);
         let mix = (helpers::param(params, 1, 100.0) / 100.0) as f32;
+
+        let threshold = ffi::powf(10.0, threshold_db / 20.0);
+        let thr2 = {
+            let t = threshold * (BUFFER_LEN as f32 / 2.0);
+            t * t
+        };
+        let floor = 1.0 - mix;
 
         let mut samples = helpers::copy_of(src);
         let spectrum = microfft::real::rfft_2048(&mut samples);
 
         for bin in spectrum.iter_mut() {
-            let mag = helpers::magnitude(bin) / (BUFFER_LEN as f32 / 2.0);
-            let gain = (mag > threshold) as u8 as f32;
-            bin.re *= gain;
-            bin.im *= gain;
+            if bin.re * bin.re + bin.im * bin.im <= thr2 {
+                *bin *= floor;
+            }
         }
 
-        let mut full = helpers::unpack_real_fft(spectrum);
-        let time = microfft::inverse::ifft_2048(&mut full);
-
-        for i in 0..BUFFER_LEN {
-            out[i] = src[i] * (1.0 - mix) + time[i].re * mix;
-        }
+        helpers::irfft_2048(spectrum, out);
     }
 }

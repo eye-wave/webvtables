@@ -50,12 +50,9 @@ impl NodeLogic for DisperserNode {
         let spectrum = microfft::real::rfft_2048(&mut samples);
 
         let step = TAU32 / BUFFER_LEN_F32;
-
-        for (i, bin) in spectrum.iter_mut().enumerate() {
-            let (mag, mut phase) = helpers::mag_phase(bin);
-
-            phase += ffi::powf(i as f32, abs_exp) * step * direction;
-            *bin = helpers::from_mag_phase(mag, phase);
+        for (i, bin) in spectrum.iter_mut().enumerate().skip(1) {
+            let a = ffi::powf(i as f32, abs_exp) * step * direction;
+            *bin *= microfft::Complex32::new(ffi::cosf(a), ffi::sinf(a));
         }
 
         let mut full = helpers::unpack_real_fft(spectrum);

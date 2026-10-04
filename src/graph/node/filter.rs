@@ -8,13 +8,12 @@ use crate::ffi;
 pub struct FilterNode;
 
 impl FilterNode {
-    fn magnitude(shape: u8, x: f32, q: f32, gain_db: f32) -> f32 {
+    fn magnitude(shape: u8, x: f32, q: f32, gain: f32) -> f32 {
         let q = q.max(f32::EPSILON);
 
         let x2 = x * x;
         let reso = x2 / (q * q);
         let denom = (1.0 - x2) * (1.0 - x2) + reso;
-        let gain = ffi::powf(10.0, gain_db / 20.0);
 
         match shape {
             0 => ffi::sqrtf(1.0 / denom),
@@ -38,8 +37,8 @@ impl FilterNode {
         }
     }
 
-    fn mask(shape: u8, freq: f32, q: f32, gain_db: f32, bin: usize) -> f32 {
-        Self::magnitude(shape, bin as f32 / freq, q, gain_db)
+    fn mask(shape: u8, freq: f32, q: f32, gain: f32, bin: usize) -> f32 {
+        Self::magnitude(shape, bin as f32 / freq, q, gain)
     }
 }
 
@@ -101,6 +100,7 @@ impl NodeLogic for FilterNode {
         let shape = helpers::param(params, 0, 0.0) as u8;
         let freq = helpers::param(params, 1, 1000.0) as f32;
         let gain_db = helpers::param(params, 2, 0.0) as f32;
+        let gain = ffi::powf(10.0, gain_db / 20.0);
         let q = helpers::param(params, 3, 0.707) as f32;
         let mix = (helpers::param(params, 4, 0.0) / 100.0) as f32;
         let src = helpers::input(inputs, 0);
@@ -110,18 +110,18 @@ impl NodeLogic for FilterNode {
         let bins = BUFFER_LEN / 2;
 
         for (k, spec) in spectrum.iter_mut().enumerate().take(bins).skip(1) {
-            *spec *= Self::mask(shape, freq, q, gain_db, k);
+            *spec *= Self::mask(shape, freq, q, gain, k);
         }
 
-        let mut full = helpers::unpack_real_fft(spectrum);
-        let time = microfft::inverse::ifft_2048(&mut full);
+        let mut samples = helpers::copy_of(src);
+        let spectrum = microfft::real::rfft_2048(&mut samples);
 
-        for i in 0..BUFFER_LEN {
-            let dry = src[i];
-            let wet = time[i].re;
-
-            out[i] = dry * (1.0 - mix) + wet * (mix);
+        for (k, spec) in spectrum.iter_mut().enumerate() {
+            let m = Self::mask(shape, freq, q, gain, k);
+            *spec *= 1.0 + mix * (m - 1.0);
         }
+
+        helpers::irfft_2048(spectrum, out);
     }
     fn has_widget(&self) -> bool {
         true
@@ -138,8 +138,7 @@ impl NodeLogic for FilterNode {
         let gain_db = helpers::param(p, 2, 0.0) as f32;
         let q = helpers::param(p, 3, 0.707).max(0.05) as f32;
         let mix = (helpers::param(p, 4, 100.0) / 100.0) as f32;
-        helpers::response_curve(out, mix, |bin| {
-            Self::magnitude(shape, bin / freq, q, gain_db)
-        })
+        let gain = ffi::powf(10.0, gain_db / 20.0);
+        helpers::response_curve(out, mix, |bin| Self::magnitude(shape, bin / freq, q, gain))
     }
 }

@@ -1,4 +1,5 @@
 #![allow(static_mut_refs)]
+#![cfg_attr(target_arch = "wasm32", feature(wasm_numeric_instr))]
 #![cfg_attr(not(test), no_std)]
 
 use crate::graph::{NodeKind, keyframes, state};

@@ -1,7 +1,6 @@
-use super::helpers::{self, from_mag_phase, magnitude, phase};
+use super::helpers::{self, magnitude};
 use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, Param};
 use super::{Label, label};
-use alloc::boxed::Box;
 use microfft::Complex32;
 
 pub struct PhaseCopyNode;
@@ -39,24 +38,20 @@ impl NodeLogic for PhaseCopyNode {
         let a_spec = microfft::real::rfft_2048(&mut a_time);
         let b_spec = microfft::real::rfft_2048(&mut b_time);
 
-        let dc = a_spec[0].re.abs() * b_spec[0].re.signum();
-        let nyq = a_spec[0].im.abs() * b_spec[0].im.signum();
+        a_spec[0] = Complex32::new(
+            a_spec[0].re.abs() * b_spec[0].re.signum(),
+            a_spec[0].im.abs() * b_spec[0].im.signum(),
+        );
 
-        let mut full: Box<[Complex32; BUFFER_LEN]> = helpers::boxed(Complex32::new(0.0, 0.0));
-        full[0] = Complex32::new(dc, 0.0);
-        full[bins] = Complex32::new(nyq, 0.0);
         for k in 1..bins {
-            let mag = magnitude(&a_spec[k]);
-            let phase = phase(&b_spec[k]);
-            let bin = from_mag_phase(mag, phase);
-
-            full[k] = bin;
-            full[BUFFER_LEN - k] = full[k].conj();
+            let (ma, mb) = (magnitude(&a_spec[k]), magnitude(&b_spec[k]));
+            a_spec[k] = if mb > 1e-30 {
+                b_spec[k] * (ma / mb)
+            } else {
+                Complex32::new(ma, 0.0)
+            };
         }
 
-        let time = microfft::inverse::ifft_2048(&mut full);
-        for i in 0..BUFFER_LEN {
-            out[i] = time[i].re;
-        }
+        helpers::irfft_2048(a_spec, out);
     }
 }

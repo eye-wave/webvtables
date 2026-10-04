@@ -43,34 +43,35 @@ impl NodeLogic for SpectralSubtractNode {
     ) {
         let out = &mut outs[0];
         let mix = (helpers::param(params, 0, 100.0) / 100.0) as f32;
+
         let a = helpers::input(inputs, 0);
         let b = helpers::input(inputs, 1);
-        let bins = BUFFER_LEN / 2;
 
         let mut a_time = helpers::copy_of(a);
         let mut b_time = helpers::copy_of(b);
+
         let a_spec = microfft::real::rfft_2048(&mut a_time);
         let b_spec = microfft::real::rfft_2048(&mut b_time);
 
-        let dc = a_spec[0].re - b_spec[0].re;
-        let nyq = a_spec[0].im - b_spec[0].im;
+        let mut spec: Box<[Complex32; BUFFER_LEN / 2]> = helpers::boxed(Complex32::new(0.0, 0.0));
 
-        let mut full: Box<[Complex32; BUFFER_LEN]> = helpers::boxed(Complex32::new(0.0, 0.0));
-        full[0] = Complex32::new(dc, 0.0);
-        full[bins] = Complex32::new(nyq, 0.0);
-        for k in 1..bins {
+        spec[0].re = a_spec[0].re - b_spec[0].re;
+        spec[0].im = a_spec[0].im - b_spec[0].im;
+
+        for k in 1..BUFFER_LEN / 2 {
             let mag_a = magnitude(&a_spec[k]);
             let mag_b = magnitude(&b_spec[k]);
             let mag = (mag_a - mag_b).max(0.0);
 
             let scale = mag / mag_a.max(1e-9);
-            full[k] = a_spec[k] * scale;
-            full[BUFFER_LEN - k] = full[k].conj();
+            spec[k] = a_spec[k] * scale;
         }
 
-        let time = microfft::inverse::ifft_2048(&mut full);
+        let mut time = [0.0; BUFFER_LEN];
+        helpers::irfft_2048(&spec, &mut time);
+
         for i in 0..BUFFER_LEN {
-            out[i] = a[i] * (1.0 - mix) + time[i].re * mix;
+            out[i] = a[i] * (1.0 - mix) + time[i] * mix;
         }
     }
 }

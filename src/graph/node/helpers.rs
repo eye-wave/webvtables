@@ -7,6 +7,20 @@ use crate::ffi;
 pub const PI32: f32 = core::f32::consts::PI;
 pub const TAU32: f32 = core::f32::consts::TAU;
 
+pub fn sine_table() -> &'static Buffer {
+    static mut T: Buffer = [0.0; BUFFER_LEN];
+    static mut READY: bool = false;
+    unsafe {
+        if !READY {
+            for (i, t) in T.iter_mut().enumerate() {
+                *t = ffi::sin(core::f64::consts::TAU * i as f64 / BUFFER_LEN as f64) as f32;
+            }
+            READY = true;
+        }
+        &T
+    }
+}
+
 #[inline]
 pub fn param(params: &[Option<Param>; MAX_PARAMS], idx: usize, default: f64) -> f64 {
     params
@@ -73,27 +87,6 @@ pub fn magnitude(c: &Complex32) -> f32 {
     ffi::sqrtf(c.re * c.re + c.im * c.im)
 }
 
-#[inline(always)]
-pub fn phase(c: &Complex32) -> f32 {
-    ffi::atan2f(c.im, c.re)
-}
-
-#[inline(always)]
-pub fn mag_phase(c: &Complex32) -> (f32, f32) {
-    let mag2 = c.re * c.re + c.im * c.im;
-    let mag = ffi::sqrtf(mag2);
-    let phase = ffi::atan2f(c.im, c.re);
-    (mag, phase)
-}
-
-#[inline(always)]
-pub fn from_mag_phase(mag: f32, phase: f32) -> Complex32 {
-    Complex32 {
-        re: mag * ffi::cosf(phase),
-        im: mag * ffi::sinf(phase),
-    }
-}
-
 pub fn response_curve(out: &mut Buffer, mix: f32, ratio: impl Fn(f32) -> f32) -> usize {
     const POINTS: usize = 256;
     const DB_RANGE: f32 = 30.0;
@@ -131,4 +124,46 @@ pub fn unpack_real_fft(spectrum: &[Complex32; BUFFER_LEN / 2]) -> Box<[Complex32
     }
 
     full
+}
+
+fn twiddles() -> &'static [Complex32; BUFFER_LEN / 2] {
+    static mut T: [Complex32; BUFFER_LEN / 2] = [Complex32::new(0.0, 0.0); BUFFER_LEN / 2];
+    static mut READY: bool = false;
+    unsafe {
+        if !READY {
+            for (k, t) in T.iter_mut().enumerate() {
+                let a = TAU32 * k as f32 / BUFFER_LEN as f32;
+                *t = Complex32::new(ffi::cosf(a), ffi::sinf(a));
+            }
+            READY = true;
+        }
+        &T
+    }
+}
+
+pub fn irfft_2048(spec: &[Complex32; BUFFER_LEN / 2], out: &mut Buffer) {
+    const M: usize = BUFFER_LEN / 2;
+    let tw = twiddles();
+    let mut z: Box<[Complex32; M]> = boxed(Complex32::new(0.0, 0.0));
+
+    for k in 0..M {
+        let (xk, xm) = if k == 0 {
+            (
+                Complex32::new(spec[0].re, 0.0),
+                Complex32::new(spec[0].im, 0.0),
+            )
+        } else {
+            (spec[k], spec[M - k])
+        };
+        let xm = xm.conj();
+        let e = (xk + xm) * 0.5;
+        let o = (xk - xm) * 0.5 * tw[k];
+        z[k] = e + Complex32::new(-o.im, o.re);
+    }
+
+    let z = microfft::inverse::ifft_1024(&mut z);
+    for (m, v) in z.iter().enumerate() {
+        out[2 * m] = v.re;
+        out[2 * m + 1] = v.im;
+    }
 }
