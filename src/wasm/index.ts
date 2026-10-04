@@ -48,6 +48,7 @@ export type WasmExports = {
   lane_name_ptr(): number;
   key_add(lane: number, t: number, v: number): number;
   key_set(lane: number, idx: number, t: number, v: number): boolean;
+  key_curve(lane: number, idx: number, c: number): boolean;
   key_remove(lane: number, idx: number): void;
   lfo_set(lane: number, j: number, v: number): boolean;
   project_save(): number;

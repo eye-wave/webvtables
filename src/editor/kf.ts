@@ -3,7 +3,7 @@ import type { WasmExports } from "../wasm";
 export type LaneView = {
   name: string;
   lfo?: number[];
-  keys: { t: number; v: number }[];
+  keys: { t: number; v: number; c: number }[];
   addrs: number[];
   curve: Float32Array;
 };
@@ -35,7 +35,7 @@ export function createKf(w: WasmExports) {
         };
         if (kind) v.lfo = [...d.subarray(i, (i += count))];
         else
-          for (let k = 0; k < count; k++) v.keys.push({ t: d[i++], v: d[i++] });
+          for (let k = 0; k < count; k++) v.keys.push({ t: d[i++], v: d[i++], c: d[i++] });
         const t = w.lane_targets(l);
         v.addrs = [
           ...new Uint32Array(w.memory.buffer, w.lane_targets_ptr(), t),
@@ -54,6 +54,7 @@ export function createKf(w: WasmExports) {
     addKey: (l: number, t: number, v: number) => w.key_add(l, t, v),
     setKey: (l: number, k: number, t: number, v: number) =>
       w.key_set(l, k, t, v),
+    setCurve: (l: number, k: number, c: number) => w.key_curve(l, k, c),
     removeKey: (l: number, k: number) => w.key_remove(l, k),
     setLfo: (l: number, j: number, v: number) => w.lfo_set(l, j, v),
 

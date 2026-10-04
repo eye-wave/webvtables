@@ -16,6 +16,8 @@ pub fn buffer(len: usize) -> usize {
     f.as_ptr() as usize
 }
 
+// The file is a logical description (not an arena dump): nodes by stable id, params by position,
+// links and lane targets by node index. Written with postcard, read with `Rd` below.
 #[derive(Serialize)]
 struct SNode {
     id: [u8; 8],
@@ -82,6 +84,7 @@ pub fn save(s: &State) -> usize {
     f.len()
 }
 
+// Forgiving reader over postcard bytes: running out of data yields zeros and sets `dry`.
 struct Rd<'a> {
     b: &'a [u8],
     dry: bool,
@@ -110,7 +113,7 @@ impl Rd<'_> {
     fn f32(&mut self) -> f32 {
         f32::from_le_bytes([self.u8(), self.u8(), self.u8(), self.u8()])
     }
-
+    // Element count, capped by the bytes left (every element takes at least one).
     fn len(&mut self) -> usize {
         (self.var() as usize).min(self.b.len())
     }
@@ -126,6 +129,7 @@ pub fn decode(bytes: &[u8]) -> (State, bool) {
         dry: false,
     };
     let mut s = State::new();
+    // file node index -> index in the new state (None: unknown kind, ignored)
     let mut map: Vec<Option<u16>> = Vec::new();
 
     for _ in 0..r.len() {
@@ -150,7 +154,7 @@ pub fn decode(bytes: &[u8]) -> (State, bool) {
             break;
         };
         s.arena.slice_mut::<Node>(off, 1)[0].flags = NodeFlags::from_bits_truncate(flags).bits();
-
+        // Missing params keep their defaults, extra ones are ignored.
         for (i, v) in vals.iter().enumerate().filter(|(_, v)| v.is_finite()) {
             if let Some(slot) = s.param_slot(off, i) {
                 s.arena.slice_mut::<f32>(slot, 1)[0] = v.clamp(0.0, 1.0);
@@ -180,6 +184,7 @@ pub fn decode(bytes: &[u8]) -> (State, bool) {
                     .map(|_| Key {
                         t: r.u8(),
                         v: finite(r.f32(), 0.0),
+                        c: finite(r.f32(), 0.5).clamp(0.0, 1.0),
                     })
                     .collect();
                 keys.sort_by_key(|k| k.t);
@@ -218,6 +223,7 @@ pub fn decode(bytes: &[u8]) -> (State, bool) {
         s.keyframes.lanes.push(lane);
     }
 
+    // A readable file that yields nothing at all is more likely garbage than a project.
     let ok = s.valid() && (!s.nodes.is_empty() || !r.dry && r.b.is_empty());
     (s, ok)
 }

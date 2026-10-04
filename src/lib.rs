@@ -247,6 +247,11 @@ pub extern "C" fn key_set(lane: u16, idx: u16, t: u8, v: f32) -> bool {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn key_curve(lane: u16, idx: u16, c: f32) -> bool {
+    state().key_curve(lane as usize, idx as usize, c)
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn key_remove(lane: u16, idx: u16) {
     state().key_remove(lane as usize, idx as usize)
 }

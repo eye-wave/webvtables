@@ -12,6 +12,8 @@ pub const CURVE_LEN: usize = 511;
 pub struct Key {
     pub t: u8,
     pub v: f32,
+    // Where the segment to the next key sits at its midpoint, 0..1 of the way from this value to the next (0.5 = straight).
+    pub c: f32,
 }
 
 pub const LFO_PARAMS: usize = 6;
@@ -45,7 +47,9 @@ impl Keyframes {
             && self.lanes.iter().enumerate().all(|(i, l)| {
                 l.name.len() <= NAME_MAX
                     && match &l.source {
-                        Source::Points(k) => k.len() <= KEYS_MAX && k.iter().all(|k| unit(&k.v)),
+                        Source::Points(k) => {
+                            k.len() <= KEYS_MAX && k.iter().all(|k| unit(&k.v) && unit(&k.c))
+                        }
                         Source::Lfo(p) => p.iter().all(unit),
                     }
                     && l.targets.len() <= KEYS_MAX
@@ -111,9 +115,20 @@ impl Source {
             (Some(a), None) => a.v,
             (None, Some(b)) => b.v,
             (Some(a), Some(b)) if a.t == b.t => b.v,
-            (Some(a), Some(b)) => a.v + (b.v - a.v) * (t - a.t as f32) / (b.t - a.t) as f32,
+            (Some(a), Some(b)) => {
+                a.v + (b.v - a.v) * bend((t - a.t as f32) / (b.t - a.t) as f32, a.c)
+            }
         })
     }
+}
+
+// x^p with p chosen so that bend(0.5, c) == c.
+fn bend(x: f32, c: f32) -> f32 {
+    let c = c.clamp(0.02, 0.98);
+    if (c - 0.5).abs() < 1e-4 {
+        return x;
+    }
+    libm::powf(x, libm::logf(c) / libm::logf(0.5))
 }
 
 fn unit(v: f32) -> f32 {
@@ -174,7 +189,7 @@ impl State {
             match &l.source {
                 Source::Points(k) => {
                     d.extend([0.0, k.len() as f32]);
-                    k.iter().for_each(|k| d.extend([k.t as f32, k.v]));
+                    k.iter().for_each(|k| d.extend([k.t as f32, k.v, k.c]));
                 }
                 Source::Lfo(p) => {
                     d.extend([1.0, LFO_PARAMS as f32]);
@@ -301,14 +316,25 @@ impl State {
 
     pub fn key_add(&mut self, lane: usize, t: u8, v: f32) -> Option<usize> {
         let k = self.points(lane).filter(|k| k.len() < KEYS_MAX)?;
-        k.push(Key { t, v: unit(v) });
+        k.push(Key {
+            t,
+            v: unit(v),
+            c: 0.5,
+        });
         Some(k.len() - 1)
     }
 
     pub fn key_set(&mut self, lane: usize, i: usize, t: u8, v: f32) -> bool {
         self.points(lane)
             .and_then(|k| k.get_mut(i))
-            .map(|k| *k = Key { t, v: unit(v) })
+            .map(|k| (k.t, k.v) = (t, unit(v)))
+            .is_some()
+    }
+
+    pub fn key_curve(&mut self, lane: usize, i: usize, c: f32) -> bool {
+        self.points(lane)
+            .and_then(|k| k.get_mut(i))
+            .map(|k| k.c = unit(c))
             .is_some()
     }
 
@@ -326,5 +352,31 @@ impl State {
             }
             _ => false,
         }
+    }
+}
+
+#[cfg(test)]
+mod curve_tests {
+    use super::*;
+
+    #[test]
+    fn bend_hits_its_midpoint_and_keeps_the_ends() {
+        for c in [0.1, 0.3, 0.5, 0.9] {
+            assert!((bend(0.5, c) - c).abs() < 1e-4);
+            assert!(bend(0.0, c).abs() < 1e-6 && (bend(1.0, c) - 1.0).abs() < 1e-6);
+        }
+        let s = Source::Points(alloc::vec![
+            Key {
+                t: 0,
+                v: 0.0,
+                c: 0.2
+            },
+            Key {
+                t: 100,
+                v: 1.0,
+                c: 0.5
+            }
+        ]);
+        assert!((s.at(50.0).unwrap() - 0.2).abs() < 1e-4);
     }
 }

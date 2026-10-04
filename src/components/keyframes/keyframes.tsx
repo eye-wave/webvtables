@@ -163,6 +163,11 @@ export function Keyframes(props: { host: Host }) {
 
   const line = (l: LaneView) =>
     Array.from(l.curve, (v, i) => `${X(i / 2)},${Y(v)}`).join(" ");
+  // Adjacent key pairs by time: [index of the earlier key, earlier, later].
+  const segments = (l: LaneView) => {
+    const o = l.keys.map((k, i) => [i, k] as const).sort((x, y) => x[1].t - y[1].t);
+    return o.slice(1).map(([, b], n) => [o[n][0], o[n][1], b] as const).filter(([, a, b]) => b.t > a.t);
+  };
   const area = (l: LaneView) =>
     l.curve.length ? `${X(0)},${H} ${line(l)} ${X(FRAMES)},${H}` : "";
 
@@ -448,6 +453,33 @@ export function Keyframes(props: { host: Host }) {
                     <polygon points={area(l)} />
                     <polyline points={line(l)} />
                   </svg>
+                  <For each={segments(l)}>
+                    {([ki, a, b]) => (
+                      <i
+                        class={kfCss.kfMid}
+                        title="Curve (double-click to reset)"
+                        style={{
+                          left: `${X((a.t + b.t) / 2)}px`,
+                          top: `${Y(a.v + (b.v - a.v) * a.c)}px`,
+                        }}
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          if (e.button || a.v === b.v) return;
+                          const top = e.currentTarget.parentElement!.getBoundingClientRect().top;
+                          drag(e, (m) => {
+                            const v = clamp(1 - (m.clientY - top - PADY) / INNER, 0, 1);
+                            host.setCurve(i(), ki, clamp((v - a.v) / (b.v - a.v), 0.02, 0.98));
+                            refresh();
+                          });
+                        }}
+                        onDblClick={(e) => (
+                          e.stopPropagation(),
+                          host.setCurve(i(), ki, 0.5),
+                          refresh()
+                        )}
+                      />
+                    )}
+                  </For>
                   <For each={l.keys}>
                     {(k, ki) => (
                       <b

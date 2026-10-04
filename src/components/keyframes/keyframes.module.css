@@ -356,3 +356,19 @@
   padding: 12px 8px 12px 154px;
   color: var(--text-100);
 }
+
+.kfMid {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border: 1px solid var(--c);
+  border-radius: 50%;
+  background: #111;
+  opacity: 0.55;
+  cursor: ns-resize;
+}
+
+.kfMid:hover {
+  opacity: 1;
+}
