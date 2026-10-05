@@ -10,7 +10,7 @@ pub struct BlurNode;
 impl NodeParamDef for BlurNode {
     const PARAMS: [Option<Param>; MAX_PARAMS] = crate::params![
         Param::new_enum("Mode", &["Magnitude", "Complex"]),
-        Param::new_linear("Width", 0.0, 64.0)
+        Param::new_linear("Width", 0.0, 1024.0)
             .with_unit("harm")
             .with_default_denorm(4.0),
         Param::new_linear("Mix", 0.0, 100.0)

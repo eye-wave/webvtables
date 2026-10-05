@@ -191,3 +191,12 @@ pub fn fft_combine(
     fa[0].im = ny;
     irfft_2048(fa, out);
 }
+
+pub fn sample_linear(src: &Buffer, p: f32) -> f32 {
+    let x = p * BUFFER_LEN as f32;
+    let i = x as usize;
+    let f = x - i as f32;
+
+    let (a, b) = (src[i % BUFFER_LEN], src[(i + 1) % BUFFER_LEN]);
+    a + f * (b - a)
+}
