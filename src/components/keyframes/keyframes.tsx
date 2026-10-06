@@ -15,6 +15,7 @@ import { createStore, reconcile } from "solid-js/store";
 import { fineScale, knobDrag, unlock } from "../../editor/fine";
 import type { Kf, LaneView } from "../../editor/kf";
 import { editParam } from "../param_edit/param_edit";
+import { laneColors } from "../settings/settings";
 import ctxCss from "../ctx/ctx.module.css";
 import knobCss from "../node/knob.module.css";
 import kfCss from "./keyframes.module.css";
@@ -26,9 +27,6 @@ const FRAMES = 255,
   PADY = 10,
   RULER = 24,
   INNER = H - 2 * PADY;
-// Special lanes (1 crossfade, 2 spectral) get a shifted hue and a different saturation.
-const hue = (i: number, mode = 0) =>
-  `hsl(${(210 + i * 67 + mode * 40) % 360} ${mode ? 70 : 85}% ${mode ? 74 : 68}%)`;
 const ICONS = [
   () => <i />,
   () => <Blend class={kfCss.kfIcon} size={14} />, // crossfade
@@ -410,198 +408,225 @@ export function Keyframes(props: { host: Host }) {
           </div>
 
           <For each={s.lanes}>
-            {(l, i) => (
-              <div
-                class={`${kfCss.kfRow} ${kfCss.kfLane}`}
-                classList={{
-                  [kfCss.kfFadeLane]: l.mode === 1,
-                  [kfCss.kfSpecLane]: l.mode === 2,
-                }}
-                style={{ "--c": hue(i(), l.mode) }}
-              >
-                <div class={kfCss.kfLabel}>
-                  {ICONS[l.mode ?? 0]()}
-                  <input
-                    value={l.name}
-                    onInput={(e) => (
-                      host.rename(i(), e.currentTarget.value),
-                      refresh()
-                    )}
-                  />
-                  <Picker lane={i()} />
-                  <button
-                    title="Remove lane"
-                    onClick={() => {
-                      host.removeLane(i());
-                      setSel();
+            {(l, i) => {
+              const col = () => laneColors(i(), !!l.mode);
+              return (
+                <div
+                  class={`${kfCss.kfRow} ${kfCss.kfLane}`}
+                  classList={{
+                    [kfCss.kfFadeLane]: l.mode === 1,
+                    [kfCss.kfSpecLane]: l.mode === 2,
+                  }}
+                  style={{
+                    "--c": col().c,
+                    "--c2": col().c2,
+                    "--sc": l.mode ? `url(#kfg${i()})` : undefined,
+                  }}
+                >
+                  <div class={kfCss.kfLabel}>
+                    {ICONS[l.mode ?? 0]()}
+                    <input
+                      value={l.name}
+                      onInput={(e) => (
+                        host.rename(i(), e.currentTarget.value),
+                        refresh()
+                      )}
+                    />
+                    <Picker lane={i()} />
+                    <button
+                      title="Remove lane"
+                      onClick={() => {
+                        host.removeLane(i());
+                        setSel();
+                        refresh();
+                      }}
+                    >
+                      <Close size={14} />
+                    </button>
+                  </div>
+                  <div
+                    class={kfCss.kfTrack}
+                    onDblClick={(e) => {
+                      if (l.lfo || (e.target as Element).closest(".kf-key"))
+                        return;
+                      const y =
+                        e.clientY - e.currentTarget.getBoundingClientRect().top;
+                      const k = host.addKey(
+                        i(),
+                        frameAt(e, e.currentTarget),
+                        clamp(1 - (y - PADY) / INNER, 0, 1),
+                      );
+                      if (k >= 0) setSel([i(), k]);
                       refresh();
                     }}
                   >
-                    <Close size={14} />
-                  </button>
-                </div>
-                <div
-                  class={kfCss.kfTrack}
-                  onDblClick={(e) => {
-                    if (l.lfo || (e.target as Element).closest(".kf-key"))
-                      return;
-                    const y =
-                      e.clientY - e.currentTarget.getBoundingClientRect().top;
-                    const k = host.addKey(
-                      i(),
-                      frameAt(e, e.currentTarget),
-                      clamp(1 - (y - PADY) / INNER, 0, 1),
-                    );
-                    if (k >= 0) setSel([i(), k]);
-                    refresh();
-                  }}
-                >
-                  <Show when={l.lfo}>
-                    <div class={kfCss.kfLfo}>
-                      <div class={kfCss.kfKnobs}>
-                        {LFO.map((P, j) => (
-                          <div
-                            class={kfCss.kfKnob}
-                            style={{ "--v": l.lfo![j] }}
-                            title={`${P.name} (double-click to reset)`}
-                            onPointerDown={(e) => {
-                              let v = l.lfo![j];
-                              const d = knobDrag(e);
-                              addEventListener("pointerup", unlock, {
-                                once: true,
-                              });
-                              drag(e, (m) => {
-                                v = clamp(v + d(m), 0, 1);
-                                host.setLfo(i(), j, v);
-                                refresh();
-                              });
-                            }}
-                            onDblClick={() => (
-                              host.setLfo(i(), j, P.def),
-                              refresh()
-                            )}
-                          >
-                            <div class={`${knobCss.dial} ${kfCss.kfDial}`} />
-                            <span class={kfCss.n}>{P.name}</span>
-                            <span class={kfCss.v}>{P.text(l.lfo![j])}</span>
-                          </div>
-                        ))}
+                    <Show when={l.lfo}>
+                      <div class={kfCss.kfLfo}>
+                        <div class={kfCss.kfKnobs}>
+                          {LFO.map((P, j) => (
+                            <div
+                              class={kfCss.kfKnob}
+                              style={{ "--v": l.lfo![j] }}
+                              title={`${P.name} (double-click to reset)`}
+                              onPointerDown={(e) => {
+                                let v = l.lfo![j];
+                                const d = knobDrag(e);
+                                addEventListener("pointerup", unlock, {
+                                  once: true,
+                                });
+                                drag(e, (m) => {
+                                  v = clamp(v + d(m), 0, 1);
+                                  host.setLfo(i(), j, v);
+                                  refresh();
+                                });
+                              }}
+                              onDblClick={() => (
+                                host.setLfo(i(), j, P.def),
+                                refresh()
+                              )}
+                            >
+                              <div class={`${knobCss.dial} ${kfCss.kfDial}`} />
+                              <span class={kfCss.n}>{P.name}</span>
+                              <span class={kfCss.v}>{P.text(l.lfo![j])}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  </Show>
-                  <svg class={kfCss.kfLine} width={X(FRAMES) + PADX} height={H}>
-                    <polygon points={area(l)} />
-                    <polyline points={line(l)} />
-                  </svg>
-                  <For each={segments(l)}>
-                    {([ki, a, b]) => (
-                      <i
-                        class={kfCss.kfMid}
-                        classList={{
-                          [kfCss.kfFade]: l.mode === 1,
-                          [kfCss.kfSpec]: l.mode === 2,
-                        }}
-                        title="Curve (double-click to reset)"
-                        style={{
-                          left: `${X((a.t + b.t) / 2)}px`,
-                          top: `${Y(a.v + (b.v - a.v) * a.c)}px`,
-                        }}
-                        onPointerDown={(e) => {
-                          e.stopPropagation();
-                          if (e.button || a.v === b.v) return;
-                          const top =
-                            e.currentTarget.parentElement!.getBoundingClientRect()
-                              .top;
-                          drag(e, (m) => {
-                            const v = clamp(
-                              1 - (m.clientY - top - PADY) / INNER,
-                              0,
-                              1,
-                            );
-                            host.setCurve(
-                              i(),
-                              ki,
-                              clamp((v - a.v) / (b.v - a.v), 0.02, 0.98),
-                            );
-                            refresh();
-                          });
-                        }}
-                        onDblClick={(e) => (
-                          e.stopPropagation(),
-                          host.setCurve(i(), ki, 0.5),
-                          refresh()
-                        )}
-                      />
-                    )}
-                  </For>
-                  <For each={l.keys}>
-                    {(k, ki) => (
-                      <b
-                        class={kfCss.kfKey}
-                        classList={{
-                          [kfCss.on]: sel()?.[0] === i() && sel()?.[1] === ki(),
-                        }}
-                        style={{ left: `${X(k.t)}px`, top: `${Y(k.v)}px` }}
-                        ref={(el) => {
-                          createEffect(
-                            () => (
-                              k.t,
-                              k.v,
-                              z(),
-                              width(),
-                              sel(),
-                              queueMicrotask(() => place(el))
-                            ),
-                          );
-                        }}
-                        onPointerEnter={(e) => place(e.currentTarget)}
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setSel([i(), ki()]);
-                          setMenu({ x: e.clientX, y: e.clientY });
-                        }}
-                        onPointerDown={(e) => {
-                          e.stopPropagation();
-                          if (e.button) return;
-                          setSel([i(), ki()]);
-                          if (e.ctrlKey) {
-                            const t = k.t;
-                            return editParam(e.currentTarget, {
-                              value: k.v.toFixed(4),
-                              commit(s) {
-                                const n = parseFloat(s);
-                                if (isNaN(n)) return;
-                                host.setKey(i(), ki(), t, clamp(n, 0, 1));
-                                refresh();
-                              },
+                    </Show>
+                    <svg
+                      class={kfCss.kfLine}
+                      width={X(FRAMES) + PADX}
+                      height={H}
+                    >
+                      <Show when={l.mode}>
+                        <linearGradient
+                          id={`kfg${i()}`}
+                          gradientUnits="userSpaceOnUse"
+                          x1="0"
+                          x2={X(FRAMES) + PADX}
+                        >
+                          <stop offset="0" stop-color={col().c} />
+                          <stop offset="1" stop-color={col().c2} />
+                        </linearGradient>
+                      </Show>
+                      <polygon points={area(l)} />
+                      <polyline points={line(l)} />
+                    </svg>
+                    <For each={segments(l)}>
+                      {([ki, a, b]) => (
+                        <i
+                          class={kfCss.kfMid}
+                          classList={{
+                            [kfCss.kfFade]: l.mode === 1,
+                            [kfCss.kfSpec]: l.mode === 2,
+                          }}
+                          title="Curve (double-click to reset)"
+                          style={{
+                            left: `${X((a.t + b.t) / 2)}px`,
+                            top: `${Y(a.v + (b.v - a.v) * a.c)}px`,
+                          }}
+                          onPointerDown={(e) => {
+                            e.stopPropagation();
+                            if (e.button || a.v === b.v) return;
+                            const top =
+                              e.currentTarget.parentElement!.getBoundingClientRect()
+                                .top;
+                            drag(e, (m) => {
+                              const v = clamp(
+                                1 - (m.clientY - top - PADY) / INNER,
+                                0,
+                                1,
+                              );
+                              host.setCurve(
+                                i(),
+                                ki,
+                                clamp((v - a.v) / (b.v - a.v), 0.02, 0.98),
+                              );
+                              refresh();
                             });
-                          }
-                          let [x, y, t, v] = [e.clientX, e.clientY, k.t, k.v];
-
-                          drag(e, (m) => {
-                            const f = fineScale(m);
-                            t = clamp(
-                              t + ((m.clientX - x) / z()) * f,
-                              0,
-                              FRAMES,
+                          }}
+                          onDblClick={(e) => (
+                            e.stopPropagation(),
+                            host.setCurve(i(), ki, 0.5),
+                            refresh()
+                          )}
+                        />
+                      )}
+                    </For>
+                    <For each={l.keys}>
+                      {(k, ki) => (
+                        <b
+                          class={kfCss.kfKey}
+                          classList={{
+                            [kfCss.on]:
+                              sel()?.[0] === i() && sel()?.[1] === ki(),
+                          }}
+                          style={{ left: `${X(k.t)}px`, top: `${Y(k.v)}px` }}
+                          ref={(el) => {
+                            createEffect(
+                              () => (
+                                k.t,
+                                k.v,
+                                z(),
+                                width(),
+                                sel(),
+                                queueMicrotask(() => place(el))
+                              ),
                             );
-                            v = clamp(v + ((y - m.clientY) / INNER) * f, 0, 1);
-                            [x, y] = [m.clientX, m.clientY];
-                            host.setKey(i(), ki(), Math.round(t), v);
-                            refresh();
-                          });
-                        }}
-                      >
-                        <span>
-                          {k.t} · {k.v.toFixed(4)}
-                        </span>
-                      </b>
-                    )}
-                  </For>
+                          }}
+                          onPointerEnter={(e) => place(e.currentTarget)}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setSel([i(), ki()]);
+                            setMenu({ x: e.clientX, y: e.clientY });
+                          }}
+                          onPointerDown={(e) => {
+                            e.stopPropagation();
+                            if (e.button) return;
+                            setSel([i(), ki()]);
+                            if (e.ctrlKey) {
+                              const t = k.t;
+                              return editParam(e.currentTarget, {
+                                value: k.v.toFixed(4),
+                                commit(s) {
+                                  const n = parseFloat(s);
+                                  if (isNaN(n)) return;
+                                  host.setKey(i(), ki(), t, clamp(n, 0, 1));
+                                  refresh();
+                                },
+                              });
+                            }
+                            let [x, y, t, v] = [e.clientX, e.clientY, k.t, k.v];
+
+                            drag(e, (m) => {
+                              const f = fineScale(m);
+                              t = clamp(
+                                t + ((m.clientX - x) / z()) * f,
+                                0,
+                                FRAMES,
+                              );
+                              v = clamp(
+                                v + ((y - m.clientY) / INNER) * f,
+                                0,
+                                1,
+                              );
+                              [x, y] = [m.clientX, m.clientY];
+                              host.setKey(i(), ki(), Math.round(t), v);
+                              refresh();
+                            });
+                          }}
+                        >
+                          <span>
+                            {k.t} · {k.v.toFixed(4)}
+                          </span>
+                        </b>
+                      )}
+                    </For>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            }}
           </For>
           <Show when={!s.lanes.length}>
             <p class={kfCss.kfEmpty}>No lanes - add one</p>

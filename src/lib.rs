@@ -119,6 +119,11 @@ pub extern "C" fn rope_rename(from: i32, to: i32) {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn rope_cfg(i: i32, v: f64) {
+    state().rope_cfg(i, v)
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn rope_step(dt: f64) -> bool {
     state().rope_step(dt)
 }

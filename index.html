@@ -45,6 +45,7 @@
   <body>
     <div class="box box-playback"></div>
     <div class="box box-node-grid">
+      <div id="fps" hidden></div>
       <div id="gridBg"></div>
       <div id="nodeGrid"></div>
       <canvas class="overlay-canvas" id="canvas"></canvas>
@@ -60,10 +61,19 @@
         </header>
         <label class="file-name">
           <span>Name</span>
-          <input id="fileName" value="project" spellcheck="false" autocomplete="off" maxlength="48" />
+          <input
+            id="fileName"
+            value="project"
+            spellcheck="false"
+            autocomplete="off"
+            maxlength="48"
+          />
         </label>
         <div class="file-row">
-          <div><b>Save project</b><small>.wtp · graph, params &amp; keyframes</small></div>
+          <div>
+            <b>Save project</b
+            ><small>.wtp · graph, params &amp; keyframes</small>
+          </div>
           <button id="fileSave" type="button">Save</button>
         </div>
         <form id="fileExportForm" class="file-row file-form">
@@ -96,6 +106,9 @@
         </div>
         <p id="fileMsg" role="status"></p>
       </div>
+    </dialog>
+    <dialog id="settingsDialog" style="display: none">
+      <div class="file-body" id="settingsRoot"></div>
     </dialog>
   </body>
 </html>

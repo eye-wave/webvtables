@@ -79,10 +79,13 @@ export function createInput(
       move: pin,
       up(e) {
         lit = [];
-        const el = (e.target as HTMLElement).closest<HTMLElement>(
-          `.${nodeCss.socket}`,
-        );
-        const i = el ? scene.connect(from, scene.socket(el)) : -1;
+        // Touch pointers stay captured by the origin socket, so e.target is
+        // useless here: hit-test at the pointer, accept anywhere on a node.
+        const el = document
+          .elementFromPoint(e.clientX, e.clientY)
+          ?.closest<HTMLElement>(`.${nodeCss.node}`);
+        const to = el && scene.nearest(from, +el.dataset.n!, view.world(e));
+        const i = to ? scene.connect(from, to) : -1;
         if (i < 0) ropes.drop(PENDING);
         else ropes.rename(PENDING, i);
       },

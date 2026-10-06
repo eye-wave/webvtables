@@ -7,7 +7,7 @@ pub use self::label::{Label, Labels, label, labels};
 pub use self::link::Link;
 pub use self::node::NodeKind;
 pub use self::param::{Param, text_ptr as param_text_ptr};
-use self::rope::Rope;
+use self::rope::{Phys, Rope};
 
 mod arena;
 pub mod keyframes;
@@ -28,6 +28,7 @@ pub struct State {
     pub keyframes: Keyframes,
     pub ropes: Vec<Rope>,
     pub rope_acc: f64,
+    pub phys: Phys,
     pub rope_out: Vec<f32>,
 }
 
@@ -40,6 +41,7 @@ impl State {
             keyframes: Keyframes::new(),
             ropes: vec![],
             rope_acc: 0.0,
+            phys: Phys::DEFAULT,
             rope_out: vec![],
         }
     }

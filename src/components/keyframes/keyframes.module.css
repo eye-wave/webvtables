@@ -290,13 +290,13 @@
 }
 
 .kfLine polygon {
-  fill: var(--c);
+  fill: var(--sc, var(--c));
   opacity: 0.16;
 }
 
 .kfLine polyline {
   fill: none;
-  stroke: var(--c);
+  stroke: var(--sc, var(--c));
   stroke-width: 1.5;
   stroke-linejoin: round;
 }
@@ -390,6 +390,11 @@
 .kfFadeLane .kfLabel,
 .kfSpecLane .kfLabel {
   box-shadow: inset 3px 0 var(--c);
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--c) 22%, transparent),
+    color-mix(in srgb, var(--c2) 22%, transparent)
+  );
 }
 
 .kfFadeLane .kfTrack,

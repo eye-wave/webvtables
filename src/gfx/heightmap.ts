@@ -9,10 +9,8 @@ const COLS = 256;
 
 export type Heightmap = ReturnType<typeof createHeightmap>;
 
-// All frames as one image: a COLS x (FRAMES + 1) float texture (x = sample,
-// y = frame), the extra row holding the live wave. The fragment shader just
-// samples it. ponytail: columns are point-sampled, peak-pick per bucket if
-// fast waves alias.
+// All frames in one COLS x (FRAMES + 1) float texture; extra row = live wave.
+// Shader only samples it. point-sample columns; peak-pick buckets to avoid aliasing.
 export function createHeightmap(canvas: HTMLCanvasElement) {
   const gl = canvas.getContext("webgl2");
   if (!gl)

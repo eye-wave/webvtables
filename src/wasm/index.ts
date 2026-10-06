@@ -21,6 +21,7 @@ export type WasmExports = {
   rope_pin(id: number, ax: number, ay: number, bx: number, by: number): void;
   rope_drop(id: number): void;
   rope_rename(from: number, to: number): void;
+  rope_cfg(i: number, v: number): void;
   rope_step(dt: number): number;
   rope_hit(x: number, y: number, r: number): number;
   rope_segments(hot: number): number;

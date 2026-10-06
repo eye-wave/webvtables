@@ -33,3 +33,33 @@
   --white: #fff;
   --shadow: #000c;
 }
+
+:root[data-theme="light"] {
+  --surface-100: #fff;
+  --surface-200: #f4f4f4;
+  --surface-300: #eaeaea;
+  --surface-400: #e0e0e0;
+  --surface-500: #d6d6d6;
+  --surface-600: #ccc;
+  --surface-700: #c2c2c2;
+  --surface-800: #b8b8b8;
+  --border-100: #bbb;
+  --border-200: #999;
+  --border-300: #888;
+  --border-400: #666;
+  --border-500: #555;
+  --text-100: #888;
+  --text-200: #777;
+  --text-300: #666;
+  --text-400: #555;
+  --text-500: #333;
+  --text-600: #111;
+  --accent-100: #bcd4f5;
+  --accent-200: #1a6fd8;
+  --accent-300: #0b55b0;
+  --on-accent: #fff;
+  --danger-100: #f5c6ca;
+  --danger-200: #c22;
+  --white: #000;
+  --shadow: #0005;
+}

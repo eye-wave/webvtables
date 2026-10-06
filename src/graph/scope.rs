@@ -74,8 +74,8 @@ fn eval(s: &State, node: usize, sock: usize, memo: &mut Memo, dst: &mut Buffer) 
             if es.is_empty() {
                 outs = call(None);
             } else {
-                // ponytail: k morph params = 2k+1 process calls; each param's blend is added as a delta
-                // over the unmorphed result. Exact for k=1, approximate when morphed params interact.
+                // k morph params = 2k+1 process calls; each blend adds a delta to the base result.
+                // Exact for k=1, approximate when params interact.
                 let base = (es.len() > 1).then(|| call(None));
                 for &&(_, j, mode, va, vb, m) in &es {
                     let (a, b) = (call(Some((j, va))), call(Some((j, vb))));

@@ -6,6 +6,7 @@ import type { Audio } from "../../audio/audio";
 import { knobDrag, unlock } from "../../editor/fine";
 import { editParam } from "../param_edit/param_edit";
 import knobCss from "../node/knob.module.css";
+import { settings } from "../settings/settings";
 import transportCss from "./transport.module.css";
 
 const FREQ_MIN = 20,
@@ -98,7 +99,7 @@ export function createTransport(
         <BarKnob
           name="Freq"
           unit="Hz"
-          v0={log(220, FREQ_MIN, FREQ_MAX)}
+          v0={log(settings.freq, FREQ_MIN, FREQ_MAX)}
           show={(v) => dec(hz(v), 100)}
           parse={(s) => log(parseFloat(s), FREQ_MIN, FREQ_MAX)}
           apply={(v) => audio.setFreq(hz(v))}

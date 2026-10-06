@@ -5,13 +5,9 @@ import type { Scene } from "./scene";
 
 const FRAMES = 256;
 
-// Renders every frame's output table into the heightmap a few ms at a time.
-// Call step() once per animation frame, before the frame's own kf.apply():
-// it leaves the keyframe state at whatever it rendered last.
-//
-// Change signal: the saved project bytes with keyframes applied at frame 0
-// (so playback alone doesn't dirty it). ponytail: also fires on node drags
-// (positions are saved); a revision counter from wasm would be exact.
+// Incrementally renders frame outputs into the heightmap; call once/frame before kf.apply().
+// Change signal: saved bytes with frame-0 keyframes applied; also fires on drags.
+// WASM revision counter would be exact.
 export function createPreview(
   wasm: WasmExports,
   scene: Scene,
@@ -19,7 +15,7 @@ export function createPreview(
   map: Heightmap,
 ) {
   let prev: Uint8Array | null = null;
-  let next = 0; // round-robin cursor: survives edits, so every row refreshes
+  let next = 0;
   let todo = 0;
 
   const dirty = () => {
@@ -32,7 +28,6 @@ export function createPreview(
     return true;
   };
 
-  // True while rows are still left to render, so the caller keeps animating.
   return {
     step(budgetMs = 4): boolean {
       if (dirty()) todo = FRAMES;

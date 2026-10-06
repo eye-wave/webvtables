@@ -137,7 +137,7 @@ export function createScene(
       [...root.children].forEach(unmountNode);
       for (let i = 0; i < wasm.nodes_len(); i++) {
         const [p, k] = [wasm.get_node(i), wasm.node_kind(i)];
-        // ponytail: size is derived, not trusted from old files; persist it only if users can resize nodes
+        // size is derived, not trusted
         f32().set(sizeOf(k), (p >> 2) + 2);
         mount(i, p, k);
       }
@@ -230,6 +230,20 @@ export function createScene(
       const last = wasm.links_len() - 1;
       wasm.remove_link(i);
       return last;
+    },
+
+    // Closest free-side socket of `node` to world point `w`, or null (self / no sockets).
+    nearest(from: Sock, node: number, [x, y]: Pt): Sock | null {
+      let best: Sock | null = null,
+        d = Infinity;
+      if (node !== from.node)
+        for (let j = 0; j < sockets(node)[+!from.out]; j++) {
+          const s = { node, out: !from.out, j };
+          const [sx, sy] = socketPos(s);
+          const e = (sx - x) ** 2 + (sy - y) ** 2;
+          if (e < d) ((d = e), (best = s));
+        }
+      return best;
     },
 
     targets(from: Sock): Pt[] {

@@ -16,6 +16,7 @@ import { createSignal } from "solid-js";
 import { render } from "solid-js/web";
 import { createKf } from "./editor/kf";
 import { Keyframes } from "./components/keyframes/keyframes";
+import { createSettings, fpsTick } from "./components/settings/settings";
 import { createProject } from "./components/project/project";
 
 declare const nodeGrid: HTMLDivElement;
@@ -90,8 +91,11 @@ loadWasm().then((wasm) => {
     schedule,
   );
 
+  createSettings(document.querySelector<HTMLElement>(".box-playback")!, wasm);
+
   function frame(t: number) {
     queued = false;
+    fpsTick();
     const dt = Math.min((t - last) / 1000, 0.1);
     last = t;
 

@@ -105,7 +105,8 @@ body {
 }
 
 /* File dialog (markup lives in index.html) */
-#fileDialog {
+#fileDialog,
+#settingsDialog {
   margin: auto; /* the global * reset removes the UA centering */
   width: min(420px, calc(100vw - 32px));
   padding: 0;
@@ -119,31 +120,36 @@ body {
   box-shadow: 0 16px 48px var(--shadow);
 }
 
-#fileDialog::backdrop {
+#fileDialog::backdrop,
+#settingsDialog::backdrop {
   background: #0009;
   backdrop-filter: blur(2px);
 }
 
-#fileDialog .file-body {
+#fileDialog .file-body,
+#settingsDialog .file-body {
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 14px 16px 16px;
 }
 
-#fileDialog header {
+#fileDialog header,
+#settingsDialog header {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-#fileDialog h2 {
+#fileDialog h2,
+#settingsDialog h2 {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
 }
 
-#fileDialog button {
+#fileDialog button,
+#settingsDialog button {
   padding: 3px 12px;
   font: inherit;
   color: var(--text-600);
@@ -153,7 +159,8 @@ body {
   cursor: pointer;
 }
 
-#fileDialog button:hover {
+#fileDialog button:hover,
+#settingsDialog button:hover {
   border-color: var(--border-400);
 }
 
@@ -285,4 +292,53 @@ body {
   margin: 0;
   color: var(--danger-200);
   font-size: 12px;
+}
+
+/* Settings dialog */
+#settingsDialog {
+  width: min(460px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
+#settingsDialog .set-grid {
+  display: grid;
+  grid-template-columns: 1fr 110px;
+  gap: 6px 12px;
+  align-items: center;
+}
+#settingsDialog h3 {
+  grid-column: 1 / -1;
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--text-300);
+  text-transform: uppercase;
+}
+#settingsDialog label {
+  color: var(--text-400);
+}
+#settingsDialog input,
+#settingsDialog select {
+  min-width: 0;
+  padding: 3px 6px;
+  font: inherit;
+  color: var(--text-600);
+  background: var(--surface-100);
+  border: 1px solid var(--border-100);
+  border-radius: 4px;
+}
+#settingsDialog input:focus-visible,
+#settingsDialog select:focus-visible,
+#settingsDialog button:focus-visible {
+  outline: 2px solid var(--accent-200);
+  outline-offset: 1px;
+}
+
+#fps {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  z-index: 2;
+  font: 11px ui-monospace, monospace;
+  color: var(--text-400);
+  pointer-events: none;
 }
