@@ -232,6 +232,11 @@ body {
   border-color: var(--accent-200);
 }
 
+#fileDialog [data-pick] {
+  background: var(--accent-100);
+  border-color: var(--accent-200);
+}
+
 #fileMsg {
   min-height: 1em;
   margin: 0;

@@ -84,12 +84,25 @@ export function createProject(
   head: () => number,
   loaded: () => void,
 ) {
+  type Pick = "save" | "import" | "export";
+  const rows: Record<Pick, HTMLElement> = {
+    save: fileSave.parentElement!,
+    import: fileDrop,
+    export: fileExport.parentElement!,
+  };
+  const focus: Record<Pick, HTMLElement> = {
+    save: fileSave,
+    import: fileBrowse,
+    export: fileExport,
+  };
+
   // The inline display:none keeps the markup inert; lift it only while open.
-  const open = () => {
+  const open = (pick: Pick) => {
     fileMsg.textContent = "";
     fileDialog.style.display = "";
-    fileDialog.showModal();
-    fileName.select();
+    if (!fileDialog.open) fileDialog.showModal();
+    for (const k in rows) rows[k as Pick].toggleAttribute("data-pick", k === pick);
+    focus[pick].focus();
   };
   fileDialog.onclose = () => (fileDialog.style.display = "none");
   fileClose.onclick = () => fileDialog.close();
@@ -141,10 +154,7 @@ export function createProject(
     fileInput.value = "";
     load(f);
   };
-  fileDrop.ondragover = (e) => (
-    e.preventDefault(),
-    fileDrop.classList.add("over")
-  );
+  fileDrop.ondragover = (e) => (e.preventDefault(), fileDrop.classList.add("over"));
   fileDrop.ondragleave = () => fileDrop.classList.remove("over");
   fileDrop.ondrop = (e) => {
     e.preventDefault();
@@ -152,5 +162,21 @@ export function createProject(
     load(e.dataTransfer?.files[0]);
   };
 
-  root.append(button("File", "Save, import or export", open));
+  const tools = Object.assign(document.createElement("div"), {
+    className: projectCss.tools,
+  });
+  tools.append(
+    button("Save", "Save project (Ctrl+S)", () => open("save")),
+    button("Import", "Open a project (Ctrl+O)", () => open("import")),
+    button("Export .wav", "Render all 256 frames (Ctrl+E)", () => open("export")),
+  );
+  root.append(tools);
+
+  const keys: Record<string, Pick> = { s: "save", o: "import", e: "export" };
+  addEventListener("keydown", (e) => {
+    const k = keys[e.key.toLowerCase()];
+    if (!k || !(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+    e.preventDefault();
+    open(k);
+  });
 }
