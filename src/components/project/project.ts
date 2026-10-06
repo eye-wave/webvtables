@@ -66,6 +66,16 @@ export function encodeWav(tables: Float32Array[], rate = 44100) {
   return buf;
 }
 
+declare const fileDialog: HTMLDialogElement;
+declare const fileClose: HTMLButtonElement;
+declare const fileName: HTMLInputElement;
+declare const fileSave: HTMLButtonElement;
+declare const fileExport: HTMLButtonElement;
+declare const fileDrop: HTMLDivElement;
+declare const fileBrowse: HTMLButtonElement;
+declare const fileInput: HTMLInputElement;
+declare const fileMsg: HTMLParagraphElement;
+
 export function createProject(
   root: HTMLElement,
   wasm: WasmExports,
@@ -74,48 +84,73 @@ export function createProject(
   head: () => number,
   loaded: () => void,
 ) {
-  const pick = Object.assign(document.createElement("input"), {
-    type: "file",
-    accept: ".wtp",
-    hidden: true,
-    onchange: async () => {
-      const file = pick.files?.[0];
-      pick.value = "";
-      if (!file) return;
-      const bytes = new Uint8Array(await file.arrayBuffer());
+  // The inline display:none keeps the markup inert; lift it only while open.
+  const open = () => {
+    fileMsg.textContent = "";
+    fileDialog.style.display = "";
+    fileDialog.showModal();
+    fileName.select();
+  };
+  fileDialog.onclose = () => (fileDialog.style.display = "none");
+  fileClose.onclick = () => fileDialog.close();
+  fileDialog.onclick = (e) => e.target === fileDialog && fileDialog.close();
 
-      const ptr = wasm.project_buf(bytes.length);
-      new Uint8Array(wasm.memory.buffer, ptr, bytes.length).set(bytes);
-      if (!wasm.project_load(bytes.length))
-        return alert("Not a valid project file.");
-      scene.load();
-      loaded();
-    },
-  });
+  // Strip characters filesystems reject; fall back to "project".
+  const base = () =>
+    fileName.value.replace(/[\\/:*?"<>|]+/g, "").trim() || "project";
 
-  const tools = Object.assign(document.createElement("div"), {
-    className: projectCss.tools,
-  });
-  tools.append(
-    button("Save", "Save project", () => {
-      const n = wasm.project_save();
-      download(
-        "project.wtp",
-        new Uint8Array(wasm.memory.buffer, wasm.project_ptr(), n).slice(),
-        "application/octet-stream",
-      );
-    }),
-    button("Import", "Open a project", () => pick.click()),
-    button("Export .wav", "Render all 256 frames to a wavetable", () => {
-      const tables = Array.from({ length: 256 }, (_, f) => {
-        kf.apply(f);
-        wasm.scope_begin();
-        return scene.outputTable();
-      });
-      kf.apply(head());
-      download("wavetable.wav", encodeWav(tables), "audio/wav");
-    }),
-    pick,
+  fileSave.onclick = () => {
+    const n = wasm.project_save();
+    download(
+      `${base()}.wtp`,
+      new Uint8Array(wasm.memory.buffer, wasm.project_ptr(), n).slice(),
+      "application/octet-stream",
+    );
+    fileDialog.close();
+  };
+
+  fileExport.onclick = () => {
+    const tables = Array.from({ length: 256 }, (_, f) => {
+      kf.apply(f);
+      wasm.scope_begin();
+      return scene.outputTable();
+    });
+    kf.apply(head());
+    download(`${base()}.wav`, encodeWav(tables), "audio/wav");
+    fileDialog.close();
+  };
+
+  const load = async (file?: File) => {
+    if (!file) return;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const ptr = wasm.project_buf(bytes.length);
+    new Uint8Array(wasm.memory.buffer, ptr, bytes.length).set(bytes);
+    if (!wasm.project_load(bytes.length)) {
+      fileMsg.textContent = "Not a valid project file.";
+      return;
+    }
+    fileName.value = file.name.replace(/\.wtp$/i, "");
+    scene.load();
+    loaded();
+    fileDialog.close();
+  };
+
+  fileBrowse.onclick = () => fileInput.click();
+  fileInput.onchange = () => {
+    const f = fileInput.files?.[0];
+    fileInput.value = "";
+    load(f);
+  };
+  fileDrop.ondragover = (e) => (
+    e.preventDefault(),
+    fileDrop.classList.add("over")
   );
-  root.append(tools);
+  fileDrop.ondragleave = () => fileDrop.classList.remove("over");
+  fileDrop.ondrop = (e) => {
+    e.preventDefault();
+    fileDrop.classList.remove("over");
+    load(e.dataTransfer?.files[0]);
+  };
+
+  root.append(button("File", "Save, import or export", open));
 }

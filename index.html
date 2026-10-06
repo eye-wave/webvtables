@@ -52,5 +52,31 @@
     </div>
     <div class="resize-handle" id="kfHandle"></div>
     <div class="box box-keyframes"></div>
+    <dialog id="fileDialog" style="display: none">
+      <div class="file-body">
+        <header>
+          <h2>Project</h2>
+          <button id="fileClose" type="button" title="Close">×</button>
+        </header>
+        <label class="file-name">
+          <span>Name</span>
+          <input id="fileName" value="project" spellcheck="false" autocomplete="off" maxlength="48" />
+        </label>
+        <div class="file-row">
+          <div><b>Save project</b><small>.wtp · graph, params &amp; keyframes</small></div>
+          <button id="fileSave" type="button">Save</button>
+        </div>
+        <div class="file-row">
+          <div><b>Export wavetable</b><small>.wav · all 256 frames, 32-bit float</small></div>
+          <button id="fileExport" type="button">Export</button>
+        </div>
+        <div id="fileDrop">
+          Drop a <b>.wtp</b> project here or
+          <button id="fileBrowse" type="button">browse…</button>
+          <input id="fileInput" type="file" accept=".wtp" hidden />
+        </div>
+        <p id="fileMsg" role="status"></p>
+      </div>
+    </dialog>
   </body>
 </html>

@@ -103,3 +103,138 @@ body {
   border: 1px solid var(--border-100);
   border-radius: 4px;
 }
+
+/* File dialog (markup lives in index.html) */
+#fileDialog {
+  margin: auto; /* the global * reset removes the UA centering */
+  width: min(420px, calc(100vw - 32px));
+  padding: 0;
+  color: var(--text-600);
+  font:
+    13px system-ui,
+    sans-serif;
+  background: var(--surface-400);
+  border: 1px solid var(--border-300);
+  border-radius: 10px;
+  box-shadow: 0 16px 48px var(--shadow);
+}
+
+#fileDialog::backdrop {
+  background: #0009;
+  backdrop-filter: blur(2px);
+}
+
+#fileDialog .file-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px 16px;
+}
+
+#fileDialog header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#fileDialog h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#fileDialog button {
+  padding: 3px 12px;
+  font: inherit;
+  color: var(--text-600);
+  background: var(--surface-600);
+  border: 1px solid var(--border-200);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#fileDialog button:hover {
+  border-color: var(--border-400);
+}
+
+#fileDialog button:focus-visible,
+#fileDialog input:focus-visible {
+  outline: 2px solid var(--accent-200);
+  outline-offset: 1px;
+}
+
+#fileClose {
+  padding: 0 7px !important;
+  font-size: 16px !important;
+  background: none !important;
+  border-color: transparent !important;
+  color: var(--text-300) !important;
+}
+
+#fileClose:hover {
+  color: var(--white) !important;
+}
+
+#fileDialog .file-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-400);
+}
+
+#fileName {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  font: inherit;
+  color: var(--text-600);
+  background: var(--surface-100);
+  border: 1px solid var(--border-100);
+  border-radius: 4px;
+}
+
+#fileDialog .file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  background: var(--surface-300);
+  border: 1px solid var(--border-100);
+  border-radius: 6px;
+}
+
+#fileDialog .file-row div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#fileDialog small {
+  color: var(--text-200);
+  font-size: 11px;
+}
+
+#fileDrop {
+  padding: 18px 10px;
+  text-align: center;
+  color: var(--text-300);
+  border: 1px dashed var(--border-300);
+  border-radius: 6px;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
+}
+
+#fileDrop.over {
+  color: var(--text-600);
+  background: var(--accent-100);
+  border-color: var(--accent-200);
+}
+
+#fileMsg {
+  min-height: 1em;
+  margin: 0;
+  color: var(--danger-200);
+  font-size: 12px;
+}

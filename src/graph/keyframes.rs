@@ -80,7 +80,9 @@ impl Keyframes {
 
 fn wave(p: &[f32; LFO_PARAMS], t: f32) -> f32 {
     let [shape, phase, amp, freq, skew, dc] = *p;
-    let c = libm::powf(32.0, freq) * t / FRAMES + phase;
+    // Knobs are 0..1: amp maps to -2..2 (-200%..200%), freq to 0..50 cycles per lane.
+    let (amp, freq) = (amp * 4.0 - 2.0, freq * 50.0);
+    let c = freq * t / FRAMES + phase;
     let ph = c - libm::floorf(c);
     let k = skew.clamp(0.01, 0.99);
     let q = if ph < k {
@@ -332,7 +334,7 @@ impl State {
             },
             mode: 0,
             source: if lfo {
-                Source::Lfo([0.0, 0.0, 1.0, 0.2, 0.5, 0.5])
+                Source::Lfo([0.0, 0.0, 0.75, 0.04, 0.5, 0.5]) // 100% amp, 2 cycles
             } else {
                 Source::Points(Vec::new())
             },

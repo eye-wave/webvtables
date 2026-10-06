@@ -1,5 +1,7 @@
 import { createSignal } from "solid-js";
 import { render } from "solid-js/web";
+import Pause from "lucide-solid/icons/pause";
+import Play from "lucide-solid/icons/play";
 import type { Audio } from "../../audio/audio";
 import { knobDrag, unlock } from "../../editor/fine";
 import { editParam } from "../param_edit/param_edit";
@@ -91,7 +93,7 @@ export function createTransport(
             wake();
           }}
         >
-          {on() ? "⏸" : "▶"}
+          {on() ? <Pause size={14} /> : <Play size={14} />}
         </button>
         <BarKnob
           name="Freq"

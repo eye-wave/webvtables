@@ -7,6 +7,10 @@ import {
   Show,
 } from "solid-js";
 import { Portal } from "solid-js/web";
+import AudioLines from "lucide-solid/icons/audio-lines";
+import Blend from "lucide-solid/icons/blend";
+import Check from "lucide-solid/icons/check";
+import Close from "lucide-solid/icons/x";
 import { createStore, reconcile } from "solid-js/store";
 import { fineScale, knobDrag, unlock } from "../../editor/fine";
 import type { Kf, LaneView } from "../../editor/kf";
@@ -22,7 +26,14 @@ const FRAMES = 255,
   PADY = 10,
   RULER = 24,
   INNER = H - 2 * PADY;
-const hue = (i: number) => `hsl(${(210 + i * 67) % 360} 85% 68%)`;
+// Special lanes (1 crossfade, 2 spectral) get a shifted hue and a different saturation.
+const hue = (i: number, mode = 0) =>
+  `hsl(${(210 + i * 67 + mode * 40) % 360} ${mode ? 70 : 85}% ${mode ? 74 : 68}%)`;
+const ICONS = [
+  () => <i />,
+  () => <Blend class={kfCss.kfIcon} size={14} />, // crossfade
+  () => <AudioLines class={kfCss.kfIcon} size={14} />, // spectral
+];
 const clamp = (v: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, v));
 
@@ -34,8 +45,12 @@ const LFO = [
     text: (v: number) => SHAPES[Math.min(3, Math.floor(v * 4))],
   },
   { name: "phase", def: 0, text: (v: number) => `${Math.round(v * 360)}°` },
-  { name: "amp", def: 1, text: (v: number) => `${Math.round(v * 100)}%` },
-  { name: "freq", def: 0.2, text: (v: number) => `${(32 ** v).toFixed(2)}×` },
+  {
+    name: "amp",
+    def: 0.75,
+    text: (v: number) => `${Math.round((v * 4 - 2) * 100)}%`,
+  },
+  { name: "freq", def: 0.04, text: (v: number) => `${(v * 50).toFixed(2)}×` },
   { name: "skew", def: 0.5, text: (v: number) => v.toFixed(2) },
   { name: "dc", def: 0.5, text: (v: number) => (v - 0.5).toFixed(2) },
 ] as const;
@@ -178,8 +193,13 @@ export function Keyframes(props: { host: Host }) {
     Array.from(l.curve, (v, i) => `${X(i / 2)},${Y(v)}`).join(" ");
   // Adjacent key pairs by time: [index of the earlier key, earlier, later].
   const segments = (l: LaneView) => {
-    const o = l.keys.map((k, i) => [i, k] as const).sort((x, y) => x[1].t - y[1].t);
-    return o.slice(1).map(([, b], n) => [o[n][0], o[n][1], b] as const).filter(([, a, b]) => b.t > a.t);
+    const o = l.keys
+      .map((k, i) => [i, k] as const)
+      .sort((x, y) => x[1].t - y[1].t);
+    return o
+      .slice(1)
+      .map(([, b], n) => [o[n][0], o[n][1], b] as const)
+      .filter(([, a, b]) => b.t > a.t);
   };
   const area = (l: LaneView) =>
     l.curve.length ? `${X(0)},${H} ${line(l)} ${X(FRAMES)},${H}` : "";
@@ -304,7 +324,9 @@ export function Keyframes(props: { host: Host }) {
                             onClick={() => toggle(g.n, p)}
                           >
                             <span class={kfCss.kfPopTick}>
-                              {owner(p.addr) === props.lane ? "✓" : ""}
+                              <Show when={owner(p.addr) === props.lane}>
+                                <Check size={10} />
+                              </Show>
                             </span>
                             {p.name}
                             <Show
@@ -391,10 +413,14 @@ export function Keyframes(props: { host: Host }) {
             {(l, i) => (
               <div
                 class={`${kfCss.kfRow} ${kfCss.kfLane}`}
-                style={{ "--c": hue(i()) }}
+                classList={{
+                  [kfCss.kfFadeLane]: l.mode === 1,
+                  [kfCss.kfSpecLane]: l.mode === 2,
+                }}
+                style={{ "--c": hue(i(), l.mode) }}
               >
                 <div class={kfCss.kfLabel}>
-                  <i />
+                  {ICONS[l.mode ?? 0]()}
                   <input
                     value={l.name}
                     onInput={(e) => (
@@ -411,7 +437,7 @@ export function Keyframes(props: { host: Host }) {
                       refresh();
                     }}
                   >
-                    ×
+                    <Close size={14} />
                   </button>
                 </div>
                 <div
@@ -441,7 +467,9 @@ export function Keyframes(props: { host: Host }) {
                             onPointerDown={(e) => {
                               let v = l.lfo![j];
                               const d = knobDrag(e);
-                              addEventListener("pointerup", unlock, { once: true });
+                              addEventListener("pointerup", unlock, {
+                                once: true,
+                              });
                               drag(e, (m) => {
                                 v = clamp(v + d(m), 0, 1);
                                 host.setLfo(i(), j, v);
@@ -469,7 +497,10 @@ export function Keyframes(props: { host: Host }) {
                     {([ki, a, b]) => (
                       <i
                         class={kfCss.kfMid}
-                        classList={{ [kfCss.kfFade]: l.mode === 1, [kfCss.kfSpec]: l.mode === 2 }}
+                        classList={{
+                          [kfCss.kfFade]: l.mode === 1,
+                          [kfCss.kfSpec]: l.mode === 2,
+                        }}
                         title="Curve (double-click to reset)"
                         style={{
                           left: `${X((a.t + b.t) / 2)}px`,
@@ -478,10 +509,20 @@ export function Keyframes(props: { host: Host }) {
                         onPointerDown={(e) => {
                           e.stopPropagation();
                           if (e.button || a.v === b.v) return;
-                          const top = e.currentTarget.parentElement!.getBoundingClientRect().top;
+                          const top =
+                            e.currentTarget.parentElement!.getBoundingClientRect()
+                              .top;
                           drag(e, (m) => {
-                            const v = clamp(1 - (m.clientY - top - PADY) / INNER, 0, 1);
-                            host.setCurve(i(), ki, clamp((v - a.v) / (b.v - a.v), 0.02, 0.98));
+                            const v = clamp(
+                              1 - (m.clientY - top - PADY) / INNER,
+                              0,
+                              1,
+                            );
+                            host.setCurve(
+                              i(),
+                              ki,
+                              clamp((v - a.v) / (b.v - a.v), 0.02, 0.98),
+                            );
                             refresh();
                           });
                         }}
