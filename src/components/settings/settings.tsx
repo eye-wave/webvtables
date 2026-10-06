@@ -5,7 +5,6 @@ import Cog from "lucide-solid/icons/settings";
 import type { WasmExports } from "../../wasm";
 import projectCss from "../project/project.module.css";
 
-// Rope physics: [rope_cfg index, label, default, min, max, step]. Defaults mirror rope.rs.
 const ROPE = [
   [0, "Segments", 10, 2, 64, 1],
   [1, "Timestep (s)", 1 / 60, 0.002, 0.1, 0.001],
@@ -17,7 +16,6 @@ const ROPE = [
   [7, "Slack (px)", 12, 0, 200, 1],
 ] as const;
 
-// Lane color ranges per theme: hue 0-360, saturation/brightness 0-100.
 const RANGES = {
   dark: { h: [0, 360], s: [55, 85], b: [80, 100] },
   light: { h: [0, 360], s: [70, 95], b: [50, 75] },
@@ -46,7 +44,13 @@ const DEFAULTS: Record<string, string | number> = {
 
 const load = () => {
   try {
-    return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) ?? "{}") };
+    const saved = JSON.parse(localStorage.getItem(KEY) ?? "{}");
+    return {
+      ...DEFAULTS,
+      ...saved,
+      fps: saved.fps !== undefined ? Number(saved.fps) : DEFAULTS.fps,
+      freq: saved.freq !== undefined ? Number(saved.freq) : DEFAULTS.freq,
+    };
   } catch {
     return { ...DEFAULTS };
   }
@@ -54,10 +58,10 @@ const load = () => {
 
 export const [settings, set] = createStore(load());
 
-const applyTheme = () => (document.documentElement.dataset.theme = String(settings.theme));
-applyTheme(); // before first paint of the UI
+const applyTheme = () =>
+  (document.documentElement.dataset.theme = String(settings.theme));
+applyTheme();
 
-// Deterministic 0..1 hash so a lane keeps its color across renders.
 const rnd = (n: number) => {
   let t = (n + 1) * 0x6d2b79f5;
   t = Math.imul(t ^ (t >>> 15), t | 1);
@@ -65,7 +69,6 @@ const rnd = (n: number) => {
   return ((t ^ (t >>> 14)) >>> 0) / 2 ** 32;
 };
 
-// Random color from hue/saturation/brightness ranges (HSV), as a CSS hsl().
 export function randColor(
   seed: number,
   [h0, h1]: readonly number[],
@@ -81,8 +84,6 @@ export function randColor(
   return `hsl(${Math.round(((h % 360) + 360) % 360)} ${sl * 100}% ${l * 100}%)`;
 }
 
-// Points/LFO lanes get one color; special lanes also get an analogous partner
-// (hue shifted 30-50deg, own sat/brightness draw) for a left-right gradient.
 export function laneColors(i: number, special: boolean) {
   const t = settings.theme;
   const r = (a: string) => [+settings[`${t}.${a}0`], +settings[`${t}.${a}1`]];
@@ -92,7 +93,6 @@ export function laneColors(i: number, special: boolean) {
   return { c, c2: randColor(i, h, s, b, 30 + rnd(i + 1000) * 20) };
 }
 
-// FPS counter: frames are scheduled on demand, so idle reads 0.
 let frames = 0;
 export const fpsTick = () => frames++;
 setInterval(() => {
@@ -103,7 +103,10 @@ setInterval(() => {
 createRoot(() =>
   createEffect(() => {
     const el = document.getElementById("fps");
-    if (el) el.hidden = !settings.fps;
+    if (el) {
+      el.style.display = settings.fps ? "block" : "none";
+      el.hidden = !settings.fps;
+    }
   }),
 );
 
@@ -111,42 +114,52 @@ declare const settingsDialog: HTMLDialogElement;
 declare const settingsRoot: HTMLElement;
 
 export function createSettings(bar: HTMLElement, wasm: WasmExports) {
-  const pushRope = () => ROPE.forEach(([i]) => wasm.rope_cfg(i, +settings[`r${i}`]));
+  const pushRope = () =>
+    ROPE.forEach(([i]) => wasm.rope_cfg(i, +settings[`r${i}`]));
   pushRope();
 
   const change = (k: string, v: string | number, then?: () => void) => {
     set(k, v);
+
     try {
       localStorage.setItem(KEY, JSON.stringify(settings));
-    } catch {} // storage may be blocked; setting still applies this session
+    } catch {}
     then?.();
   };
+
   const num = (e: Event & { currentTarget: HTMLInputElement }) => {
     const v = e.currentTarget.valueAsNumber;
     return isNaN(v) ? undefined : v;
   };
 
-  // The inline display:none keeps the markup inert; lift it only while open.
   const open = () => {
     settingsDialog.style.display = "";
     if (!settingsDialog.open) settingsDialog.showModal();
   };
   settingsDialog.onclose = () => (settingsDialog.style.display = "none");
-  settingsDialog.onclick = (e) => e.target === settingsDialog && settingsDialog.close();
 
   render(
     () => (
       <>
         <header>
           <h2>Settings</h2>
-          <button id="settingsClose" type="button" title="Close" onClick={() => settingsDialog.close()}>
+          <button
+            id="settingsClose"
+            type="button"
+            title="Close"
+            onClick={() => settingsDialog.close()}
+          >
             ×
           </button>
         </header>
         <div class="set-grid">
           <h3>App</h3>
           <label for="setTheme">Theme</label>
-          <select id="setTheme" value={settings.theme} onChange={(e) => change("theme", e.currentTarget.value, applyTheme)}>
+          <select
+            id="setTheme"
+            value={settings.theme}
+            onChange={(e) => change("theme", e.currentTarget.value, applyTheme)}
+          >
             <option value="dark">Dark</option>
             <option value="light">Light</option>
           </select>
@@ -162,14 +175,16 @@ export function createSettings(bar: HTMLElement, wasm: WasmExports) {
               if (v) change("freq", Math.min(2000, Math.max(20, v)));
             }}
           />
-          <small style={{ "grid-column": "1 / -1" }}>Applies on next load and when the Freq knob is reset.</small>
+          <small style={{ "grid-column": "1 / -1" }}>
+            Applies on next load and when the Freq knob is reset.
+          </small>
 
           <label for="setFps">Show FPS counter</label>
           <input
             id="setFps"
             type="checkbox"
-            checked={!!settings.fps}
-            onChange={(e) => change("fps", +e.currentTarget.checked)}
+            checked={settings.fps === 1}
+            onChange={(e) => change("fps", e.currentTarget.checked ? 1 : 0)}
           />
 
           <h3>Lane colors · {settings.theme}</h3>
@@ -189,7 +204,11 @@ export function createSettings(bar: HTMLElement, wasm: WasmExports) {
                         value={settings[`${settings.theme}.${a}${k}`]}
                         onChange={(e) => {
                           const v = num(e);
-                          if (v !== undefined) change(`${settings.theme}.${a}${k}`, Math.min(max, Math.max(0, v)));
+                          if (v !== undefined)
+                            change(
+                              `${settings.theme}.${a}${k}`,
+                              Math.min(max, Math.max(0, v)),
+                            );
                         }}
                       />
                     )}
@@ -213,7 +232,10 @@ export function createSettings(bar: HTMLElement, wasm: WasmExports) {
                   value={settings[`r${i}`]}
                   onChange={(e) => {
                     const v = num(e);
-                    if (v !== undefined) change(`r${i}`, Math.min(max, Math.max(min, v)), () => wasm.rope_cfg(i, v));
+                    if (v !== undefined)
+                      change(`r${i}`, Math.min(max, Math.max(min, v)), () =>
+                        wasm.rope_cfg(i, v),
+                      );
                   }}
                 />
               </>
@@ -240,7 +262,12 @@ export function createSettings(bar: HTMLElement, wasm: WasmExports) {
   bar.append(slot);
   render(
     () => (
-      <button class={projectCss.tool} title="Settings" aria-label="Settings" onClick={open}>
+      <button
+        class={projectCss.tool}
+        title="Settings"
+        aria-label="Settings"
+        onClick={open}
+      >
         <Cog size={14} />
       </button>
     ),

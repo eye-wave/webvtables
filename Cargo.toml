@@ -11,17 +11,17 @@ crate-type = ["cdylib"]
 
 [dependencies]
 bitflags = "2"
-paste = "1"
+dlmalloc = { version = "0.2", features = ["global"] }
 libm = "0.2.16"
 microfft = { version = "0.6", default-features = false, features = [
   "size-2048",
 ] }
-dlmalloc = { version = "0.2", features = ["global"] }
+paste = "1"
+postcard = { version = "1", default-features = false, features = ["alloc"] }
 serde = { version = "1", default-features = false, features = [
   "derive",
   "alloc",
 ] }
-postcard = { version = "1", default-features = false, features = ["alloc"] }
 
 [profile.release]
 codegen-units = 1

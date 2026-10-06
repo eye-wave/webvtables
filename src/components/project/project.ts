@@ -78,6 +78,7 @@ declare const fileDialog: HTMLDialogElement;
 declare const fileClose: HTMLButtonElement;
 declare const fileName: HTMLInputElement;
 declare const fileSave: HTMLButtonElement;
+declare const fileExport: HTMLButtonElement;
 declare const fileExportForm: HTMLFormElement;
 declare const fileQuality: HTMLSelectElement;
 declare const fileInterp: HTMLSelectElement;
@@ -146,11 +147,11 @@ export function createProject(
   fileQuality.onchange = fileInterp.onchange = syncExport;
   syncExport();
 
-  fileExportForm.onsubmit = (e) => {
+  fileExport.onclick = (e) => {
     e.preventDefault();
     const div = +fileQuality.value,
       count = FRAMES / div;
-    // Evenly spaced picks that always keep the first and last frame.
+
     const tables = Array.from({ length: count }, (_, i) => {
       kf.apply(count > 1 ? Math.round((i * (FRAMES - 1)) / (count - 1)) : 0);
       wasm.scope_begin();
@@ -177,7 +178,9 @@ export function createProject(
     fileDialog.close();
   };
 
-  fileBrowse.onclick = () => fileInput.click();
+  fileBrowse.onclick = () => {
+    fileInput.click();
+  };
   fileInput.onchange = () => {
     const f = fileInput.files?.[0];
     fileInput.value = "";

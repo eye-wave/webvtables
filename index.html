@@ -53,6 +53,9 @@
     </div>
     <div class="resize-handle" id="kfHandle"></div>
     <div class="box box-keyframes"></div>
+
+    <input id="fileInput" type="file" accept=".wtp" hidden />
+
     <dialog id="fileDialog" style="display: none">
       <div class="file-body">
         <header>
@@ -102,7 +105,6 @@
         <div id="fileDrop">
           Drop a <b>.wtp</b> project here or
           <button id="fileBrowse" type="button">browse…</button>
-          <input id="fileInput" type="file" accept=".wtp" hidden />
         </div>
         <p id="fileMsg" role="status"></p>
       </div>
