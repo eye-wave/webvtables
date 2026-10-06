@@ -20,13 +20,21 @@ const download = (name: string, data: BlobPart, type: string) => {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
 
-export function encodeWav(tables: Float32Array[], rate = 44100) {
+// interp: 0 none, 1 crossfade, 2 spectral
+export function encodeWav(tables: Float32Array[], interp = 0, rate = 44100) {
   const len = tables.reduce((n, t) => n + t.length, 0);
   const sig = "Made with [https://github.com/username/webvtables] ";
 
   const xferHeaderBlock = [
-    99, 108, 109, 32, 42, 0, 0, 0, 60, 33, 62, 50, 48, 52, 56, 32, 50, 48, 48,
-    48, 48, 48, 48, 48, 32,
+    99,
+    108,
+    109,
+    32,
+    42,
+    0,
+    0,
+    0,
+    ...[...`<!>2048 ${interp}0000000 `].map((c) => c.charCodeAt(0)),
   ];
 
   const headerSize =
@@ -70,7 +78,10 @@ declare const fileDialog: HTMLDialogElement;
 declare const fileClose: HTMLButtonElement;
 declare const fileName: HTMLInputElement;
 declare const fileSave: HTMLButtonElement;
-declare const fileExport: HTMLButtonElement;
+declare const fileExportForm: HTMLFormElement;
+declare const fileQuality: HTMLSelectElement;
+declare const fileInterp: HTMLSelectElement;
+declare const fileInfo: HTMLElement;
 declare const fileDrop: HTMLDivElement;
 declare const fileBrowse: HTMLButtonElement;
 declare const fileInput: HTMLInputElement;
@@ -88,12 +99,12 @@ export function createProject(
   const rows: Record<Pick, HTMLElement> = {
     save: fileSave.parentElement!,
     import: fileDrop,
-    export: fileExport.parentElement!,
+    export: fileExportForm,
   };
   const focus: Record<Pick, HTMLElement> = {
     save: fileSave,
     import: fileBrowse,
-    export: fileExport,
+    export: fileQuality,
   };
 
   // The inline display:none keeps the markup inert; lift it only while open.
@@ -101,7 +112,8 @@ export function createProject(
     fileMsg.textContent = "";
     fileDialog.style.display = "";
     if (!fileDialog.open) fileDialog.showModal();
-    for (const k in rows) rows[k as Pick].toggleAttribute("data-pick", k === pick);
+    for (const k in rows)
+      rows[k as Pick].toggleAttribute("data-pick", k === pick);
     focus[pick].focus();
   };
   fileDialog.onclose = () => (fileDialog.style.display = "none");
@@ -122,14 +134,31 @@ export function createProject(
     fileDialog.close();
   };
 
-  fileExport.onclick = () => {
-    const tables = Array.from({ length: 256 }, (_, f) => {
-      kf.apply(f);
+  const FRAMES = 256,
+    NAMES = ["", "crossfade", "spectral"];
+  const syncExport = () => {
+    const div = +fileQuality.value;
+    fileInterp.disabled = div === 1;
+    fileInfo.textContent = `.wav · ${FRAMES / div} frames · 32-bit float${
+      div === 1 ? "" : ` · ${NAMES[+fileInterp.value]}`
+    }`;
+  };
+  fileQuality.onchange = fileInterp.onchange = syncExport;
+  syncExport();
+
+  fileExportForm.onsubmit = (e) => {
+    e.preventDefault();
+    const div = +fileQuality.value,
+      count = FRAMES / div;
+    // Evenly spaced picks that always keep the first and last frame.
+    const tables = Array.from({ length: count }, (_, i) => {
+      kf.apply(count > 1 ? Math.round((i * (FRAMES - 1)) / (count - 1)) : 0);
       wasm.scope_begin();
       return scene.outputTable();
     });
     kf.apply(head());
-    download(`${base()}.wav`, encodeWav(tables), "audio/wav");
+    const interp = div === 1 ? 0 : +fileInterp.value;
+    download(`${base()}.wav`, encodeWav(tables, interp), "audio/wav");
     fileDialog.close();
   };
 
@@ -154,7 +183,10 @@ export function createProject(
     fileInput.value = "";
     load(f);
   };
-  fileDrop.ondragover = (e) => (e.preventDefault(), fileDrop.classList.add("over"));
+  fileDrop.ondragover = (e) => (
+    e.preventDefault(),
+    fileDrop.classList.add("over")
+  );
   fileDrop.ondragleave = () => fileDrop.classList.remove("over");
   fileDrop.ondrop = (e) => {
     e.preventDefault();
@@ -168,7 +200,9 @@ export function createProject(
   tools.append(
     button("Save", "Save project (Ctrl+S)", () => open("save")),
     button("Import", "Open a project (Ctrl+O)", () => open("import")),
-    button("Export .wav", "Render all 256 frames (Ctrl+E)", () => open("export")),
+    button("Export .wav", "Render all 256 frames (Ctrl+E)", () =>
+      open("export"),
+    ),
   );
   root.append(tools);
 

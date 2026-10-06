@@ -66,10 +66,29 @@
           <div><b>Save project</b><small>.wtp · graph, params &amp; keyframes</small></div>
           <button id="fileSave" type="button">Save</button>
         </div>
-        <div class="file-row">
-          <div><b>Export wavetable</b><small>.wav · all 256 frames, 32-bit float</small></div>
-          <button id="fileExport" type="button">Export</button>
-        </div>
+        <form id="fileExportForm" class="file-row file-form">
+          <div><b>Export wavetable</b><small id="fileInfo"></small></div>
+          <label>
+            Quality
+            <select id="fileQuality">
+              <option value="1">1 · lossless</option>
+              <option value="2">1/2</option>
+              <option value="4">1/4</option>
+              <option value="8">1/8</option>
+              <option value="16">1/16</option>
+              <option value="32">1/32</option>
+              <option value="64">1/64</option>
+            </select>
+          </label>
+          <label>
+            Interpolation
+            <select id="fileInterp" disabled>
+              <option value="1">Crossfade</option>
+              <option value="2">Spectral</option>
+            </select>
+          </label>
+          <button id="fileExport" type="submit">Export</button>
+        </form>
         <div id="fileDrop">
           Drop a <b>.wtp</b> project here or
           <button id="fileBrowse" type="button">browse…</button>

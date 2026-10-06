@@ -232,6 +232,49 @@ body {
   border-color: var(--accent-200);
 }
 
+#fileDialog .file-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+}
+
+#fileDialog .file-form > div:first-child,
+#fileDialog .file-form > button {
+  grid-column: 1 / -1;
+}
+
+#fileDialog .file-form > button {
+  justify-self: end;
+}
+
+#fileDialog .file-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--text-400);
+  font-size: 11px;
+}
+
+#fileDialog select {
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-600);
+  background: var(--surface-100);
+  border: 1px solid var(--border-100);
+  border-radius: 4px;
+}
+
+#fileDialog select:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#fileDialog select:focus-visible {
+  outline: 2px solid var(--accent-200);
+  outline-offset: 1px;
+}
+
 #fileDialog [data-pick] {
   background: var(--accent-100);
   border-color: var(--accent-200);
