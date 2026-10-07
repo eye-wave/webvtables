@@ -338,7 +338,45 @@ body {
   top: 6px;
   left: 8px;
   z-index: 2;
-  font: 11px ui-monospace, monospace;
+  font:
+    11px ui-monospace,
+    monospace;
   color: var(--text-400);
   pointer-events: none;
+}
+
+#narrow {
+  display: none;
+}
+
+@media (max-width: 739px) {
+  html,
+  body {
+    overflow: hidden;
+    height: 100dvh;
+    min-height: 0;
+  }
+  #narrow {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    text-wrap: balance;
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 24px;
+    text-align: center;
+    background: var(--surface-200);
+    color: var(--text-400);
+    font:
+      14px system-ui,
+      sans-serif;
+  }
+  #narrow b {
+    font-size: 18px;
+  }
 }
