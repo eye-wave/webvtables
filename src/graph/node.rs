@@ -109,6 +109,7 @@ define_nodes!(
     RingMod = "ringmod",
     Rotate = "sprotate",
     Saturation = "saturate",
+    Sign = "sign",
     SpectralGate = "specgate",
     SpectralSubtract = "specsub",
     Spectrum = "spectrum",

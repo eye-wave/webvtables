@@ -24,6 +24,8 @@ export function createPreview(
     const [f32, u8, u16] = [new Float32Array(m), new Uint8Array(m), new Uint16Array(m)];
     for (let i = 0; i < wasm.nodes_len(); i++) {
       s.push(wasm.node_kind(i));
+      // Data nodes: every import/edit reallocates, so the pointer changes (-1 for other nodes)
+      s.push(wasm.data_ptr(i), wasm.data_frames(i));
       for (let j = 0, a; (a = wasm.get_param(i, j)) >= 0; j++) s.push(f32[a >> 2]);
     }
     for (let i = 0; i < wasm.links_len(); i++) {
