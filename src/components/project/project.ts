@@ -133,20 +133,37 @@ export function createProject(
     const at = new Map<number, { id: string; j: number }>();
     const p: Project = { nodes: [], links: [], lanes: [] };
     for (let i = 0; i < n; i++) {
-      const [x, y] = f32().subarray(wasm.get_node(i) >> 2, (wasm.get_node(i) >> 2) + 2);
+      const [x, y] = f32().subarray(
+        wasm.get_node(i) >> 2,
+        (wasm.get_node(i) >> 2) + 2,
+      );
       const params: number[] = [];
       for (let j = 0, a; (a = wasm.get_param(i, j)) >= 0; j++) {
         params.push(f32()[a >> 2]);
         at.set(a, { id: ids[i], j });
       }
-      const flags = new Uint8Array(wasm.memory.buffer)[wasm.get_node(i) + FLAGS_AT];
-      p.nodes.push({ id: ids[i], kind: kinds[wasm.node_kind(i)].id, params, x, y, flags });
+      const flags = new Uint8Array(wasm.memory.buffer)[
+        wasm.get_node(i) + FLAGS_AT
+      ];
+      p.nodes.push({
+        id: ids[i],
+        kind: kinds[wasm.node_kind(i)].id,
+        params,
+        x,
+        y,
+        flags,
+      });
     }
     const u8 = new Uint8Array(wasm.memory.buffer),
       u16 = new Uint16Array(wasm.memory.buffer);
     for (let i = 0; i < wasm.links_len(); i++) {
       const a = wasm.get_link(i);
-      p.links.push([ids[u16[a >> 1]], u8[a + 2], ids[u16[(a >> 1) + 2]], u8[a + 6]]);
+      p.links.push([
+        ids[u16[a >> 1]],
+        u8[a + 2],
+        ids[u16[(a >> 1) + 2]],
+        u8[a + 6],
+      ]);
     }
     p.lanes = kf.lanes().map((l) => ({
       name: l.name,
@@ -166,10 +183,12 @@ export function createProject(
     for (const n of p.nodes) {
       const kind = kinds.findIndex((k) => k.id === n.kind);
       // size is derived, scene.load() fills it in
-      if (kind < 0 || wasm.add_node(kind, n.x || 0, n.y || 0, 0, 0) < 0) continue;
+      if (kind < 0 || wasm.add_node(kind, n.x || 0, n.y || 0, 0, 0) < 0)
+        continue;
       const i = wasm.nodes_len() - 1;
       at.set(n.id, i);
-      new Uint8Array(wasm.memory.buffer)[wasm.get_node(i) + FLAGS_AT] = n.flags & 7;
+      new Uint8Array(wasm.memory.buffer)[wasm.get_node(i) + FLAGS_AT] =
+        n.flags & 7;
       n.params.forEach((v, j) => {
         const a = wasm.get_param(i, j);
         if (a >= 0) f32()[a >> 2] = Math.min(Math.max(v, 0), 1);
@@ -178,19 +197,30 @@ export function createProject(
     for (const [a, sa, b, sb] of p.links)
       if (at.has(a) && at.has(b)) wasm.add_link(at.get(a)!, sa, at.get(b)!, sb);
     for (const l of p.lanes) {
-      const lane = kf.addLane(l.type === "L", { P: 0, C: 1, S: 2, L: 0 }[l.type]);
+      const lane = kf.addLane(
+        l.type === "L",
+        { P: 0, C: 1, S: 2, L: 0 }[l.type],
+      );
       if (lane < 0) break;
       kf.rename(lane, l.name);
       l.lfo.forEach((v, j) => kf.setLfo(lane, j, v));
       if (l.type !== "L") {
         l.keys.forEach((k) => kf.addKey(lane, Math.min(k.t, 255), k.v));
         // keys end up sorted by frame, so look each one up by it
-        const live = l.keys.some((k) => k.c !== undefined) ? kf.lanes()[lane].keys : [];
+        const live = l.keys.some((k) => k.c !== undefined)
+          ? kf.lanes()[lane].keys
+          : [];
         for (const k of l.keys)
-          if (k.c !== undefined) kf.setCurve(lane, live.findIndex((x) => x.t === Math.min(k.t, 255)), k.c);
+          if (k.c !== undefined)
+            kf.setCurve(
+              lane,
+              live.findIndex((x) => x.t === Math.min(k.t, 255)),
+              k.c,
+            );
       }
       for (const t of l.targets)
-        if (at.has(t.id)) kf.link(lane, wasm.get_node(at.get(t.id)!), t.j, true);
+        if (at.has(t.id))
+          kf.link(lane, wasm.get_node(at.get(t.id)!), t.j, true);
     }
   };
 
@@ -272,9 +302,7 @@ export function createProject(
   tools.append(
     button("Save", "Save project (Ctrl+S)", () => open("save")),
     button("Import", "Open a project (Ctrl+O)", () => open("import")),
-    button("Export .wav", "Render all 256 frames (Ctrl+E)", () =>
-      open("export"),
-    ),
+    button("Export", "Render all 256 frames (Ctrl+E)", () => open("export")),
   );
   root.append(tools);
 

@@ -5,6 +5,7 @@
     "": {
       "name": "webvtabes",
       "dependencies": {
+        "lite-fps-meter": "^1.3.0",
         "lucide-solid": "^1.52.0",
         "solid-js": "^1.9.15",
       },
@@ -298,6 +299,8 @@
     "lightningcss-win32-arm64-msvc": ["lightningcss-win32-arm64-msvc@1.33.0", "", { "os": "win32", "cpu": "arm64" }, "sha512-1K+MPfLSFVpphzpdbfkhlWk6wBrTObBzS2T6db10PNOZgR9GoVsAWzwNyuhUYYbTp23j+4RrncfujZ4uAzXvwA=="],
 
     "lightningcss-win32-x64-msvc": ["lightningcss-win32-x64-msvc@1.33.0", "", { "os": "win32", "cpu": "x64" }, "sha512-OlEICDx/Xl0FqSp4bry8zFnCvGpig3Gl4gCquvYwHuqJKEC1+n9NgDniFvqHGmMv1ZkqDJrDqKKSykTDX+ehuA=="],
+
+    "lite-fps-meter": ["lite-fps-meter@1.3.0", "", {}, "sha512-6y24Nkb/5WMfrZI7k8R8FYPJofCDU4dd8YY18ruzi8lASWlRKqig5RFNTDFUWrARou1jTr00Y9ZJj3JrxJb+HA=="],
 
     "lower-case": ["lower-case@2.0.2", "", { "dependencies": { "tslib": "^2.0.3" } }, "sha512-7fm3l3NAF9WfN6W3JOmf5drwpVqX78JtoGJ3A6W0a6ZnldM41w2fV5D490psKFTpMds8TJse/eHLFFsNHHjHgg=="],
 

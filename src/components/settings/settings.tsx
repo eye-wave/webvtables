@@ -2,8 +2,12 @@ import { createEffect, createRoot, For } from "solid-js";
 import { createStore } from "solid-js/store";
 import { render } from "solid-js/web";
 import Cog from "lucide-solid/icons/settings";
+import { FPSMeter } from "lite-fps-meter";
 import type { WasmExports } from "../../wasm";
 import projectCss from "../project/project.module.css";
+
+declare const fps: HTMLDivElement;
+const fpsEl = fps;
 
 const ROPE = [
   [0, "Segments", 10, 2, 64, 1],
@@ -93,20 +97,27 @@ export function laneColors(i: number, special: boolean) {
   return { c, c2: randColor(i, h, s, b, 30 + rnd(i + 1000) * 20) };
 }
 
-let frames = 0;
-export const fpsTick = () => frames++;
-setInterval(() => {
-  const el = document.getElementById("fps");
-  if (el) el.textContent = `${frames * 2} fps`;
-  frames = 0;
-}, 500);
+let meter: FPSMeter | undefined;
+export const fpsTick = () => meter?.tick(performance.now());
+
 createRoot(() =>
   createEffect(() => {
-    const el = document.getElementById("fps");
-    if (el) {
-      el.style.display = settings.fps ? "block" : "none";
-      el.hidden = !settings.fps;
-    }
+    fpsEl.hidden = !settings.fps;
+    if (settings.fps && !meter) {
+      meter = new FPSMeter({
+        loop: false,
+        targetFps: 60,
+        graph: true,
+        target: fpsEl,
+        textUpdateInterval: 30,
+      });
+
+      Object.assign((meter as any).container.style, {
+        position: "absolute",
+        top: "6px",
+        left: "8px",
+      });
+    } else if (!settings.fps) (meter?.destroy(), (meter = undefined));
   }),
 );
 
