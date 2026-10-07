@@ -36,27 +36,78 @@ const clamp = (v: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, v));
 
 const SHAPES = ["Sine", "Tri", "Saw", "Square"];
+// to/from convert normalized <-> displayed value (what ctrl+click edits)
+const shapeAt = (v: number) => Math.min(3, Math.floor(v * 4));
 const LFO = [
   {
     name: "shape",
     def: 0,
-    text: (v: number) => SHAPES[Math.min(3, Math.floor(v * 4))],
+    text: (v: number) => SHAPES[shapeAt(v)],
+    to: shapeAt,
+    from: (d: number) => (clamp(Math.round(d), 0, 3) + 0.5) / 4,
+    o: SHAPES,
   },
-  { name: "phase", def: 0, text: (v: number) => `${Math.round(v * 360)}°` },
+  {
+    name: "phase",
+    def: 0,
+    text: (v: number) => `${Math.round(v * 360)}°`,
+    to: (v: number) => v * 360,
+    from: (d: number) => d / 360,
+  },
   {
     name: "amp",
     def: 0.75,
     text: (v: number) => `${Math.round((v * 4 - 2) * 100)}%`,
+    to: (v: number) => (v * 4 - 2) * 100,
+    from: (d: number) => (d / 100 + 2) / 4,
   },
-  { name: "freq", def: 0.04, text: (v: number) => `${(v * 50).toFixed(2)}×` },
-  { name: "skew", def: 0.5, text: (v: number) => v.toFixed(2) },
-  { name: "dc", def: 0.5, text: (v: number) => (v - 0.5).toFixed(2) },
-] as const;
+  {
+    name: "freq",
+    def: 0.04,
+    text: (v: number) => `${(v * 50).toFixed(2)}×`,
+    to: (v: number) => v * 50,
+    from: (d: number) => d / 50,
+  },
+  {
+    name: "skew",
+    def: 0.5,
+    text: (v: number) => v.toFixed(2),
+    to: (v: number) => v,
+    from: (d: number) => d,
+  },
+  {
+    name: "dc",
+    def: 0.5,
+    text: (v: number) => (v - 0.5).toFixed(2),
+    to: (v: number) => v - 0.5,
+    from: (d: number) => d + 0.5,
+  },
+] as {
+  name: string;
+  def: number;
+  text(v: number): string;
+  to(v: number): number;
+  from(d: number): number;
+  o?: readonly string[];
+}[];
+
+// same precision rule as the engine's param text
+const fmt = (v: number) => {
+  const a = Math.abs(v);
+  return v.toFixed(a >= 100 ? 0 : a >= 10 ? 1 : a >= 1 ? 2 : a >= 0.1 ? 3 : 4);
+};
 
 export type NodeInfo = {
   p: number;
+  n: number; // wasm node index
   name: string;
-  params: { addr: number; j: number; name: string }[];
+  params: {
+    addr: number;
+    j: number;
+    name: string;
+    o?: readonly string[];
+    u?: string;
+  }[];
 };
 export type Host = {
   nodes(): NodeInfo[];
@@ -64,6 +115,8 @@ export type Host = {
   schedule(): void;
   head(): number;
   setHead(frame: number): void;
+  denorm(n: number, j: number, v: number): number;
+  norm(n: number, j: number, d: number): number;
 } & Kf;
 
 export function Keyframes(props: { host: Host }) {
@@ -470,6 +523,17 @@ export function Keyframes(props: { host: Host }) {
                               title={`${P.name} (double-click to reset)`}
                               onPointerDown={(e) => {
                                 let v = l.lfo![j];
+                                if (e.ctrlKey)
+                                  return editParam(e.currentTarget, {
+                                    options: P.o,
+                                    value: P.o ? `${P.to(v)}` : fmt(P.to(v)),
+                                    commit(s) {
+                                      const n = parseFloat(s);
+                                      if (isNaN(n)) return;
+                                      host.setLfo(i(), j, clamp(P.from(n), 0, 1));
+                                      refresh();
+                                    },
+                                  });
                                 const d = knobDrag(e);
                                 addEventListener("pointerup", unlock, {
                                   once: true,
@@ -587,15 +651,44 @@ export function Keyframes(props: { host: Host }) {
                             setSel([i(), ki()]);
                             if (e.ctrlKey) {
                               const t = k.t;
-                              return editParam(e.currentTarget, {
-                                value: k.v.toFixed(4),
-                                commit(s) {
-                                  const n = parseFloat(s);
-                                  if (isNaN(n)) return;
-                                  host.setKey(i(), ki(), t, clamp(n, 0, 1));
-                                  refresh();
-                                },
+                              const set = (v: number) => {
+                                host.setKey(i(), ki(), t, clamp(v, 0, 1));
+                                refresh();
+                              };
+                              // one entry per target that resolves to a param
+                              const ts = nodes().flatMap((n) =>
+                                n.params
+                                  .filter((p) => l.addrs.includes(p.addr))
+                                  .map((p) => ({ n, p })),
+                              );
+                              const views = ts.map(({ n, p }) => {
+                                const d = host.denorm(n.n, p.j, k.v);
+                                return {
+                                  label: `${n.name} · ${p.name}`,
+                                  options: p.o,
+                                  value: p.o ? `${Math.round(d)}` : fmt(d),
+                                  commit(s: string) {
+                                    const x = parseFloat(s);
+                                    if (!isNaN(x)) set(host.norm(n.n, p.j, x));
+                                  },
+                                };
                               });
+                              const normed = {
+                                label: "norm",
+                                value: k.v.toFixed(4),
+                                commit(s: string) {
+                                  const x = parseFloat(s);
+                                  if (!isNaN(x)) set(x);
+                                },
+                              };
+                              return editParam(
+                                e.currentTarget,
+                                views.length === 1
+                                  ? views[0]
+                                  : views.length
+                                    ? { ...views[0], alts: [...views, normed] }
+                                    : normed,
+                              );
                             }
                             let [x, y, t, v] = [e.clientX, e.clientY, k.t, k.v];
 

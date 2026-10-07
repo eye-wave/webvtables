@@ -78,6 +78,8 @@ loadWasm().then((wasm) => {
           schedule,
           head,
           setHead,
+          denorm: wasm.param_denorm,
+          norm: wasm.param_norm,
         },
       }),
     kfBox,

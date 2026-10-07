@@ -27,3 +27,27 @@
 .pedit select:focus {
   border-color: var(--accent-200);
 }
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-bottom: 4px;
+  max-width: 260px;
+}
+
+.tabs button {
+  padding: 2px 8px;
+  background: none;
+  border: 1px solid var(--border-100);
+  border-radius: 4px;
+  color: var(--text-400);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.tabs button.on {
+  border-color: var(--accent-200);
+  color: var(--text-600);
+}

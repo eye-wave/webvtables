@@ -114,12 +114,15 @@ export function createScene(
         const info = kind.params as readonly ParamInfo[];
         return {
           p: +el.dataset.p!,
+          n: +el.dataset.n!,
           name: `${kind.name} ${nth}`,
           params: [...el.querySelectorAll<HTMLElement>(`.${knobCss.knob}`)].map(
             (k) => ({
               addr: +k.dataset.a!,
               j: +k.dataset.j!,
               name: info[+k.dataset.j!].n,
+              o: info[+k.dataset.j!].o,
+              u: info[+k.dataset.j!].u,
             }),
           ),
         };
