@@ -5,7 +5,7 @@ import { createContextMenu } from "./components/ctx/ctx";
 import { createInput } from "./editor/input";
 import { createPreview } from "./editor/preview";
 import { createMenu } from "./components/menu/menu";
-import { createHeightmap } from "./gfx/heightmap";
+import { createHeightmap, mapRect } from "./gfx/heightmap";
 import { createOverlay } from "./gfx/overlay";
 import { createRopes } from "./gfx/ropes";
 import { createScene } from "./editor/scene";
@@ -22,11 +22,10 @@ import { createProject } from "./components/project/project";
 declare const nodeGrid: HTMLDivElement;
 declare const gridBg: HTMLDivElement;
 declare const canvas: HTMLCanvasElement;
-declare const heightmap: HTMLCanvasElement;
 declare const kfHandle: HTMLDivElement;
 
 const draw = createOverlay(canvas);
-const drawMap = createHeightmap(heightmap);
+const drawMap = createHeightmap(canvas);
 
 const kfBox = document.querySelector<HTMLElement>(".box-keyframes")!;
 kfHandle.onpointerdown = (e) => {
@@ -54,9 +53,17 @@ loadWasm().then((wasm) => {
   const [head, setHead] = createSignal(0);
 
   // Click the map to flip flat <-> 3D; keep the grid underneath from seeing it.
+  // The map is drawn into the overlay canvas, so hit-test its static rect.
+  const box = canvas.parentElement!;
+  const onMap = (e: MouseEvent) => {
+    const r = box.getBoundingClientRect();
+    const [x, y, w, h] = mapRect(r.width, r.height);
+    const [px, py] = [e.clientX - r.left - x, e.clientY - r.top - y];
+    return px >= 0 && py >= 0 && px < w && py < h;
+  };
   for (const ev of ["pointerdown", "dblclick", "contextmenu"])
-    heightmap.addEventListener(ev, (e) => e.stopPropagation());
-  heightmap.onclick = () => (drawMap.toggle(), schedule());
+    box.addEventListener(ev, (e) => onMap(e as MouseEvent) && e.stopPropagation(), true);
+  box.addEventListener("click", (e) => onMap(e) && (drawMap.toggle(), schedule()));
 
   scene.add(0, 40, 40);
   scene.add(1, 540, 100);

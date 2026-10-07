@@ -92,7 +92,7 @@ body {
 }
 
 .heightmap {
-  cursor: pointer;
+  pointer-events: none;
   position: absolute;
   right: 8px;
   bottom: 8px;
@@ -104,10 +104,9 @@ body {
   border-radius: 4px;
 }
 
-/* File dialog (markup lives in index.html) */
 #fileDialog,
 #settingsDialog {
-  margin: auto; /* the global * reset removes the UA centering */
+  margin: auto;
   width: min(420px, calc(100vw - 32px));
   padding: 0;
   color: var(--text-600);
@@ -294,7 +293,6 @@ body {
   font-size: 12px;
 }
 
-/* Settings dialog */
 #settingsDialog {
   width: min(460px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
@@ -338,7 +336,9 @@ body {
   top: 6px;
   left: 8px;
   z-index: 2;
-  font: 11px ui-monospace, monospace;
+  font:
+    11px ui-monospace,
+    monospace;
   color: var(--text-400);
   pointer-events: none;
 }
@@ -370,7 +370,9 @@ body {
     text-align: center;
     background: var(--surface-200);
     color: var(--text-400);
-    font: 14px system-ui, sans-serif;
+    font:
+      14px system-ui,
+      sans-serif;
   }
   #narrow b {
     font-size: 18px;

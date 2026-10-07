@@ -9,8 +9,22 @@ const COLS = 256;
 
 export type Heightmap = ReturnType<typeof createHeightmap>;
 
+// Static inset, bottom-right of the grid box (CSS px, top-left origin). Keep in sync with .heightmap in shell.css.
+const W = 280,
+  H = 160,
+  MARGIN = 8,
+  BORDER = 1;
+export const mapRect = (
+  bw: number,
+  bh: number,
+): [number, number, number, number] => {
+  const h = Math.min(H, bh - 2 * MARGIN);
+  return [bw - MARGIN - W, bh - MARGIN - h, W, h];
+};
+
 // All frames in one COLS x (FRAMES + 1) float texture; extra row = live wave.
 // Shader only samples it. point-sample columns; peak-pick buckets to avoid aliasing.
+// Shares the overlay's canvas/context (getContext returns the same one) and draws into a scissored corner after it.
 export function createHeightmap(canvas: HTMLCanvasElement) {
   const gl = canvas.getContext("webgl2");
   if (!gl)
@@ -62,24 +76,33 @@ export function createHeightmap(canvas: HTMLCanvasElement) {
 
     draw(head: number, live: Float32Array) {
       const dpr = devicePixelRatio;
-      const w = canvas.clientWidth,
-        h = canvas.clientHeight;
-      if (
-        canvas.width !== Math.round(w * dpr) ||
-        canvas.height !== Math.round(h * dpr)
-      ) {
-        canvas.width = Math.round(w * dpr);
-        canvas.height = Math.round(h * dpr);
-      }
+      const [x, y, w0, h0] = mapRect(canvas.clientWidth, canvas.clientHeight);
+      const [w, h] = [w0 - 2 * BORDER, h0 - 2 * BORDER]; // inside the CSS border
       put(FRAMES, live);
-      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.bindVertexArray(null);
+      gl.enable(gl.SCISSOR_TEST);
+      gl.viewport(
+        Math.round((x + BORDER) * dpr),
+        Math.round((canvas.clientHeight - y - h0 + BORDER) * dpr),
+        Math.round(w * dpr),
+        Math.round(h * dpr),
+      );
+      gl.scissor(
+        ...(gl.getParameter(gl.VIEWPORT) as [number, number, number, number]),
+      );
+      gl.disable(gl.BLEND); // overwrite whatever the overlay drew underneath
+      gl.depthMask(true);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
       prog = is3d ? mesh : flat;
       gl.useProgram(prog);
       gl.uniform2f(u("uRes"), w, h);
       gl.uniform1f(u("uHead"), head);
-      if (!is3d)
-        return void (gl.disable(gl.DEPTH_TEST),
-        gl.drawArrays(gl.TRIANGLES, 0, 3));
+      const done = () => (gl.disable(gl.SCISSOR_TEST), gl.enable(gl.BLEND));
+      if (!is3d) {
+        gl.disable(gl.DEPTH_TEST);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        return done();
+      }
       gl.enable(gl.DEPTH_TEST);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
       gl.uniform1i(u("uLive"), 0);
@@ -88,6 +111,7 @@ export function createHeightmap(canvas: HTMLCanvasElement) {
       gl.disable(gl.DEPTH_TEST);
       gl.uniform1i(u("uLive"), 1);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, COLS * 2);
+      done();
     },
   };
 }

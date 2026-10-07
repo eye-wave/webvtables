@@ -120,6 +120,9 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
       canvas.height = Math.round(h * dpr);
     }
     gl.viewport(0, 0, canvas.width, canvas.height);
+    // state is shared with the heightmap, which draws after us and changes it
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthMask(true);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     for (const p of [decor, rope, ring, wave]) {
       gl.useProgram(p);
