@@ -23,6 +23,9 @@ declare const nodeGrid: HTMLDivElement;
 declare const gridBg: HTMLDivElement;
 declare const canvas: HTMLCanvasElement;
 declare const kfHandle: HTMLDivElement;
+declare const narrow: HTMLDivElement;
+
+window.onload = () => (narrow.hidden = false);
 
 const draw = createOverlay(canvas);
 const drawMap = createHeightmap(canvas);
@@ -62,8 +65,15 @@ loadWasm().then((wasm) => {
     return px >= 0 && py >= 0 && px < w && py < h;
   };
   for (const ev of ["pointerdown", "dblclick", "contextmenu"])
-    box.addEventListener(ev, (e) => onMap(e as MouseEvent) && e.stopPropagation(), true);
-  box.addEventListener("click", (e) => onMap(e) && (drawMap.toggle(), schedule()));
+    box.addEventListener(
+      ev,
+      (e) => onMap(e as MouseEvent) && e.stopPropagation(),
+      true,
+    );
+  box.addEventListener(
+    "click",
+    (e) => onMap(e) && (drawMap.toggle(), schedule()),
+  );
 
   scene.add(0, 40, 40);
   scene.add(1, 540, 100);
