@@ -29,7 +29,9 @@ import nodeCss from "./node.module.css";
 // int, enum), so nothing here needs to know a param's range. `get` and `value`
 // are Solid accessors, refreshed every frame by scene.sync, so they follow
 // knobs, keyframes and automation. Writes redraw. A custom control must
-// stopPropagation() its pointerdown, or the grid will start dragging the node.
+// stopPropagation() its pointerdown, or the grid will start dragging the node (and
+// re-append it, which eats the click). Use Solid's native `on:pointerdown`: `onPointerDown`
+// is delegated to document and runs after the grid's own listener, too late to stop it.
 //
 // Knob contract: sets `--v` (0..1) on the .knob and fills its `.pval`
 // child with the value text. Custom children may use either or both.

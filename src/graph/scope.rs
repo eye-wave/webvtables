@@ -6,6 +6,8 @@ use alloc::{boxed::Box, vec::Vec};
 type Memo = Vec<Option<Box<[f32]>>>;
 
 static mut BUF: Buffer = [0.0; N];
+// Arena offset of the node whose `process` is running (nodes are otherwise stateless).
+pub static mut CURRENT: u32 = 0;
 static mut MEMO: Memo = Vec::new();
 
 pub fn begin(s: &State) {
@@ -59,6 +61,7 @@ fn eval(s: &State, node: usize, sock: usize, memo: &mut Memo, dst: &mut Buffer) 
             let ps = params(s, node, kind);
             let nd = kind.as_node();
             let off = s.nodes[node];
+            unsafe { CURRENT = off };
             let es: Vec<_> = unsafe { MORPHS.iter() }
                 .filter(|e| e.0 == off && ps.get(e.1 as usize).is_some_and(Option::is_some))
                 .collect();

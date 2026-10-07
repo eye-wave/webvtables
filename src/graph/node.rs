@@ -86,6 +86,7 @@ define_nodes!(
     Bump = "bump",
     Comb = "comb",
     Convolve = "conv",
+    Data = "data",
     Disperser = "disperse",
     EvenOdd = "spevodd",
     Filter = "filter",

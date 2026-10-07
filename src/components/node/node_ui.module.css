@@ -55,3 +55,18 @@
   left: calc(var(--p0) * 100%);
   top: calc(var(--p1) * 100%);
 }
+
+.import {
+  flex: none;
+  height: 20px;
+  font-size: 11px;
+  color: var(--text-400);
+  background: var(--surface-600);
+  border: 1px solid var(--border-200);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.import:hover {
+  border-color: var(--border-400);
+}

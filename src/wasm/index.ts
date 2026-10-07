@@ -56,6 +56,9 @@ export type WasmExports = {
   project_new(): void;
 
   remove_node(idx: number): void;
+  data_alloc(idx: number, frames: number): number;
+  data_frames(idx: number): number;
+  data_ptr(idx: number): number;
   add_link(s1: number, s2: number, t1: number, t2: number): number;
 
   node_sockets(idx: number): number;

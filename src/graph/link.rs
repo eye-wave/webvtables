@@ -51,6 +51,7 @@ impl State {
             return;
         }
         let off = self.nodes.remove(idx);
+        self.data.retain(|d| d.0 != off);
 
         self.keyframes.lanes.retain_mut(|l| {
             let had = !l.targets.is_empty();

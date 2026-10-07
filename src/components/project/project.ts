@@ -2,6 +2,7 @@ import { nodes as kinds } from "../../generated/nodes";
 import type { Kf } from "../../editor/kf";
 import type { Scene } from "../../editor/scene";
 import type { WasmExports } from "../../wasm";
+import { FRAME } from "../../wasm/wav";
 import { format, newIds, parse, type Project } from "./file";
 import projectCss from "./project.module.css";
 
@@ -130,8 +131,9 @@ export function createProject(
   const snapshot = (): Project => {
     const n = wasm.nodes_len();
     const ids = newIds(n);
+    const aids = newIds(n, 20); // spare ids; only nodes holding data use one
     const at = new Map<number, { id: string; j: number }>();
-    const p: Project = { nodes: [], links: [], lanes: [] };
+    const p: Project = { nodes: [], links: [], lanes: [], assets: [] };
     for (let i = 0; i < n; i++) {
       const [x, y] = f32().subarray(
         wasm.get_node(i) >> 2,
@@ -145,6 +147,15 @@ export function createProject(
       const flags = new Uint8Array(wasm.memory.buffer)[
         wasm.get_node(i) + FLAGS_AT
       ];
+      const frames = wasm.data_frames(i);
+      if (frames)
+        p.assets.push({
+          id: aids[i],
+          data: f32().slice(
+            wasm.data_ptr(i) >> 2,
+            (wasm.data_ptr(i) >> 2) + frames * FRAME,
+          ),
+        });
       p.nodes.push({
         id: ids[i],
         kind: kinds[wasm.node_kind(i)].id,
@@ -152,6 +163,7 @@ export function createProject(
         x,
         y,
         flags,
+        asset: frames ? aids[i] : undefined,
       });
     }
     const u8 = new Uint8Array(wasm.memory.buffer),
@@ -180,6 +192,7 @@ export function createProject(
   const apply = (p: Project) => {
     wasm.project_new();
     const at = new Map<string, number>();
+    const frames = new Map(p.assets.map((a) => [a.id, a.data]));
     for (const n of p.nodes) {
       const kind = kinds.findIndex((k) => k.id === n.kind);
       // size is derived, scene.load() fills it in
@@ -193,6 +206,10 @@ export function createProject(
         const a = wasm.get_param(i, j);
         if (a >= 0) f32()[a >> 2] = Math.min(Math.max(v, 0), 1);
       });
+      const d = n.asset ? frames.get(n.asset) : undefined;
+      const ptr = d ? wasm.data_alloc(i, d.length / FRAME) : -1;
+      if (d && ptr >= 0)
+        new Float32Array(wasm.memory.buffer, ptr, d.length).set(d);
     }
     for (const [a, sa, b, sb] of p.links)
       if (at.has(a) && at.has(b)) wasm.add_link(at.get(a)!, sa, at.get(b)!, sb);

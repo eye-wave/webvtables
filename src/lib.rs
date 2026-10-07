@@ -104,6 +104,25 @@ pub extern "C" fn add_node(kind: u8, x: f32, y: f32, w: f32, h: f32) -> i32 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn data_alloc(idx: u16, frames: u16) -> i32 {
+    state()
+        .data_alloc(idx as usize, frames as usize)
+        .map_or(-1, |p| p as i32)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn data_frames(idx: u16) -> u32 {
+    state().data_frames(idx as usize) as u32
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn data_ptr(idx: u16) -> i32 {
+    state()
+        .data_of(idx as usize)
+        .map_or(-1, |d| d.as_ptr() as i32)
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn rope_pin(id: i32, ax: f64, ay: f64, bx: f64, by: f64) {
     state().rope_pin(id, [ax, ay], [bx, by])
 }

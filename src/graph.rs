@@ -29,6 +29,8 @@ pub struct State {
     pub rope_acc: f64,
     pub phys: Phys,
     pub rope_out: Vec<f32>,
+    // Frame storage of Data nodes, keyed by the node's arena offset (stable for its life).
+    pub data: Vec<(u32, Vec<f32>)>,
 }
 
 impl State {
@@ -42,6 +44,7 @@ impl State {
             rope_acc: 0.0,
             phys: Phys::DEFAULT,
             rope_out: vec![],
+            data: vec![],
         }
     }
 }

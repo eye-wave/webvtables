@@ -1,3 +1,5 @@
+import { FRAME, MAX_FRAMES } from "../../wasm/wav";
+
 export type Node = {
   id: string;
   kind: string;
@@ -5,6 +7,7 @@ export type Node = {
   x: number;
   y: number;
   flags: number;
+  asset?: string; // Data nodes: id of the frames stored in `assets`
 };
 export const FLAGS = ["norm", "remdc", "clip"];
 export type Lane = {
@@ -18,29 +21,47 @@ export type Project = {
   nodes: Node[];
   links: [string, number, string, number][];
   lanes: Lane[];
+  assets: { id: string; data: Float32Array }[];
 };
 
 export const LFO_NAMES = ["SHP", "PHS", "AMP", "FRQ", "SKW", "DCF"];
 
 const f15 = (v: number) => v.toFixed(15);
 const f14 = (v: number) => v.toFixed(13).slice(0, 14).padEnd(14, "0");
-const randId = (used: Set<string>) => {
+const randId = (used: Set<string>, bits: number) => {
   let id: string;
   do
     id =
       "0x" +
-      Math.floor(Math.random() * 2 ** 44)
+      Math.floor(Math.random() * 2 ** bits)
         .toString(16)
-        .padStart(11, "0");
+        .padStart(bits / 4, "0");
   while (used.has(id));
   used.add(id);
   return id;
 };
 
-export function newIds(n: number) {
+// bits: 44 -> 0x + 11 hex digits (nodes), 20 -> 5 (assets)
+export function newIds(n: number, bits = 44) {
   const used = new Set<string>();
-  return Array.from({ length: n }, () => randId(used));
+  return Array.from({ length: n }, () => randId(used, bits));
 }
+
+// Frames <-> base64: UTF-8-safe and avoids parser prefixes.
+// Host-endian floats; browsers are little-endian.
+const b64 = (a: Float32Array) => {
+  const u = new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+  let s = "";
+  for (let i = 0; i < u.length; i += 0x8000)
+    s += String.fromCharCode(...u.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+const unb64 = (s: string) => {
+  const t = atob(s); // throws on bad input
+  const u = new Uint8Array(t.length);
+  for (let i = 0; i < t.length; i++) u[i] = t.charCodeAt(i);
+  return new Float32Array(u.buffer); // throws unless a whole number of floats
+};
 
 export function format(p: Project): string {
   const node = (n: Node) => {
@@ -51,6 +72,7 @@ export function format(p: Project): string {
       "_".repeat(21),
       c(n.id, 3),
       c(n.kind.padEnd(8), 5),
+      ...(n.asset ? [`[    { ${n.asset} }    ]`] : []),
       c("", 0),
       c(
         FLAGS.map((f, i) => ((n.flags >> i) & 1 ? f.toUpperCase() : f)).join(
@@ -96,6 +118,12 @@ export function format(p: Project): string {
           .join("\n"),
       ]),
       ...p.lanes.map(lane),
+      ...p.assets.map(
+        (a) =>
+          `${a.id}:DATA\n${b64(a.data)
+            .match(/.{1,76}/g)!
+            .join("\n")}`,
+      ),
     ]
       .filter(Boolean)
       .join("\n\n") + "\n"
@@ -104,6 +132,8 @@ export function format(p: Project): string {
 
 const NUM = "(-?\\d+(?:\\.\\d+)?(?:e[-+]?\\d+)?)";
 const RE = {
+  asset: /^(0x[0-9a-f]{5}):DATA$/i,
+  ref: /^\[\s*\{\s*(0x[0-9a-f]{5})\s*\}\s*\]$/i,
   link: /^(0x[0-9a-f]+):(\d+)\s*->\s*(0x[0-9a-f]+):(\d+)$/i,
   title: /^=\s(.*?)\s*([PLCS])\s=$/,
   target: /^=\s*(0x[0-9a-f]+)\[(\d+)\]\s*=$/i,
@@ -116,16 +146,22 @@ const RE = {
 };
 
 export function parse(text: string): Project {
-  const p: Project = { nodes: [], links: [], lanes: [] };
+  const p: Project = { nodes: [], links: [], lanes: [], assets: [] };
   let n: Node | undefined,
     id = false;
   let l: Lane | undefined;
+  const blobs: { id: string; b64: string }[] = [];
+  let a: (typeof blobs)[number] | undefined;
   text.split(/\r?\n/).forEach((raw, i) => {
     const s = raw.trim();
     const bad = () => {
       throw new Error(`line ${i + 1}: ${raw.slice(0, 40)}`);
     };
     let m: RegExpMatchArray | null;
+    if (a) {
+      if (s) return void (a.b64 += s);
+      a = undefined; // a blank line ends the asset
+    }
     if (!s) return;
     if (s[0] === "_") {
       p.nodes.push(
@@ -152,6 +188,16 @@ export function parse(text: string): Project {
           if (w === w.toUpperCase())
             n.flags |= 1 << FLAGS.indexOf(w.toLowerCase());
       } else bad();
+    } else if ((m = RE.asset.exec(s))) {
+      n = undefined;
+      l = undefined;
+      const aid = m[1].toLowerCase();
+      if (blobs.some((b) => b.id === aid)) return bad();
+      blobs.push((a = { id: aid, b64: "" }));
+    } else if (s[0] === "[") {
+      const r = RE.ref.exec(s);
+      if (!r || !n?.kind || n.asset) return bad();
+      n.asset = r[1].toLowerCase();
     } else if ((m = RE.link.exec(s))) {
       n = undefined;
       p.links.push([m[1].toLowerCase(), +m[2], m[3].toLowerCase(), +m[4]]);
@@ -181,6 +227,22 @@ export function parse(text: string): Project {
       l.lfo[j] = +m[2];
     } else bad();
   });
+  for (const b of blobs) {
+    let data: Float32Array | undefined;
+    try {
+      data = unb64(b.b64);
+    } catch {}
+    const frames = (data?.length ?? 0) / FRAME;
+    if (!data || !Number.isInteger(frames) || frames < 1 || frames > MAX_FRAMES)
+      throw new Error(
+        `asset ${b.id}: need 1-${MAX_FRAMES} whole frames of data`,
+      );
+    p.assets.push({ id: b.id, data });
+  }
+  const orphan = p.nodes.find(
+    (x) => x.asset && !p.assets.some((a) => a.id === x.asset),
+  );
+  if (orphan) throw new Error(`node ${orphan.id} uses a missing asset`);
   if (p.nodes.some((x) => !x.id || !x.kind))
     throw new Error("node box without id or kind");
   return p;
