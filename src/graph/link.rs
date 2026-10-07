@@ -1,8 +1,6 @@
 use crate::graph::State;
-use serde::{Deserialize, Serialize};
 
 #[repr(C)]
-#[derive(Serialize, Deserialize)]
 pub struct Link {
     pub source: u16,
     pub source_socket: u8,
@@ -87,5 +85,16 @@ mod tests {
         assert_eq!(s.links.len(), 1);
         let l = &s.links[0];
         assert_eq!((l.source, l.target, l.target_socket), (0, 1, 1));
+    }
+
+    #[test]
+    fn removing_a_node_removes_its_lanes() {
+        let mut s = State::new();
+        s.add_node(NodeKind::Gain, [0.0; 2], [0.0; 2]).unwrap();
+        let lane = s.lane_add(false).unwrap();
+        let addr = s.arena.base() + s.nodes[0] as usize;
+        assert!(s.lane_link(lane, addr, 0, true));
+        s.remove_node(0);
+        assert!(s.keyframes.lanes.is_empty());
     }
 }

@@ -2,7 +2,6 @@ use super::State;
 use super::node::N;
 use alloc::{format, string::String, vec::Vec};
 use microfft::Complex32;
-use serde::{Deserialize, Serialize};
 
 pub const FRAMES: f32 = 255.0;
 pub const NAME_MAX: usize = 48;
@@ -10,7 +9,7 @@ const LANES_MAX: usize = 256;
 const KEYS_MAX: usize = 1024;
 pub const CURVE_LEN: usize = 511;
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone, Copy)]
 pub struct Key {
     pub t: u8,
     pub v: f32,
@@ -20,7 +19,7 @@ pub struct Key {
 
 pub const LFO_PARAMS: usize = 6;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone)]
 pub enum Source {
     Points(Vec<Key>),
     Lfo([f32; LFO_PARAMS]),
@@ -53,28 +52,6 @@ impl Keyframes {
         t.iter()
             .enumerate()
             .all(|(i, a)| t[..i].iter().all(|b| a.0 != b.0))
-    }
-
-    pub fn valid(&self, s: &State) -> bool {
-        let unit = |v: &f32| v.is_finite();
-        self.lanes.len() <= LANES_MAX
-            && self.spectral_ok()
-            && self.lanes.iter().enumerate().all(|(i, l)| {
-                l.name.len() <= NAME_MAX
-                    && match &l.source {
-                        Source::Points(k) => {
-                            k.len() <= KEYS_MAX && k.iter().all(|k| unit(&k.v) && unit(&k.c))
-                        }
-                        Source::Lfo(p) => p.iter().all(unit),
-                    }
-                    && l.targets.len() <= KEYS_MAX
-                    && l.targets.iter().enumerate().all(|(k, t)| {
-                        s.nodes.contains(&t.0)
-                            && s.param_slot(t.0, t.1 as usize).is_some()
-                            && !l.targets[..k].contains(t)
-                            && !self.lanes[..i].iter().any(|o| o.targets.contains(t))
-                    })
-            })
     }
 }
 

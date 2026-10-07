@@ -1,5 +1,5 @@
 import { TABLE } from "../audio/audio";
-import { nodes } from "../generated/nodes";
+import { categories, nodes } from "../generated/nodes";
 import {
   mountNode,
   pollNode,
@@ -44,9 +44,11 @@ const sizeOf = (kind: number): [number, number] => {
 };
 const OUTPUT = nodes.findIndex((n) => n.name === "Output");
 
+const INPUTS = categories.indexOf("Inputs");
+const OUTPUTS = categories.indexOf("Outputs");
 const ROLE = nodes.map((n) => {
-  const c: readonly string[] = n.category;
-  return c.includes("Inputs") ? 0 : c.includes("Outputs") ? 1 : 2;
+  const c: readonly number[] = n.category;
+  return c.includes(INPUTS) ? 0 : c.includes(OUTPUTS) ? 1 : 2;
 });
 const GREEN: [number, number, number] = [0.3, 1, 0.45];
 const ORANGE: [number, number, number] = [1, 0.6, 0.25];
@@ -117,7 +119,7 @@ export function createScene(
             (k) => ({
               addr: +k.dataset.a!,
               j: +k.dataset.j!,
-              name: info[+k.dataset.j!].name,
+              name: info[+k.dataset.j!].n,
             }),
           ),
         };
@@ -175,7 +177,7 @@ export function createScene(
 
           const v = numText(+el.dataset.n!, j);
           const p = info[j];
-          const text = p.options?.[+v] ?? (p.unit ? `${v} ${p.unit}` : v);
+          const text = p.o?.[+v] ?? (p.u ? `${v} ${p.u}` : v);
           const out = k.querySelector(`.${knobCss.pval}`);
           if (out && out.textContent !== text) out.textContent = text;
         });
@@ -292,7 +294,7 @@ export function createScene(
       const info = nodes[
         +k.closest<HTMLElement>(`.${nodeCss.node}`)!.dataset.k!
       ].params as readonly ParamInfo[];
-      f32()[+k.dataset.a! >> 2] = info[+k.dataset.j!].default;
+      f32()[+k.dataset.a! >> 2] = info[+k.dataset.j!].d;
     },
 
     notify: changed,
@@ -301,7 +303,7 @@ export function createScene(
       const info = nodes[+el.dataset.k!].params as readonly ParamInfo[];
       const f = f32();
       el.querySelectorAll<HTMLElement>(`.${knobCss.knob}`).forEach((k) => {
-        f[+k.dataset.a! >> 2] = info[+k.dataset.j!].default;
+        f[+k.dataset.a! >> 2] = info[+k.dataset.j!].d;
       });
     },
 
@@ -343,7 +345,7 @@ export function createScene(
         j = +k.dataset.j!;
       const kind = +k.closest<HTMLElement>(`.${nodeCss.node}`)!.dataset.k!;
       return {
-        options: (nodes[kind].params as readonly ParamInfo[])[j].options,
+        options: (nodes[kind].params as readonly ParamInfo[])[j].o,
         value: numText(n, j),
         commit: (v) => {
           const d = parseFloat(v);

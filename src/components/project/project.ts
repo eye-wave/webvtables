@@ -1,6 +1,8 @@
+import { nodes as kinds } from "../../generated/nodes";
 import type { Kf } from "../../editor/kf";
 import type { Scene } from "../../editor/scene";
 import type { WasmExports } from "../../wasm";
+import { format, newIds, parse, type Project } from "./file";
 import projectCss from "./project.module.css";
 
 const button = (text: string, title: string, onclick: () => void) =>
@@ -121,17 +123,83 @@ export function createProject(
   fileClose.onclick = () => fileDialog.close();
   fileDialog.onclick = (e) => e.target === fileDialog && fileDialog.close();
 
+  const f32 = () => new Float32Array(wasm.memory.buffer);
+  const FLAGS_AT = 17; // byte offset of Node.flags (see scene.ts)
+
+  // Live state -> model. Node ids exist only in the file, so they are made up here.
+  const snapshot = (): Project => {
+    const n = wasm.nodes_len();
+    const ids = newIds(n);
+    const at = new Map<number, { id: string; j: number }>();
+    const p: Project = { nodes: [], links: [], lanes: [] };
+    for (let i = 0; i < n; i++) {
+      const [x, y] = f32().subarray(wasm.get_node(i) >> 2, (wasm.get_node(i) >> 2) + 2);
+      const params: number[] = [];
+      for (let j = 0, a; (a = wasm.get_param(i, j)) >= 0; j++) {
+        params.push(f32()[a >> 2]);
+        at.set(a, { id: ids[i], j });
+      }
+      const flags = new Uint8Array(wasm.memory.buffer)[wasm.get_node(i) + FLAGS_AT];
+      p.nodes.push({ id: ids[i], kind: kinds[wasm.node_kind(i)].id, params, x, y, flags });
+    }
+    const u8 = new Uint8Array(wasm.memory.buffer),
+      u16 = new Uint16Array(wasm.memory.buffer);
+    for (let i = 0; i < wasm.links_len(); i++) {
+      const a = wasm.get_link(i);
+      p.links.push([ids[u16[a >> 1]], u8[a + 2], ids[u16[(a >> 1) + 2]], u8[a + 6]]);
+    }
+    p.lanes = kf.lanes().map((l) => ({
+      name: l.name,
+      type: l.lfo ? "L" : (["P", "C", "S"] as const)[l.mode ?? 0],
+      targets: l.addrs.flatMap((a) => at.get(a) ?? []),
+      lfo: l.lfo ?? [],
+      keys: l.keys,
+    }));
+    return p;
+  };
+
+  // Model -> fresh wasm state, replayed through the normal editing calls.
+  // Unknown node kinds are dropped along with their links and lane targets.
+  const apply = (p: Project) => {
+    wasm.project_new();
+    const at = new Map<string, number>();
+    for (const n of p.nodes) {
+      const kind = kinds.findIndex((k) => k.id === n.kind);
+      // size is derived, scene.load() fills it in
+      if (kind < 0 || wasm.add_node(kind, n.x || 0, n.y || 0, 0, 0) < 0) continue;
+      const i = wasm.nodes_len() - 1;
+      at.set(n.id, i);
+      new Uint8Array(wasm.memory.buffer)[wasm.get_node(i) + FLAGS_AT] = n.flags & 7;
+      n.params.forEach((v, j) => {
+        const a = wasm.get_param(i, j);
+        if (a >= 0) f32()[a >> 2] = Math.min(Math.max(v, 0), 1);
+      });
+    }
+    for (const [a, sa, b, sb] of p.links)
+      if (at.has(a) && at.has(b)) wasm.add_link(at.get(a)!, sa, at.get(b)!, sb);
+    for (const l of p.lanes) {
+      const lane = kf.addLane(l.type === "L", { P: 0, C: 1, S: 2, L: 0 }[l.type]);
+      if (lane < 0) break;
+      kf.rename(lane, l.name);
+      l.lfo.forEach((v, j) => kf.setLfo(lane, j, v));
+      if (l.type !== "L") {
+        l.keys.forEach((k) => kf.addKey(lane, Math.min(k.t, 255), k.v));
+        // keys end up sorted by frame, so look each one up by it
+        const live = l.keys.some((k) => k.c !== undefined) ? kf.lanes()[lane].keys : [];
+        for (const k of l.keys)
+          if (k.c !== undefined) kf.setCurve(lane, live.findIndex((x) => x.t === Math.min(k.t, 255)), k.c);
+      }
+      for (const t of l.targets)
+        if (at.has(t.id)) kf.link(lane, wasm.get_node(at.get(t.id)!), t.j, true);
+    }
+  };
+
   // Strip characters filesystems reject; fall back to "project".
   const base = () =>
     fileName.value.replace(/[\\/:*?"<>|]+/g, "").trim() || "project";
 
   fileSave.onclick = () => {
-    const n = wasm.project_save();
-    download(
-      `${base()}.wtp`,
-      new Uint8Array(wasm.memory.buffer, wasm.project_ptr(), n).slice(),
-      "application/octet-stream",
-    );
+    download(`${base()}.wtp`, format(snapshot()), "text/plain");
     fileDialog.close();
   };
 
@@ -165,13 +233,14 @@ export function createProject(
 
   const load = async (file?: File) => {
     if (!file) return;
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const ptr = wasm.project_buf(bytes.length);
-    new Uint8Array(wasm.memory.buffer, ptr, bytes.length).set(bytes);
-    if (!wasm.project_load(bytes.length)) {
-      fileMsg.textContent = "Not a valid project file.";
+    let p: Project;
+    try {
+      p = parse(await file.text());
+    } catch (e) {
+      fileMsg.textContent = `Not a valid project file (${(e as Error).message}).`;
       return;
     }
+    apply(p);
     fileName.value = file.name.replace(/\.wtp$/i, "");
     scene.load();
     loaded();

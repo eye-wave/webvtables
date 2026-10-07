@@ -61,12 +61,9 @@ macro_rules! define_nodes {
                     }
                 }
 
+                #[cfg(test)]
                 pub fn id(self) -> &'static str {
                     IDS[self as usize]
-                }
-
-                pub fn from_id(id: &[u8]) -> Option<Self> {
-                    IDS.iter().position(|s| s.as_bytes() == id).and_then(|i| Self::from_u8(i as u8))
                 }
 
                 pub fn from_u8(n: u8) -> Option<Self> {
@@ -120,6 +117,7 @@ define_nodes!(
     XyMerge = "xymerge",
 );
 
+#[derive(Clone, Copy)]
 pub enum NodeCategory {
     Fft,
     Inputs,
@@ -133,6 +131,18 @@ pub enum NodeCategory {
 
 #[cfg(test)]
 impl NodeCategory {
+    // keep in enum order, the index is the id emitted to TS
+    pub const ALL: [Self; 8] = [
+        Self::Fft,
+        Self::Inputs,
+        Self::Outputs,
+        Self::Distortion,
+        Self::Combine,
+        Self::Effect,
+        Self::Warp,
+        Self::Unknown,
+    ];
+
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Fft => "FFT",
@@ -252,38 +262,6 @@ impl State {
         (i < p.len as usize).then(|| p.start + (i * 4) as u32)
     }
 
-    pub fn nodes_valid(&self) -> bool {
-        use core::mem::{align_of, offset_of, size_of};
-        let top = self.arena.bytes().len();
-        self.nodes.len() < u16::MAX as usize
-            && self.nodes.iter().all(|&off| {
-                let o = off as usize;
-                if !o.is_multiple_of(align_of::<Node>()) || o + size_of::<Node>() > top {
-                    return false;
-                }
-                let Some(kind) = NodeKind::from_u8(self.arena.bytes()[o + offset_of!(Node, kind)])
-                else {
-                    return false;
-                };
-                let node = &self.arena.slice::<Node>(off, 1)[0];
-                let n = kind.as_node().default_params().iter().flatten().count();
-                let (start, len) = (node.params.start as usize, node.params.len as usize);
-                len == n
-                    && start % align_of::<f32>() == 0
-                    && start + n * 4 <= top
-                    && node
-                        .position
-                        .iter()
-                        .chain(&node.size)
-                        .all(|v| v.is_finite())
-                    && self
-                        .arena
-                        .slice::<f32>(node.params.start, n)
-                        .iter()
-                        .all(|v| v.is_finite())
-            })
-    }
-
     pub fn kind(&self, idx: usize) -> Option<NodeKind> {
         Some(self.arena.slice::<Node>(*self.nodes.get(idx)?, 1)[0].kind)
     }
@@ -325,7 +303,7 @@ impl<T: NodeLogic + ?Sized> Codegen for T {
         let cats: Vec<String> = self
             .category()
             .iter()
-            .map(|c| format!("{:?}", c.as_str()))
+            .map(|c| format!("{}", *c as usize))
             .collect();
         let rows: String = self
             .default_params()
@@ -365,7 +343,10 @@ fn snake(s: &str) -> alloc::string::String {
 pub fn codegen_file(idx: usize) -> Option<(alloc::string::String, alloc::string::String)> {
     use alloc::{format, string::String};
     if let Some(k) = NODES.get(idx) {
-        return Some((format!("{}.ts", snake(k.ident())), k.as_node().ts()));
+        return Some((
+            format!("{}.ts", snake(k.ident())),
+            format!("export const id = {:?};\n{}", k.id(), k.as_node().ts()),
+        ));
     }
     if idx != NODES.len() {
         return None;
@@ -376,16 +357,24 @@ pub fn codegen_file(idx: usize) -> Option<(alloc::string::String, alloc::string:
         imports += &format!("import * as {n} from \"./{n}\";\n");
         list += &format!("  {n},\n");
     }
+    let cats: alloc::vec::Vec<&str> = NodeCategory::ALL.iter().map(|c| c.as_str()).collect();
     Some((
         "index.ts".into(),
         format!(
-            "{imports}\n// Index == NodeKind id.\nexport const nodes = [\n{list}] as const;\n\nexport const flagLabels = {FLAG_LABELS:?} as const;\n"
+            "{imports}\n// Index == NodeCategory id.\nexport const categories = {cats:?} as const;\n\n// Index == NodeKind id.\nexport const nodes = [\n{list}] as const;\n\nexport const flagLabels = {FLAG_LABELS:?} as const;\n"
         ),
     ))
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn node_ids_are_unique() {
+        for (i, a) in super::IDS.iter().enumerate() {
+            assert!(!super::IDS[..i].contains(a));
+        }
+    }
+
     #[test]
     fn generate_ts() {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/generated/nodes");

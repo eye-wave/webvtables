@@ -17,11 +17,6 @@ microfft = { version = "0.6", default-features = false, features = [
   "size-2048",
 ] }
 paste = "1"
-postcard = { version = "1", default-features = false, features = ["alloc"] }
-serde = { version = "1", default-features = false, features = [
-  "derive",
-  "alloc",
-] }
 
 [profile.release]
 codegen-units = 1

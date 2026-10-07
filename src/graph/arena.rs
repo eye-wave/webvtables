@@ -17,10 +17,6 @@ impl Arena {
         }
     }
 
-    pub fn bytes(&self) -> &[u8] {
-        &self.buf[..self.top]
-    }
-
     pub fn base(&self) -> usize {
         self.buf.as_ptr() as usize
     }

@@ -53,10 +53,7 @@ export type WasmExports = {
   key_curve(lane: number, idx: number, c: number): boolean;
   key_remove(lane: number, idx: number): void;
   lfo_set(lane: number, j: number, v: number): boolean;
-  project_save(): number;
-  project_ptr(): number;
-  project_buf(len: number): number;
-  project_load(len: number): boolean;
+  project_new(): void;
 
   remove_node(idx: number): void;
   add_link(s1: number, s2: number, t1: number, t2: number): number;

@@ -281,24 +281,10 @@ pub extern "C" fn lfo_set(lane: u16, j: u8, v: f32) -> bool {
     state().lfo_set(lane as usize, j as usize, v)
 }
 
+// Text projects are parsed in JS and replayed through the calls above onto a fresh state.
 #[unsafe(no_mangle)]
-pub extern "C" fn project_save() -> u32 {
-    graph::project::save(state()) as u32
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn project_ptr() -> i32 {
-    graph::project::file_ptr() as i32
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn project_buf(len: u32) -> i32 {
-    graph::project::buffer(len as usize) as i32
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn project_load(len: u32) -> bool {
-    graph::project::load(len as usize)
+pub extern "C" fn project_new() {
+    *state() = graph::State::new();
 }
 
 #[unsafe(no_mangle)]

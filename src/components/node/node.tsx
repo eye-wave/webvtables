@@ -35,10 +35,10 @@ import nodeCss from "./node.module.css";
 // child with the value text. Custom children may use either or both.
 
 export type ParamInfo = {
-  name: string;
-  options?: readonly string[];
-  unit?: string;
-  default: number;
+  n: string;
+  o?: readonly string[];
+  u?: string;
+  d: number;
 };
 
 type NodeInit = {
@@ -100,7 +100,7 @@ export function Knob(props: {
       {props.children ?? (
         <>
           <div class={knobCss.dial} />
-          <div class={knobCss.pname}>{params(kind)[props.j].name}</div>
+          <div class={knobCss.pname}>{params(kind)[props.j].n}</div>
           <div class={knobCss.pval} />
         </>
       )}

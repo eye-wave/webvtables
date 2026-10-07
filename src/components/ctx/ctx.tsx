@@ -69,7 +69,7 @@ export function createContextMenu(
     const fresh = (lfo: boolean, mode = 0) => () => {
       const lane = kf.addLane(lfo, mode);
       if (lane < 0) return;
-      kf.rename(lane, nodes[+node.dataset.k!].params[j].name);
+      kf.rename(lane, nodes[+node.dataset.k!].params[j].n);
       take(lane);
     };
     // A node may have only one spectral-blended param (mirrors Keyframes::spectral_ok in Rust).
@@ -95,7 +95,7 @@ export function createContextMenu(
             if (l < 0) {
               l = kf.addLane(false);
               if (l < 0) return;
-              kf.rename(l, nodes[+node.dataset.k!].params[j].name);
+              kf.rename(l, nodes[+node.dataset.k!].params[j].n);
             }
             const v = scene.knob(knob).get();
             if (l !== owner) take(l);

@@ -15,7 +15,6 @@ mod label;
 mod link;
 mod node;
 mod param;
-pub mod project;
 mod rope;
 pub mod scope;
 

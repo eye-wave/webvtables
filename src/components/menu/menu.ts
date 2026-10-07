@@ -1,4 +1,4 @@
-import { nodes } from "../../generated/nodes";
+import { categories, nodes } from "../../generated/nodes";
 import type { Pt } from "../../gfx/ropes";
 import type { Scene } from "../../editor/scene";
 import type { ViewCtl } from "../../gfx/view";
@@ -20,13 +20,14 @@ export function createMenu(
   input.autocomplete = "off";
   const list = document.createElement("ul");
 
+  const cats = (n: (typeof nodes)[number]) => n.category.map((c) => categories[c]);
   const items = nodes.map((n, kind) => {
     const el = document.createElement("li");
     el.dataset.kind = `${kind}`;
     el.textContent = n.name;
     el.append(
       Object.assign(document.createElement("span"), {
-        textContent: n.category.join(" · "),
+        textContent: cats(n).join(" · "),
       }),
     );
 
@@ -35,7 +36,7 @@ export function createMenu(
     return {
       el,
       name: n.name.toLowerCase(),
-      category: n.category.join(" ").toLowerCase(),
+      category: cats(n).join(" ").toLowerCase(),
     };
   });
 

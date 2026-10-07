@@ -162,13 +162,13 @@ impl Param {
 impl Param {
     pub fn ts(&self) -> alloc::string::String {
         use alloc::format;
-        let mut s = format!("{{ name: {:?}", self.name);
+        let mut s = format!("{{ n: {:?}", self.name);
         if let Some(o) = self.options {
-            s += &format!(", options: {o:?}");
+            s += &format!(", o: {o:?}");
         }
-        s += &format!(", default: {}", self.default_norm());
+        s += &format!(", d: {}", self.default_norm());
         if let Some(u) = self.unit {
-            s += &format!(", unit: {u:?}");
+            s += &format!(", u: {u:?}");
         }
         s + " }"
     }
