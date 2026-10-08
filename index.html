@@ -59,7 +59,33 @@
       <canvas class="overlay-canvas" id="canvas"></canvas>
     </div>
     <div class="resize-handle" id="kfHandle"></div>
-    <div class="box box-keyframes"></div>
+    <div class="box box-keyframes">
+      <div class="kf" id="kfRoot" tabindex="0">
+        <div class="kf-scroll" id="kfScroll">
+          <div class="kf-inner" id="kfInner">
+            <div class="kf-row kf-ruler">
+              <div class="kf-label">
+                <button id="kfNew" type="button">+ New</button>
+              </div>
+              <div class="kf-track" id="kfTrack">
+                <span class="kf-tick" data-f="0">0</span
+                ><span class="kf-tick" data-f="32">32</span
+                ><span class="kf-tick" data-f="64">64</span
+                ><span class="kf-tick" data-f="96">96</span
+                ><span class="kf-tick" data-f="128">128</span
+                ><span class="kf-tick" data-f="160">160</span
+                ><span class="kf-tick" data-f="192">192</span
+                ><span class="kf-tick" data-f="224">224</span
+                ><span class="kf-tick end" data-f="255">255</span>
+              </div>
+            </div>
+            <div id="kfLanes" style="display: contents"></div>
+            <p class="kf-empty" id="kfEmpty">No lanes - add one</p>
+            <div class="kf-head" id="kfHead"></div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <input id="fileInput" type="file" accept=".wtp,.wtx" hidden />
 
@@ -82,7 +108,10 @@
         <div class="file-row">
           <div>
             <b>Save project</b
-            ><small>.wtp · graph, params &amp; keyframes (.wtx with Data nodes)</small>
+            ><small
+              >.wtp · graph, params &amp; keyframes (.wtx with Data
+              nodes)</small
+            >
           </div>
           <button id="fileSave" type="button">Save</button>
         </div>

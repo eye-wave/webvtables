@@ -2,7 +2,7 @@ import { createSignal, For } from "solid-js";
 import { render } from "solid-js/web";
 import { nodes } from "../../generated/nodes";
 import { editParam } from "../param_edit/param_edit";
-import type { Kf } from "../../editor/kf";
+import type { Kf, LazyKf } from "../../editor/kf";
 import type { Scene } from "../../editor/scene";
 import type { ViewCtl } from "../../gfx/view";
 import knobCss from "../node/knob.module.css";
@@ -26,7 +26,7 @@ export function createContextMenu(
     kf,
     head,
   }: {
-    kf: Kf;
+    kf: LazyKf;
     head: () => number;
     scene: Scene;
     view: ViewCtl;
@@ -61,16 +61,17 @@ export function createContextMenu(
     const lanes = kf.lanes();
     const owner = lanes.findIndex((l) => l.addrs.includes(addr));
     const done = () => scene.notify();
-    const take = (lane: number) => {
-      if (owner >= 0) kf.link(owner, p, j, false);
-      kf.link(lane, p, j, true);
+    const take = (k: Kf, lane: number) => {
+      if (owner >= 0) k.link(owner, p, j, false);
+      k.link(lane, p, j, true);
       done();
     };
-    const fresh = (lfo: boolean, mode = 0) => () => {
-      const lane = kf.addLane(lfo, mode);
+    const fresh = (lfo: boolean, mode = 0) => async () => {
+      const k = await kf.load();
+      const lane = k.addLane(lfo, mode);
       if (lane < 0) return;
-      kf.rename(lane, nodes[+node.dataset.k!].params[j].n);
-      take(lane);
+      k.rename(lane, nodes[+node.dataset.k!].params[j].n);
+      take(k, lane);
     };
     // A node may have only one spectral-blended param (mirrors Keyframes::spectral_ok in Rust).
     const mine = new Set(
@@ -90,16 +91,17 @@ export function createContextMenu(
         {
           label: `Add keyframe at ${frame}`,
           key: true,
-          run() {
+          async run() {
+            const k = await kf.load();
             let l = owner;
             if (l < 0) {
-              l = kf.addLane(false);
+              l = k.addLane(false);
               if (l < 0) return;
-              kf.rename(l, nodes[+node.dataset.k!].params[j].n);
+              k.rename(l, nodes[+node.dataset.k!].params[j].n);
             }
             const v = scene.knob(knob).get();
-            if (l !== owner) take(l);
-            kf.addKey(l, frame, v);
+            if (l !== owner) take(k, l);
+            k.addKey(l, frame, v);
             done();
           },
         } satisfies Item,
@@ -122,8 +124,10 @@ export function createContextMenu(
               sub: lanes.map((l, i): Item => ({
                 label: `${i === owner ? "✓ " : ""}${l.name}`,
                 off: l.mode === 2 && i !== owner ? off : undefined,
-                run: () =>
-                  i === owner ? (kf.link(i, p, j, false), done()) : take(i),
+                run: async () => {
+                  const k = await kf.load();
+                  i === owner ? (k.link(i, p, j, false), done()) : take(k, i);
+                },
               })),
             } satisfies Item,
           ]

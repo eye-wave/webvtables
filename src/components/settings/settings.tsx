@@ -2,7 +2,7 @@ import { createEffect, createRoot, For } from "solid-js";
 import { createStore } from "solid-js/store";
 import { render } from "solid-js/web";
 import Cog from "lucide-solid/icons/settings";
-import { FPSMeter } from "lite-fps-meter";
+import type { FPSMeter } from "lite-fps-meter";
 import type { WasmExports } from "../../wasm";
 import projectCss from "../project/project.module.css";
 
@@ -100,24 +100,26 @@ export function laneColors(i: number, special: boolean) {
 let meter: FPSMeter | undefined;
 export const fpsTick = () => meter?.tick(performance.now());
 
+// The meter library loads the first time the setting is on (including on page load).
 createRoot(() =>
-  createEffect(() => {
+  createEffect(async () => {
     fpsEl.hidden = !settings.fps;
-    if (settings.fps && !meter) {
-      meter = new FPSMeter({
-        loop: false,
-        targetFps: 60,
-        graph: true,
-        target: fpsEl,
-        textUpdateInterval: 30,
-      });
-
-      Object.assign((meter as any).container.style, {
-        position: "absolute",
-        top: "6px",
-        left: "8px",
-      });
-    } else if (!settings.fps) (meter?.destroy(), (meter = undefined));
+    if (!settings.fps) return (meter?.destroy(), (meter = undefined));
+    if (meter) return;
+    const { FPSMeter } = await import("lite-fps-meter");
+    if (!settings.fps || meter) return; // toggled off, or raced, while loading
+    meter = new FPSMeter({
+      loop: false,
+      targetFps: 60,
+      graph: true,
+      target: fpsEl,
+      textUpdateInterval: 30,
+    });
+    Object.assign((meter as any).container.style, {
+      position: "absolute",
+      top: "6px",
+      left: "8px",
+    });
   }),
 );
 

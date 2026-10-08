@@ -1,6 +1,6 @@
 import type { Heightmap } from "../gfx/heightmap";
 import type { WasmExports } from "../wasm";
-import type { Kf } from "./kf";
+import type { LazyKf } from "./kf";
 import type { Scene } from "./scene";
 
 const FRAMES = 256;
@@ -11,7 +11,7 @@ const FRAMES = 256;
 export function createPreview(
   wasm: WasmExports,
   scene: Scene,
-  kf: Kf,
+  kf: LazyKf,
   map: Heightmap,
 ) {
   let prev: number[] = [];

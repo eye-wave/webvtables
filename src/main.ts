@@ -12,10 +12,10 @@ import { createScene } from "./editor/scene";
 import { createTransport } from "./components/transport/transport";
 import { createView } from "./gfx/view";
 import { loadWasm } from "./wasm";
-import { createSignal } from "solid-js";
+import { createEffect, createSignal } from "solid-js";
 import { render } from "solid-js/web";
-import { createKf } from "./editor/kf";
-import { Keyframes } from "./components/keyframes/keyframes";
+import type { Kf, LazyKf } from "./editor/kf";
+import { createBar } from "./components/keyframes/bar";
 import { createSettings, fpsTick } from "./components/settings/settings";
 import { createProject } from "./components/project/project";
 
@@ -83,24 +83,49 @@ loadWasm().then((wasm) => {
   const schedule = () =>
     queued || ((queued = true), requestAnimationFrame(frame));
 
-  const kf = createKf(wasm);
+  // The ruler/+New shell is plain DOM; the lane editor behind it loads on the first lane.
+  const bar = createBar({
+    setHead,
+    addLane: async (lfo, mode) => {
+      (await kf.load()).addLane(lfo, mode);
+      scene.notify();
+    },
+  });
+  createEffect(() => bar.setHead(head()));
+
+  // Keyframe logic + UI load on the first lane (new or from a project file).
+  let real: Kf | undefined, booting: Promise<Kf> | undefined;
+  const kf: LazyKf = {
+    lanes: () => real?.lanes() ?? [],
+    apply: (f) => real?.apply(f) ?? new Set<number>(),
+    load: () =>
+      (booting ??= (async () => {
+        const [{ createKf }, { Keyframes }] = await Promise.all([
+          import("./editor/kf"),
+          import("./components/keyframes/keyframes"),
+        ]);
+        const k = (real = createKf(wasm));
+        render(
+          () =>
+            Keyframes({
+              host: {
+                ...k,
+                bar,
+                nodes: scene.nodes,
+                onChange: scene.onChange,
+                schedule,
+                head,
+                setHead,
+                denorm: wasm.param_denorm,
+                norm: wasm.param_norm,
+              },
+            }),
+          bar.mount,
+        );
+        return k;
+      })()),
+  };
   const preview = createPreview(wasm, scene, kf, drawMap);
-  render(
-    () =>
-      Keyframes({
-        host: {
-          ...kf,
-          nodes: scene.nodes,
-          onChange: scene.onChange,
-          schedule,
-          head,
-          setHead,
-          denorm: wasm.param_denorm,
-          norm: wasm.param_norm,
-        },
-      }),
-    kfBox,
-  );
   createProject(
     document.querySelector<HTMLElement>(".box-playback")!,
     wasm,

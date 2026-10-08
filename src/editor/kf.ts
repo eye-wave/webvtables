@@ -79,3 +79,5 @@ export function createKf(w: WasmExports) {
 }
 
 export type Kf = ReturnType<typeof createKf>;
+// What the rest of the app holds until the first lane exists; load() pulls in the real thing.
+export type LazyKf = Pick<Kf, "lanes" | "apply"> & { load(): Promise<Kf> };

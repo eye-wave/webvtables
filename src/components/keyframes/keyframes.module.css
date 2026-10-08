@@ -1,46 +1,5 @@
-.kf {
-  height: 100%;
-  outline: none;
-  color: var(--text-500);
-  font:
-    12px system-ui,
-    sans-serif;
-  user-select: none;
-}
-
-.kfScroll {
-  position: relative;
-  height: 100%;
-  overflow: auto;
-  background: var(--surface-100);
-}
-
-.kfInner {
-  position: relative;
-  min-width: 100%;
-}
-
-.kfRow {
-  display: flex;
-  border-bottom: 1px solid #2d2d2d;
-}
-
 .kfLane {
   height: var(--h);
-}
-
-.kfLabel {
-  position: sticky;
-  left: 0;
-  z-index: 3;
-  flex: none;
-  width: var(--label);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 6px;
-  background: var(--surface-300);
-  border-right: 1px solid var(--border-100);
 }
 
 .kfLfo {
@@ -109,7 +68,7 @@
   color: var(--accent-200);
 }
 
-.kfLabel {
+:global(.kf-label) {
   flex-wrap: wrap;
   align-content: center;
   gap: 4px 6px;
@@ -208,14 +167,14 @@
   color: var(--text-100);
 }
 
-.kfLabel i {
+:global(.kf-label) i {
   width: 6px;
   height: 14px;
   border-radius: 2px;
   background: var(--c);
 }
 
-.kfLabel input {
+:global(.kf-label) input {
   flex: 1;
   min-width: 0;
   background: none;
@@ -224,62 +183,8 @@
   font: inherit;
 }
 
-.kfLabel input:focus {
+:global(.kf-label) input:focus {
   background: var(--surface-500);
-}
-
-.kfLabel button {
-  background: none;
-  border: 0;
-  cursor: pointer;
-  color: var(--text-300);
-  font: inherit;
-}
-
-.kfLabel button:hover {
-  color: var(--white);
-}
-
-.kfTrack {
-  position: relative;
-  flex: 1;
-  background-image:
-    linear-gradient(90deg, var(--surface-600) 1px, transparent 1px),
-    linear-gradient(90deg, #222 1px, transparent 1px);
-  background-position-x: var(--x0);
-  background-size:
-    calc(var(--z) * 32) 100%,
-    calc(var(--z) * 8) 100%;
-}
-
-.kfRuler {
-  position: sticky;
-  top: 0;
-  z-index: 4;
-  height: 24px;
-  background: var(--surface-300);
-}
-
-.kfRuler .kfTrack {
-  cursor: ew-resize;
-  background: none;
-}
-
-.kfTick {
-  position: absolute;
-  top: 0;
-  height: 100%;
-  padding: 5px 0 0 4px;
-  border-left: 1px solid var(--border-200);
-  color: var(--text-300);
-  pointer-events: none;
-}
-
-.kfTick.end {
-  padding: 5px 4px 0 0;
-  transform: translateX(-100%);
-  border-left: 0;
-  border-right: 1px solid var(--border-200);
 }
 
 .kfLine {
@@ -342,21 +247,6 @@
   visibility: visible;
 }
 
-.kfHead {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 0;
-  z-index: 2;
-  border-left: 1px solid #f66;
-  pointer-events: none;
-}
-
-.kfEmpty {
-  padding: 12px 8px 12px 154px;
-  color: var(--text-100);
-}
-
 .kfMid {
   position: absolute;
   width: 8px;
@@ -387,8 +277,8 @@
   color: var(--c);
 }
 
-.kfFadeLane .kfLabel,
-.kfSpecLane .kfLabel {
+.kfFadeLane :global(.kf-label),
+.kfSpecLane :global(.kf-label) {
   box-shadow: inset 3px 0 var(--c);
   background-image: linear-gradient(
     90deg,
@@ -397,8 +287,8 @@
   );
 }
 
-.kfFadeLane .kfTrack,
-.kfSpecLane .kfTrack {
+.kfFadeLane :global(.kf-track),
+.kfSpecLane :global(.kf-track) {
   background-color: color-mix(in srgb, var(--c) 5%, transparent);
 }
 

@@ -3,7 +3,6 @@ import {
   createSignal,
   For,
   onCleanup,
-  onMount,
   Show,
 } from "solid-js";
 import { Portal } from "solid-js/web";
@@ -19,12 +18,9 @@ import { laneColors } from "../settings/settings";
 import ctxCss from "../ctx/ctx.module.css";
 import knobCss from "../node/knob.module.css";
 import kfCss from "./keyframes.module.css";
+import { FRAMES, H, LABEL, PADX, type Bar } from "./bar";
 
-const FRAMES = 255,
-  LABEL = 148,
-  PADX = 10,
-  H = 72,
-  PADY = 10,
+const PADY = 10,
   RULER = 24,
   INNER = H - 2 * PADY;
 const ICONS = [
@@ -110,6 +106,7 @@ export type NodeInfo = {
   }[];
 };
 export type Host = {
+  bar: Bar;
   nodes(): NodeInfo[];
   onChange(cb: () => void): void;
   schedule(): void;
@@ -123,14 +120,14 @@ export function Keyframes(props: { host: Host }) {
   const host = props.host;
   const [s, set] = createStore<{ lanes: LaneView[] }>({ lanes: host.lanes() });
   const [nodes, setNodes] = createSignal(host.nodes());
-  const [width, setWidth] = createSignal(0);
-  const [mult, setMult] = createSignal(1);
+  const { bar } = host;
+  const [width, setWidth] = createSignal(bar.scroll.clientWidth);
+  const [z, setZ] = createSignal(bar.z());
+  bar.onLayout(() => (setWidth(bar.scroll.clientWidth), setZ(bar.z())));
   const [sel, setSel] = createSignal<[lane: number, key: number]>();
-  const [add, setAdd] = createSignal<{ x: number; y: number }>();
   const [menu, setMenu] = createSignal<{ x: number; y: number }>();
-  const { head, setHead } = host;
-  let scroll!: HTMLDivElement;
-  let root!: HTMLDivElement;
+  const { head } = host;
+  const { scroll, root } = bar;
   let pop: HTMLDivElement | undefined;
 
   const refresh = () => {
@@ -186,26 +183,6 @@ export function Keyframes(props: { host: Host }) {
     });
   });
 
-  createEffect(() => {
-    if (!add()) return;
-    const away = (e: Event) => pop?.contains(e.target as Node) || setAdd();
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setAdd();
-    addEventListener("pointerdown", away, true);
-    addEventListener("keydown", esc, true);
-    onCleanup(() => {
-      removeEventListener("pointerdown", away, true);
-      removeEventListener("keydown", esc, true);
-    });
-  });
-
-  onMount(() => {
-    const ro = new ResizeObserver(() => setWidth(scroll.clientWidth));
-    ro.observe(scroll);
-    onCleanup(() => ro.disconnect());
-  });
-
-  const z = () =>
-    (Math.max(width() - LABEL - 2 * PADX - 1, FRAMES) / FRAMES) * mult();
   const X = (t: number) => PADX + t * z();
   const Y = (v: number) => PADY + (1 - v) * INNER;
   const frameAt = (e: MouseEvent, track: Element) =>
@@ -402,70 +379,16 @@ export function Keyframes(props: { host: Host }) {
     );
   }
 
-  return (
-    <div
-      class={kfCss.kf}
-      ref={root}
-      tabindex="0"
-      onWheel={(e) => {
-        if (!e.ctrlKey) return;
-        e.preventDefault();
-        setMult((m) => clamp(m * (e.deltaY < 0 ? 1.15 : 1 / 1.15), 1, 16));
-      }}
-    >
-      <div
-        class={kfCss.kfScroll}
-        ref={scroll}
-        style={{
-          "--z": `${z()}px`,
-          "--x0": `${PADX}px`,
-          "--label": `${LABEL}px`,
-          "--h": `${H}px`,
-        }}
-      >
-        <div
-          class={kfCss.kfInner}
-          style={{ width: `${LABEL + 2 * PADX + FRAMES * z()}px` }}
-        >
-          <div class={`${kfCss.kfRow} ${kfCss.kfRuler}`}>
-            <div class={kfCss.kfLabel}>
-              <button
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  const r = e.currentTarget.getBoundingClientRect();
-                  setAdd(add() ? undefined : { x: r.left, y: r.bottom + 2 });
-                }}
-              >
-                + New
-              </button>
-            </div>
-            <div
-              class={kfCss.kfTrack}
-              onPointerDown={(e) => {
-                const track = e.currentTarget;
-                drag(e, (m) => setHead(frameAt(m, track)));
-              }}
-            >
-              <For each={[0, 32, 64, 96, 128, 160, 192, 224, 255]}>
-                {(f) => (
-                  <span
-                    class={kfCss.kfTick}
-                    classList={{ [kfCss.end]: f === 255 }}
-                    style={{ left: `${X(f)}px` }}
-                  >
-                    {f}
-                  </span>
-                )}
-              </For>
-            </div>
-          </div>
+  createEffect(() => bar.empty(!s.lanes.length));
 
+  return (
+    <>
           <For each={s.lanes}>
             {(l, i) => {
               const col = () => laneColors(i(), !!l.mode);
               return (
                 <div
-                  class={`${kfCss.kfRow} ${kfCss.kfLane}`}
+                  class={`kf-row ${kfCss.kfLane}`}
                   classList={{
                     [kfCss.kfFadeLane]: l.mode === 1,
                     [kfCss.kfSpecLane]: l.mode === 2,
@@ -476,7 +399,7 @@ export function Keyframes(props: { host: Host }) {
                     "--sc": l.mode ? `url(#kfg${i()})` : undefined,
                   }}
                 >
-                  <div class={kfCss.kfLabel}>
+                  <div class={"kf-label"}>
                     {ICONS[l.mode ?? 0]()}
                     <input
                       value={l.name}
@@ -498,7 +421,7 @@ export function Keyframes(props: { host: Host }) {
                     </button>
                   </div>
                   <div
-                    class={kfCss.kfTrack}
+                    class={"kf-track"}
                     onDblClick={(e) => {
                       if (l.lfo || (e.target as Element).closest(".kf-key"))
                         return;
@@ -721,44 +644,6 @@ export function Keyframes(props: { host: Host }) {
               );
             }}
           </For>
-          <Show when={!s.lanes.length}>
-            <p class={kfCss.kfEmpty}>No lanes - add one</p>
-          </Show>
-
-          <Show when={add()}>
-            {(m) => (
-              <Portal ref={(el) => (el.style.display = "contents")}>
-                <div
-                  class={`${ctxCss.ctx} ${ctxCss.open}`}
-                  ref={pop}
-                  style={{ left: `${m().x}px`, top: `${m().y}px` }}
-                  onContextMenu={(e) => e.preventDefault()}
-                >
-                  {(
-                    [
-                      ["Points lane", false, 0],
-                      ["LFO lane", true, 0],
-                      ["Crossfade lane", false, 1],
-                      ["Spectral lane", false, 2],
-                    ] as const
-                  ).map(([label, lfo, mode], n) => (
-                    <div
-                      class={`${ctxCss.item} ${ctxCss.add}`}
-                      style={{ "--i": n }}
-                      onClick={() => {
-                        setAdd();
-                        host.addLane(lfo, mode);
-                        refresh();
-                      }}
-                    >
-                      {label}
-                    </div>
-                  ))}
-                </div>
-              </Portal>
-            )}
-          </Show>
-
           <Show when={menu()}>
             {(m) => (
               <Portal ref={(el) => (el.style.display = "contents")}>
@@ -783,12 +668,6 @@ export function Keyframes(props: { host: Host }) {
             )}
           </Show>
 
-          <div
-            class={kfCss.kfHead}
-            style={{ left: `${LABEL + X(head())}px` }}
-          />
-        </div>
-      </div>
-    </div>
+    </>
   );
 }

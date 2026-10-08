@@ -1,9 +1,11 @@
 import { nodes as kinds } from "../../generated/nodes";
-import type { Kf } from "../../editor/kf";
+import type { Kf, LazyKf } from "../../editor/kf";
 import type { Scene } from "../../editor/scene";
 import type { WasmExports } from "../../wasm";
 import { decode, pending, savedAt, type Asset } from "../node/data_asset";
-import { dedupe, EXT, EXT_ZIP, format, newIds, pack, parse, unpack, type Project } from "./file";
+import type { Project } from "./file";
+
+const fileLib = () => import("./file");
 import projectCss from "./project.module.css";
 
 const button = (text: string, title: string, onclick: () => void) =>
@@ -23,60 +25,6 @@ const download = (name: string, data: BlobPart, type: string) => {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 };
 
-// interp: 0 none, 1 crossfade, 2 spectral
-export function encodeWav(tables: Float32Array[], interp = 0, rate = 44100) {
-  const len = tables.reduce((n, t) => n + t.length, 0);
-  const sig = "Made with [https://github.com/username/webvtables] ";
-
-  const xferHeaderBlock = [
-    99,
-    108,
-    109,
-    32,
-    42,
-    0,
-    0,
-    0,
-    ...[...`<!>2048 ${interp}0000000 `].map((c) => c.charCodeAt(0)),
-  ];
-
-  const headerSize =
-    12 + 24 + 12 + 8 + (xferHeaderBlock.length - 8) + sig.length + 8;
-  const dataStart =
-    headerSize + (headerSize % 4 !== 0 ? 4 - (headerSize % 4) : 0);
-
-  const buf = new ArrayBuffer(dataStart + len * 4);
-  const v = new DataView(buf);
-
-  let o = 0;
-
-  const str = (s: string) =>
-    [...s].forEach((c) => v.setUint8(o++, c.charCodeAt(0)));
-  const u32 = (n: number) => (v.setUint32(o, n, true), (o += 4));
-  const u16 = (n: number) => (v.setUint16(o, n, true), (o += 2));
-  (str("RIFF"), u32(buf.byteLength - 8), str("WAVE"));
-  (str("fmt "),
-    u32(16),
-    u16(3),
-    u16(1),
-    u32(rate),
-    u32(rate * 4),
-    u16(4),
-    u16(32));
-
-  (str("clm "),
-    u32(xferHeaderBlock.length - 8 + sig.length),
-    xferHeaderBlock.slice(8).forEach((b) => v.setUint8(o++, b)),
-    str(sig));
-
-  (str("data"), u32(len * 4));
-  o = dataStart;
-  const out = new Float32Array(buf, o, len);
-  let k = 0;
-  for (const t of tables) out.set(t, (k += t.length) - t.length);
-  return buf;
-}
-
 declare const fileDialog: HTMLDialogElement;
 declare const fileClose: HTMLButtonElement;
 declare const fileName: HTMLInputElement;
@@ -95,7 +43,7 @@ export function createProject(
   root: HTMLElement,
   wasm: WasmExports,
   scene: Scene,
-  kf: Kf,
+  kf: LazyKf,
   head: () => number,
   loaded: () => void,
 ) {
@@ -128,7 +76,7 @@ export function createProject(
   const FLAGS_AT = 17; // byte offset of Node.flags (see scene.ts)
 
   // Live state -> model. Node ids exist only in the file, so they are made up here.
-  const snapshot = (): Project => {
+  const snapshot = ({ newIds }: typeof import("./file")): Project => {
     const n = wasm.nodes_len();
     const ids = newIds(n);
     const aids = newIds(n, 20); // spare ids; only nodes holding data use one
@@ -183,7 +131,7 @@ export function createProject(
 
   // Model -> fresh wasm state, replayed through the normal editing calls.
   // Unknown node kinds are dropped along with their links and lane targets.
-  const apply = (p: Project, decoded: Map<string, Asset>) => {
+  const apply = (p: Project, decoded: Map<string, Asset>, real?: Kf) => {
     wasm.project_new();
     pending.clear();
     const at = new Map<string, number>();
@@ -203,27 +151,33 @@ export function createProject(
       // the Data node view renders it into frames when it mounts (scene.load below);
       // assets can be shared, but each node keeps its own file name
       const d = n.asset ? decoded.get(n.asset) : undefined;
-      if (d) pending.set(i, { asset: { ...d, name: n.spec?.Nam ?? d.name }, spec: n.spec ?? {} });
+      if (d)
+        pending.set(i, {
+          asset: { ...d, name: n.spec?.Nam ?? d.name },
+          spec: n.spec ?? {},
+        });
     }
     for (const [a, sa, b, sb] of p.links)
       if (at.has(a) && at.has(b)) wasm.add_link(at.get(a)!, sa, at.get(b)!, sb);
     for (const l of p.lanes) {
-      const lane = kf.addLane(
+      const lane = real!.addLane(
         l.type === "L",
         { P: 0, C: 1, S: 2, L: 0 }[l.type],
       );
       if (lane < 0) break;
-      kf.rename(lane, l.name);
-      l.lfo.forEach((v, j) => kf.setLfo(lane, j, v));
+      real!.rename(lane, l.name);
+      l.lfo.forEach((v, j) => real!.setLfo(lane, j, v));
       if (l.type !== "L") {
-        l.keys.forEach((k) => kf.addKey(lane, Math.min(k.t, 255), k.v));
+        l.keys.forEach((key) =>
+          real!.addKey(lane, Math.min(key.t, 255), key.v),
+        );
         // keys end up sorted by frame, so look each one up by it
         const live = l.keys.some((k) => k.c !== undefined)
-          ? kf.lanes()[lane].keys
+          ? real!.lanes()[lane].keys
           : [];
         for (const k of l.keys)
           if (k.c !== undefined)
-            kf.setCurve(
+            real!.setCurve(
               lane,
               live.findIndex((x) => x.t === Math.min(k.t, 255)),
               k.c,
@@ -231,7 +185,7 @@ export function createProject(
       }
       for (const t of l.targets)
         if (at.has(t.id))
-          kf.link(lane, wasm.get_node(at.get(t.id)!), t.j, true);
+          real!.link(lane, wasm.get_node(at.get(t.id)!), t.j, true);
     }
   };
 
@@ -240,10 +194,13 @@ export function createProject(
     fileName.value.replace(/[\\/:*?"<>|]+/g, "").trim() || "project";
 
   fileSave.onclick = async () => {
-    const p = snapshot();
+    const lib = await fileLib();
+    const { dedupe, EXT, EXT_ZIP, format, pack } = lib;
+    const p = snapshot(lib);
     // identical Data nodes share one asset; without crypto.subtle (insecure page) they just aren't merged
     await dedupe(p).catch(() => {});
-    if (p.assets.length) download(`${base()}${EXT_ZIP}`, pack(p), "application/zip");
+    if (p.assets.length)
+      download(`${base()}${EXT_ZIP}`, pack(p), "application/zip");
     else download(`${base()}${EXT}`, format(p), "text/plain");
     fileDialog.close();
   };
@@ -260,7 +217,7 @@ export function createProject(
   fileQuality.onchange = fileInterp.onchange = syncExport;
   syncExport();
 
-  fileExport.onclick = (e) => {
+  fileExport.onclick = async (e) => {
     e.preventDefault();
     const div = +fileQuality.value,
       count = FRAMES / div;
@@ -272,6 +229,7 @@ export function createProject(
     });
     kf.apply(head());
     const interp = div === 1 ? 0 : +fileInterp.value;
+    const { encodeWav } = await import("./wav");
     download(`${base()}.wav`, encodeWav(tables, interp), "audio/wav");
     fileDialog.close();
   };
@@ -280,9 +238,13 @@ export function createProject(
     if (!file) return;
     let p: Project;
     try {
+      const { parse, unpack } = await fileLib();
       const buf = new Uint8Array(await file.arrayBuffer());
       // zips start with "PK"
-      p = buf[0] === 0x50 && buf[1] === 0x4b ? unpack(buf) : parse(new TextDecoder().decode(buf));
+      p =
+        buf[0] === 0x50 && buf[1] === 0x4b
+          ? unpack(buf)
+          : parse(new TextDecoder().decode(buf));
     } catch (e) {
       fileMsg.textContent = `Not a valid project file (${(e as Error).message}).`;
       return;
@@ -292,13 +254,16 @@ export function createProject(
     try {
       for (const a of p.assets) {
         const n = p.nodes.find((x) => x.asset === a.id)!;
-        decoded.set(a.id, await decode(n.spec?.Typ, a.data, n.spec?.Nam ?? a.id));
+        decoded.set(
+          a.id,
+          await decode(n.spec?.Typ, a.data, n.spec?.Nam ?? a.id),
+        );
       }
     } catch (e) {
       fileMsg.textContent = `Could not decode an asset (${(e as Error).message}).`;
       return;
     }
-    apply(p, decoded);
+    apply(p, decoded, p.lanes.length ? await kf.load() : undefined);
     fileName.value = file.name.replace(/\.(wtp|wtx)$/i, "");
     scene.load();
     pending.clear();
