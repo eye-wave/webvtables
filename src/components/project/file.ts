@@ -61,7 +61,14 @@ const hex = (b: ArrayBuffer) =>
 // Needs a secure context (crypto.subtle); throws before changing anything otherwise.
 export async function dedupe(p: Project) {
   const sums = await Promise.all(
-    p.assets.map(async (a) => hex(await crypto.subtle.digest("SHA-256", a.data as Uint8Array<ArrayBuffer>))),
+    p.assets.map(async (a) =>
+      hex(
+        await crypto.subtle.digest(
+          "SHA-256",
+          a.data as Uint8Array<ArrayBuffer>,
+        ),
+      ),
+    ),
   );
   const first = new Map<string, string>();
   const alias = new Map<string, string>();
@@ -76,8 +83,7 @@ export async function dedupe(p: Project) {
 
 export function pack(p: Project) {
   const files: Zippable = { [MAIN]: strToU8(format(p)) };
-  for (const a of p.assets)
-    files[DIR + a.id] = [a.data, { level: 0 }]; // already compressed audio/images: just store
+  for (const a of p.assets) files[DIR + a.id] = [a.data, { level: 0 }]; // already compressed audio/images: just store
   return zipSync(files) as Uint8Array<ArrayBuffer>; // fflate allocates plain ArrayBuffers
 }
 
@@ -109,7 +115,14 @@ export function format(p: Project): string {
             `[    { ${n.asset} }    ]`,
             ...Object.entries(n.spec ?? {})
               .filter(([k]) => /^[A-Za-z]{3}$/.test(k))
-              .map(([k, v]) => `[ ${k}: ${v.replace(/[\r\n]+/g, " ").padEnd(12)} ]`),
+              .map(([k, v]) => {
+                // a value that fits the box goes inside it; a longer one leaves a `*` and
+                // trails the box, so the rows stay 21 wide
+                v = v.replace(/[\r\n]+/g, " ").trim();
+                return v.length <= 12
+                  ? `[ ${k}: ${v.padEnd(12)} ]`
+                  : `[ ${(k + "*").padEnd(18)}] &( ${v} )`;
+              }),
           ]
         : []),
       c("", 0),
@@ -167,6 +180,7 @@ const NUM = "(-?\\d+(?:\\.\\d+)?(?:e[-+]?\\d+)?)";
 const RE = {
   ref: /^\[\s*\{\s*(0x[0-9a-f]{5})\s*\}\s*\]$/i,
   spec: /^\[\s*([A-Za-z]{3}):\s*(.*?)\s*\]$/,
+  big: /^\[\s*([A-Za-z]{3})\*\s*\]\s*&\(\s*(.*?)\s*\)$/,
   link: /^(0x[0-9a-f]+):(\d+)\s*->\s*(0x[0-9a-f]+):(\d+)$/i,
   title: /^=\s(.*?)\s*([PLCS])\s=$/,
   target: /^=\s*(0x[0-9a-f]+)\[(\d+)\]\s*=$/i,
@@ -179,7 +193,10 @@ const RE = {
 };
 
 // `load` supplies asset data (from a .wtx); without it any Data node reference is an error.
-export function parse(text: string, load?: (id: string) => Uint8Array | undefined): Project {
+export function parse(
+  text: string,
+  load?: (id: string) => Uint8Array | undefined,
+): Project {
   const p: Project = { nodes: [], links: [], lanes: [], assets: [] };
   let n: Node | undefined,
     id = false;
@@ -221,7 +238,7 @@ export function parse(text: string, load?: (id: string) => Uint8Array | undefine
       if ((m = RE.ref.exec(s))) {
         if (n.asset) return bad();
         n.asset = m[1].toLowerCase();
-      } else if ((m = RE.spec.exec(s))) {
+      } else if ((m = RE.spec.exec(s) ?? RE.big.exec(s))) {
         // keys are unique per node; values are interpreted by the Data node itself
         if (!n.asset || m[1] in (n.spec ??= {})) return bad();
         n.spec[m[1]] = m[2];
@@ -259,7 +276,9 @@ export function parse(text: string, load?: (id: string) => Uint8Array | undefine
     const data = load?.(id);
     if (!data) {
       const x = p.nodes.find((x) => x.asset === id)!;
-      throw new Error(`node ${x.id} uses a missing asset${load ? "" : ` (needs a ${EXT_ZIP} file)`}`);
+      throw new Error(
+        `node ${x.id} uses a missing asset${load ? "" : ` (needs a ${EXT_ZIP} file)`}`,
+      );
     }
     p.assets.push({ id, data });
   }
