@@ -12,7 +12,7 @@ export type NodeUi = {
 };
 
 export const ui: Partial<Record<(typeof nodes)[number]["name"], NodeUi>> = {
-  Data: { size: [320, 340], view: DataView },
+  Data: { size: [320, 360], view: DataView },
 
   "Basic shapes": {
     size: [200, 184],
