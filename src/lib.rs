@@ -111,6 +111,11 @@ pub extern "C" fn data_alloc(idx: u16, frames: u16) -> i32 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn data_free(idx: u16) {
+    state().data_free(idx as usize)
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn data_frames(idx: u16) -> u32 {
     state().data_frames(idx as usize) as u32
 }

@@ -66,6 +66,13 @@ impl State {
 
     /// (Re)allocates zeroed storage for `frames` frames on Data node `idx` and returns the
     /// address JS should fill. None: not a Data node, bad frame count, or out of memory.
+    /// Drops a Data node's buffer entirely (the node goes back to having none).
+    pub fn data_free(&mut self, idx: usize) {
+        if let Some(&off) = self.nodes.get(idx) {
+            self.data.retain(|d| d.0 != off);
+        }
+    }
+
     pub fn data_alloc(&mut self, idx: usize, frames: usize) -> Option<usize> {
         let off = *self.nodes.get(idx)?;
         if self.kind(idx)? != NodeKind::Data || !(1..=256).contains(&frames) {

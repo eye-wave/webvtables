@@ -100,6 +100,47 @@ export function createInput(
     grid.style.cursor = "";
   };
 
+  // Pinch: touches are tracked in the capture phase, so fingers landing on node widgets (which
+  // stop pointerdown for themselves) still count. The second finger cancels whatever the first
+  // started and takes over; no other handler sees it.
+  type Touch = { pt: Pt; target: Element };
+  const touches = new Map<number, Touch>();
+  let pinch: { ids: [number, number]; s: [number, number, number]; a: Pt; b: Pt } | null = null;
+  const cancelDrag = () => {
+    if (drag) ropes.drop(PENDING);
+    drag = null;
+    lit = [];
+    unlock();
+  };
+  const pair = (): [Pt, Pt] | null => {
+    const p = pinch && touches.get(pinch.ids[0]),
+      q = pinch && touches.get(pinch.ids[1]);
+    return p && q ? [p.pt, q.pt] : null;
+  };
+  grid.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (e.pointerType !== "touch") return;
+      touches.set(e.pointerId, { pt: [e.clientX, e.clientY], target: e.target as Element });
+      if (touches.size < 2) return;
+      e.stopPropagation();
+      if (pinch) return;
+      const [[i, p], [j, q]] = [...touches];
+      cancelDrag();
+      for (const [id, t] of touches) // free the fingers from any widget that captured them
+        try {
+          t.target.releasePointerCapture(id);
+        } catch {}
+      pinch = { ids: [i, j], s: [...view.v], a: p.pt, b: q.pt };
+    },
+    true,
+  );
+  const lift = (e: PointerEvent) => {
+    touches.delete(e.pointerId);
+    if (pinch?.ids.includes(e.pointerId)) pinch = null;
+  };
+  addEventListener("pointercancel", lift);
+
   grid.addEventListener("pointerdown", (e) => {
     if (e.button) return;
     const t = e.target as HTMLElement;
@@ -125,6 +166,13 @@ export function createInput(
   });
 
   addEventListener("pointermove", (e) => {
+    const tp = touches.get(e.pointerId);
+    if (tp) tp.pt = [e.clientX, e.clientY];
+    if (pinch) {
+      const now = pair();
+      if (now) view.pinch(pinch.s, pinch.a, pinch.b, ...now);
+      return schedule();
+    }
     if (drag) return (drag.move(e), schedule());
 
     const t = e.target as HTMLElement;
@@ -137,6 +185,7 @@ export function createInput(
     grid.style.cursor = id < 0 ? "" : "pointer";
   });
   addEventListener("pointerup", (e) => {
+    lift(e);
     if (!drag) return;
     drag.up?.(e);
     drag = null;

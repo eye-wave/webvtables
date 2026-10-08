@@ -61,7 +61,7 @@
     <div class="resize-handle" id="kfHandle"></div>
     <div class="box box-keyframes"></div>
 
-    <input id="fileInput" type="file" accept=".wtp" hidden />
+    <input id="fileInput" type="file" accept=".wtp,.wtx" hidden />
 
     <dialog id="fileDialog" style="display: none">
       <div class="file-body">
@@ -82,7 +82,7 @@
         <div class="file-row">
           <div>
             <b>Save project</b
-            ><small>.wtp · graph, params &amp; keyframes</small>
+            ><small>.wtp · graph, params &amp; keyframes (.wtx with Data nodes)</small>
           </div>
           <button id="fileSave" type="button">Save</button>
         </div>
@@ -110,7 +110,7 @@
           <button id="fileExport" type="submit">Export</button>
         </form>
         <div id="fileDrop">
-          Drop a <b>.wtp</b> project here or
+          Drop a <b>.wtp</b> / <b>.wtx</b> project here or
           <button id="fileBrowse" type="button">browse…</button>
         </div>
         <p id="fileMsg" role="status"></p>

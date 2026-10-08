@@ -2,8 +2,8 @@ import { nodes as kinds } from "../../generated/nodes";
 import type { Kf } from "../../editor/kf";
 import type { Scene } from "../../editor/scene";
 import type { WasmExports } from "../../wasm";
-import { FRAME } from "../../wasm/wav";
-import { format, newIds, parse, type Project } from "./file";
+import { decode, pending, savedAt, type Asset } from "../node/data_asset";
+import { dedupe, EXT, EXT_ZIP, format, newIds, pack, parse, unpack, type Project } from "./file";
 import projectCss from "./project.module.css";
 
 const button = (text: string, title: string, onclick: () => void) =>
@@ -147,15 +147,8 @@ export function createProject(
       const flags = new Uint8Array(wasm.memory.buffer)[
         wasm.get_node(i) + FLAGS_AT
       ];
-      const frames = wasm.data_frames(i);
-      if (frames)
-        p.assets.push({
-          id: aids[i],
-          data: f32().slice(
-            wasm.data_ptr(i) >> 2,
-            (wasm.data_ptr(i) >> 2) + frames * FRAME,
-          ),
-        });
+      const d = savedAt(i); // the original import and its settings, not the rendered frames
+      if (d) p.assets.push({ id: aids[i], data: d.bytes });
       p.nodes.push({
         id: ids[i],
         kind: kinds[wasm.node_kind(i)].id,
@@ -163,7 +156,8 @@ export function createProject(
         x,
         y,
         flags,
-        asset: frames ? aids[i] : undefined,
+        asset: d ? aids[i] : undefined,
+        spec: d?.spec,
       });
     }
     const u8 = new Uint8Array(wasm.memory.buffer),
@@ -189,10 +183,10 @@ export function createProject(
 
   // Model -> fresh wasm state, replayed through the normal editing calls.
   // Unknown node kinds are dropped along with their links and lane targets.
-  const apply = (p: Project) => {
+  const apply = (p: Project, decoded: Map<string, Asset>) => {
     wasm.project_new();
+    pending.clear();
     const at = new Map<string, number>();
-    const frames = new Map(p.assets.map((a) => [a.id, a.data]));
     for (const n of p.nodes) {
       const kind = kinds.findIndex((k) => k.id === n.kind);
       // size is derived, scene.load() fills it in
@@ -206,10 +200,10 @@ export function createProject(
         const a = wasm.get_param(i, j);
         if (a >= 0) f32()[a >> 2] = Math.min(Math.max(v, 0), 1);
       });
-      const d = n.asset ? frames.get(n.asset) : undefined;
-      const ptr = d ? wasm.data_alloc(i, d.length / FRAME) : -1;
-      if (d && ptr >= 0)
-        new Float32Array(wasm.memory.buffer, ptr, d.length).set(d);
+      // the Data node view renders it into frames when it mounts (scene.load below);
+      // assets can be shared, but each node keeps its own file name
+      const d = n.asset ? decoded.get(n.asset) : undefined;
+      if (d) pending.set(i, { asset: { ...d, name: n.spec?.Nam ?? d.name }, spec: n.spec ?? {} });
     }
     for (const [a, sa, b, sb] of p.links)
       if (at.has(a) && at.has(b)) wasm.add_link(at.get(a)!, sa, at.get(b)!, sb);
@@ -245,8 +239,12 @@ export function createProject(
   const base = () =>
     fileName.value.replace(/[\\/:*?"<>|]+/g, "").trim() || "project";
 
-  fileSave.onclick = () => {
-    download(`${base()}.wtp`, format(snapshot()), "text/plain");
+  fileSave.onclick = async () => {
+    const p = snapshot();
+    // identical Data nodes share one asset; without crypto.subtle (insecure page) they just aren't merged
+    await dedupe(p).catch(() => {});
+    if (p.assets.length) download(`${base()}${EXT_ZIP}`, pack(p), "application/zip");
+    else download(`${base()}${EXT}`, format(p), "text/plain");
     fileDialog.close();
   };
 
@@ -282,14 +280,28 @@ export function createProject(
     if (!file) return;
     let p: Project;
     try {
-      p = parse(await file.text());
+      const buf = new Uint8Array(await file.arrayBuffer());
+      // zips start with "PK"
+      p = buf[0] === 0x50 && buf[1] === 0x4b ? unpack(buf) : parse(new TextDecoder().decode(buf));
     } catch (e) {
       fileMsg.textContent = `Not a valid project file (${(e as Error).message}).`;
       return;
     }
-    apply(p);
-    fileName.value = file.name.replace(/\.wtp$/i, "");
+    // original files go back through the browser's own decoders; fails before touching the open project
+    const decoded = new Map<string, Asset>();
+    try {
+      for (const a of p.assets) {
+        const n = p.nodes.find((x) => x.asset === a.id)!;
+        decoded.set(a.id, await decode(n.spec?.Typ, a.data, n.spec?.Nam ?? a.id));
+      }
+    } catch (e) {
+      fileMsg.textContent = `Could not decode an asset (${(e as Error).message}).`;
+      return;
+    }
+    apply(p, decoded);
+    fileName.value = file.name.replace(/\.(wtp|wtx)$/i, "");
     scene.load();
+    pending.clear();
     loaded();
     fileDialog.close();
   };

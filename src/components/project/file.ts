@@ -1,4 +1,4 @@
-import { FRAME, MAX_FRAMES } from "../../wasm/wav";
+import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from "fflate";
 
 export type Node = {
   id: string;
@@ -7,7 +7,8 @@ export type Node = {
   x: number;
   y: number;
   flags: number;
-  asset?: string; // Data nodes: id of the frames stored in `assets`
+  asset?: string; // Data nodes: id of the original file in `assets`
+  spec?: Record<string, string>; // Data nodes: settings, `[ Key: value ]` lines (3-letter keys)
 };
 export const FLAGS = ["norm", "remdc", "clip"];
 export type Lane = {
@@ -21,7 +22,7 @@ export type Project = {
   nodes: Node[];
   links: [string, number, string, number][];
   lanes: Lane[];
-  assets: { id: string; data: Float32Array }[];
+  assets: { id: string; data: Uint8Array }[]; // original files, not rendered frames
 };
 
 export const LFO_NAMES = ["SHP", "PHS", "AMP", "FRQ", "SKW", "DCF"];
@@ -47,21 +48,52 @@ export function newIds(n: number, bits = 44) {
   return Array.from({ length: n }, () => randId(used, bits));
 }
 
-// Frames <-> base64: UTF-8-safe and avoids parser prefixes.
-// Host-endian floats; browsers are little-endian.
-const b64 = (a: Float32Array) => {
-  const u = new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
-  let s = "";
-  for (let i = 0; i < u.length; i += 0x8000)
-    s += String.fromCharCode(...u.subarray(i, i + 0x8000));
-  return btoa(s);
-};
-const unb64 = (s: string) => {
-  const t = atob(s); // throws on bad input
-  const u = new Uint8Array(t.length);
-  for (let i = 0; i < t.length; i++) u[i] = t.charCodeAt(i);
-  return new Float32Array(u.buffer); // throws unless a whole number of floats
-};
+// Assets are the original imported files, stored as they came, one per hex id in a .wtx.
+export const EXT = ".wtp"; // text: graph, params, keyframes
+export const EXT_ZIP = ".wtx"; // zip: project.wtp + assets/<id> for projects with Data nodes
+const MAIN = `project${EXT}`,
+  DIR = "assets/";
+
+const hex = (b: ArrayBuffer) =>
+  [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+
+// Merges assets with identical bytes (by SHA-256), pointing every node at the one kept.
+// Needs a secure context (crypto.subtle); throws before changing anything otherwise.
+export async function dedupe(p: Project) {
+  const sums = await Promise.all(
+    p.assets.map(async (a) => hex(await crypto.subtle.digest("SHA-256", a.data as Uint8Array<ArrayBuffer>))),
+  );
+  const first = new Map<string, string>();
+  const alias = new Map<string, string>();
+  p.assets = p.assets.filter((a, i) => {
+    const id = first.get(sums[i]);
+    if (id) alias.set(a.id, id);
+    else first.set(sums[i], a.id);
+    return !id;
+  });
+  for (const n of p.nodes) if (n.asset) n.asset = alias.get(n.asset) ?? n.asset;
+}
+
+export function pack(p: Project) {
+  const files: Zippable = { [MAIN]: strToU8(format(p)) };
+  for (const a of p.assets)
+    files[DIR + a.id] = [a.data, { level: 0 }]; // already compressed audio/images: just store
+  return zipSync(files) as Uint8Array<ArrayBuffer>; // fflate allocates plain ArrayBuffers
+}
+
+export function unpack(zip: Uint8Array): Project {
+  let files: ReturnType<typeof unzipSync>;
+  try {
+    files = unzipSync(zip);
+  } catch {
+    throw new Error("not a zip file");
+  }
+  if (!files[MAIN]) throw new Error(`no ${MAIN} inside`);
+  return parse(strFromU8(files[MAIN]), (id) => {
+    const u = files[DIR + id];
+    return u?.length ? u : undefined;
+  });
+}
 
 export function format(p: Project): string {
   const node = (n: Node) => {
@@ -72,7 +104,14 @@ export function format(p: Project): string {
       "_".repeat(21),
       c(n.id, 3),
       c(n.kind.padEnd(8), 5),
-      ...(n.asset ? [`[    { ${n.asset} }    ]`] : []),
+      ...(n.asset
+        ? [
+            `[    { ${n.asset} }    ]`,
+            ...Object.entries(n.spec ?? {})
+              .filter(([k]) => /^[A-Za-z]{3}$/.test(k))
+              .map(([k, v]) => `[ ${k}: ${v.replace(/[\r\n]+/g, " ").padEnd(12)} ]`),
+          ]
+        : []),
       c("", 0),
       c(
         FLAGS.map((f, i) => ((n.flags >> i) & 1 ? f.toUpperCase() : f)).join(
@@ -118,12 +157,6 @@ export function format(p: Project): string {
           .join("\n"),
       ]),
       ...p.lanes.map(lane),
-      ...p.assets.map(
-        (a) =>
-          `${a.id}:DATA\n${b64(a.data)
-            .match(/.{1,76}/g)!
-            .join("\n")}`,
-      ),
     ]
       .filter(Boolean)
       .join("\n\n") + "\n"
@@ -132,8 +165,8 @@ export function format(p: Project): string {
 
 const NUM = "(-?\\d+(?:\\.\\d+)?(?:e[-+]?\\d+)?)";
 const RE = {
-  asset: /^(0x[0-9a-f]{5}):DATA$/i,
   ref: /^\[\s*\{\s*(0x[0-9a-f]{5})\s*\}\s*\]$/i,
+  spec: /^\[\s*([A-Za-z]{3}):\s*(.*?)\s*\]$/,
   link: /^(0x[0-9a-f]+):(\d+)\s*->\s*(0x[0-9a-f]+):(\d+)$/i,
   title: /^=\s(.*?)\s*([PLCS])\s=$/,
   target: /^=\s*(0x[0-9a-f]+)\[(\d+)\]\s*=$/i,
@@ -145,23 +178,18 @@ const RE = {
   num: new RegExp(`^${NUM}$`, "i"),
 };
 
-export function parse(text: string): Project {
+// `load` supplies asset data (from a .wtx); without it any Data node reference is an error.
+export function parse(text: string, load?: (id: string) => Uint8Array | undefined): Project {
   const p: Project = { nodes: [], links: [], lanes: [], assets: [] };
   let n: Node | undefined,
     id = false;
   let l: Lane | undefined;
-  const blobs: { id: string; b64: string }[] = [];
-  let a: (typeof blobs)[number] | undefined;
   text.split(/\r?\n/).forEach((raw, i) => {
     const s = raw.trim();
     const bad = () => {
       throw new Error(`line ${i + 1}: ${raw.slice(0, 40)}`);
     };
     let m: RegExpMatchArray | null;
-    if (a) {
-      if (s) return void (a.b64 += s);
-      a = undefined; // a blank line ends the asset
-    }
     if (!s) return;
     if (s[0] === "_") {
       p.nodes.push(
@@ -188,16 +216,16 @@ export function parse(text: string): Project {
           if (w === w.toUpperCase())
             n.flags |= 1 << FLAGS.indexOf(w.toLowerCase());
       } else bad();
-    } else if ((m = RE.asset.exec(s))) {
-      n = undefined;
-      l = undefined;
-      const aid = m[1].toLowerCase();
-      if (blobs.some((b) => b.id === aid)) return bad();
-      blobs.push((a = { id: aid, b64: "" }));
     } else if (s[0] === "[") {
-      const r = RE.ref.exec(s);
-      if (!r || !n?.kind || n.asset) return bad();
-      n.asset = r[1].toLowerCase();
+      if (!n?.kind) return bad();
+      if ((m = RE.ref.exec(s))) {
+        if (n.asset) return bad();
+        n.asset = m[1].toLowerCase();
+      } else if ((m = RE.spec.exec(s))) {
+        // keys are unique per node; values are interpreted by the Data node itself
+        if (!n.asset || m[1] in (n.spec ??= {})) return bad();
+        n.spec[m[1]] = m[2];
+      } else bad();
     } else if ((m = RE.link.exec(s))) {
       n = undefined;
       p.links.push([m[1].toLowerCase(), +m[2], m[3].toLowerCase(), +m[4]]);
@@ -227,22 +255,14 @@ export function parse(text: string): Project {
       l.lfo[j] = +m[2];
     } else bad();
   });
-  for (const b of blobs) {
-    let data: Float32Array | undefined;
-    try {
-      data = unb64(b.b64);
-    } catch {}
-    const frames = (data?.length ?? 0) / FRAME;
-    if (!data || !Number.isInteger(frames) || frames < 1 || frames > MAX_FRAMES)
-      throw new Error(
-        `asset ${b.id}: need 1-${MAX_FRAMES} whole frames of data`,
-      );
-    p.assets.push({ id: b.id, data });
+  for (const id of new Set(p.nodes.flatMap((x) => x.asset ?? []))) {
+    const data = load?.(id);
+    if (!data) {
+      const x = p.nodes.find((x) => x.asset === id)!;
+      throw new Error(`node ${x.id} uses a missing asset${load ? "" : ` (needs a ${EXT_ZIP} file)`}`);
+    }
+    p.assets.push({ id, data });
   }
-  const orphan = p.nodes.find(
-    (x) => x.asset && !p.assets.some((a) => a.id === x.asset),
-  );
-  if (orphan) throw new Error(`node ${orphan.id} uses a missing asset`);
   if (p.nodes.some((x) => !x.id || !x.kind))
     throw new Error("node box without id or kind");
   return p;
