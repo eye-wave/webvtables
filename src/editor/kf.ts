@@ -1,3 +1,4 @@
+import type { bool } from "../generated/exports";
 import type { WasmExports } from "../wasm";
 
 export type LaneView = {
@@ -37,7 +38,8 @@ export function createKf(w: WasmExports) {
         if (kind > 1) v.mode = kind - 1;
         if (kind === 1) v.lfo = [...d.subarray(i, (i += count))];
         else
-          for (let k = 0; k < count; k++) v.keys.push({ t: d[i++], v: d[i++], c: d[i++] });
+          for (let k = 0; k < count; k++)
+            v.keys.push({ t: d[i++], v: d[i++], c: d[i++] });
         const t = w.lane_targets(l);
         v.addrs = [
           ...new Uint32Array(w.memory.buffer, w.lane_targets_ptr(), t),
@@ -49,14 +51,14 @@ export function createKf(w: WasmExports) {
     },
 
     addLane(lfo: boolean, mode = 0) {
-      const l = w.lane_add(lfo);
+      const l = w.lane_add(+lfo as bool);
       if (l >= 0 && mode) w.lane_mode(l, mode);
       return l;
     },
     removeLane: (l: number) => w.lane_remove(l),
 
     link: (l: number, nodeAddr: number, param: number, on: boolean) =>
-      w.lane_link(l, nodeAddr, param, on),
+      w.lane_link(l, nodeAddr, param, +on as bool),
     addKey: (l: number, t: number, v: number) => w.key_add(l, t, v),
     setKey: (l: number, k: number, t: number, v: number) =>
       w.key_set(l, k, t, v),
