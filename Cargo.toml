@@ -1,5 +1,5 @@
 
-cargo-features = ["profile-rustflags", "trim-paths", "panic-immediate-abort"]
+cargo-features = ["profile-rustflags", "panic-immediate-abort"]
 
 [package]
 name = "webvtlabes"
