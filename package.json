@@ -11,6 +11,7 @@
   },
   "devDependencies": {
     "@types/audioworklet": "^0.0.100",
+    "@zhoumutou/vite-plugin-inline": "^0.5.2",
     "typescript": "~7.0.2",
     "vite": "^8.3.3",
     "vite-plugin-glsl": "^1.6.2",
