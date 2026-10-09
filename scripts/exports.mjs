@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 const SOURCE = "src/lib.rs";
 const OUTPUT = "src/generated/exports.d.ts";
@@ -145,6 +146,9 @@ export const EXPORT_NAMES: readonly [
 ];
 `;
 
+  try {
+    mkdirSync(resolve(import.meta.dirname, "../src/generated"));
+  } catch {}
   writeFileSync(OUTPUT, output);
   console.log(`Generated ${exports.length} exports`);
 }
