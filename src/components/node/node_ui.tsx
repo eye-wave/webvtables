@@ -1,6 +1,7 @@
 import { type Component } from "solid-js";
 import type { nodes } from "../../generated/nodes";
 import { DataView } from "./data_ui";
+import { MathView } from "./math_ui";
 import { Flags, Head, Knob, Scope } from "./node";
 import knobCss from "./knob.module.css";
 import nodeUiCss from "./node_ui.module.css";
@@ -13,6 +14,8 @@ export type NodeUi = {
 
 export const ui: Partial<Record<(typeof nodes)[number]["name"], NodeUi>> = {
   Data: { size: [320, 360], view: DataView },
+
+  Math: { size: [300, 360], view: MathView },
 
   "Basic shapes": {
     size: [200, 184],

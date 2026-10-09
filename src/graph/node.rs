@@ -98,6 +98,7 @@ define_nodes!(
     Intersect = "spinter",
     Invert = "invert",
     Lpc = "lpc",
+    Math = "math",
     Mirror = "mirror",
     Morph = "spmorph",
     Noise = "noise",

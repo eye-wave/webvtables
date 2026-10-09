@@ -35,6 +35,8 @@ wasm_imports! {
     fn log_f64(val: f64);
     fn log_flush();
 
+    fn math_eval(node: u32, x: f32, a: f32, b: f32, c: f32, d: f32, p: f32, q: f32, r: f32) -> f32;
+
     fn log(x: f64) -> f64;
     fn exp(x: f64) -> f64;
     fn sin(x: f64) -> f64;
@@ -77,4 +79,20 @@ pub fn floor(x: f64) -> f64 {
     {
         x.floor()
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[unsafe(export_name = "math_eval")]
+extern "C" fn math_eval_host(
+    _: u32,
+    x: f32,
+    _: f32,
+    _: f32,
+    _: f32,
+    _: f32,
+    _: f32,
+    _: f32,
+    _: f32,
+) -> f32 {
+    x
 }

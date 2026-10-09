@@ -1,5 +1,6 @@
 import wasmUrl from "~wasm/webvtlabes.wasm?url";
 import type { WasmFns } from "../generated/exports";
+import { mathEval } from "../components/node/math";
 import { math_ffi } from "./math";
 
 export type WasmExports = WasmFns & {
@@ -13,6 +14,7 @@ export async function loadWasm(): Promise<WasmExports> {
   const wasmObject = await WebAssembly.instantiateStreaming(fetch(wasmUrl), {
     env: {
       ...math_ffi,
+      math_eval: mathEval,
 
       log_str(ptr: number, len: number) {
         logBuffer += readStr(ptr, len);
