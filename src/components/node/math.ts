@@ -64,6 +64,20 @@ export const loadMath = () =>
       step(0.05, import("mathquill/build/mathquill.css")),
       step(0.85, import("@cortex-js/compute-engine")),
     ]);
+
+    // suppress firefox font warnings
+    for (const sheet of document.styleSheets)
+      try {
+        for (let i = sheet.cssRules.length; i--;) {
+          const rule = sheet.cssRules[i];
+          if (
+            rule instanceof CSSFontFaceRule &&
+            rule.style.fontFamily.includes("Symbola")
+          )
+            sheet.deleteRule(i);
+        }
+      } catch {}
+
     return { mq: (window as any).MathQuill.getInterface(2) as MQ, compile };
   })());
 
