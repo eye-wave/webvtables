@@ -3,6 +3,7 @@ import type { Kf, LazyKf } from "../../editor/kf";
 import type { Scene } from "../../editor/scene";
 import type { WasmExports } from "../../wasm";
 import { decode, pending, savedAt, type Asset } from "../node/data_asset";
+import { texBoot, texOf } from "../node/math";
 import type { Project } from "./file";
 
 const fileLib = () => import("./file");
@@ -81,7 +82,13 @@ export function createProject(
     const ids = newIds(n);
     const aids = newIds(n, 20); // spare ids; only nodes holding data use one
     const at = new Map<number, { id: string; j: number }>();
-    const p: Project = { nodes: [], links: [], lanes: [], groups: [], assets: [] };
+    const p: Project = {
+      nodes: [],
+      links: [],
+      lanes: [],
+      groups: [],
+      assets: [],
+    };
     for (let i = 0; i < n; i++) {
       const [x, y] = f32().subarray(
         wasm.get_node(i) >> 2,
@@ -96,7 +103,11 @@ export function createProject(
         wasm.get_node(i) + FLAGS_AT
       ];
       const d = savedAt(i); // the original import and its settings, not the rendered frames
+      // Math nodes: the LaTeX is the asset, a plain text file
+      const tex = texOf(wasm.get_node(i));
       if (d) p.assets.push({ id: aids[i], data: d.bytes });
+      else if (tex !== undefined)
+        p.assets.push({ id: aids[i], data: new TextEncoder().encode(tex) });
       p.nodes.push({
         id: ids[i],
         kind: kinds[wasm.node_kind(i)].id,
@@ -104,7 +115,7 @@ export function createProject(
         x,
         y,
         flags,
-        asset: d ? aids[i] : undefined,
+        asset: d || tex !== undefined ? aids[i] : undefined,
         spec: d?.spec,
       });
     }
@@ -138,6 +149,7 @@ export function createProject(
   const apply = (p: Project, decoded: Map<string, Asset>, real?: Kf) => {
     wasm.project_new();
     pending.clear();
+    texBoot.clear();
     const at = new Map<string, number>();
     for (const n of p.nodes) {
       const kind = kinds.findIndex((k) => k.id === n.kind);
@@ -154,6 +166,11 @@ export function createProject(
       });
       // the Data node view renders it into frames when it mounts (scene.load below);
       // assets can be shared, but each node keeps its own file name
+      const text = n.kind === "math" && n.asset;
+      if (text) {
+        const a = p.assets.find((x) => x.id === text);
+        if (a) texBoot.set(i, new TextDecoder().decode(a.data));
+      }
       const d = n.asset ? decoded.get(n.asset) : undefined;
       if (d)
         pending.set(i, {
@@ -262,6 +279,7 @@ export function createProject(
     try {
       for (const a of p.assets) {
         const n = p.nodes.find((x) => x.asset === a.id)!;
+        if (n.kind === "math") continue; // plain text, read straight from the asset
         decoded.set(
           a.id,
           await decode(n.spec?.Typ, a.data, n.spec?.Nam ?? a.id),
@@ -271,11 +289,16 @@ export function createProject(
       fileMsg.textContent = `Could not decode an asset (${(e as Error).message}).`;
       return;
     }
-    const groups = apply(p, decoded, p.lanes.length ? await kf.load() : undefined);
+    const groups = apply(
+      p,
+      decoded,
+      p.lanes.length ? await kf.load() : undefined,
+    );
     fileName.value = file.name.replace(/\.(wtp|wtx)$/i, "");
     scene.load();
     scene.restore(groups);
     pending.clear();
+    texBoot.clear();
     loaded();
     fileDialog.close();
   };

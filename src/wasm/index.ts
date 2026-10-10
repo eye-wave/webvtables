@@ -9,12 +9,24 @@ export type WasmExports = WasmFns & {
 
 export async function loadWasm(): Promise<WasmExports> {
   let readStr: Reader<string>;
+  let mem: WebAssembly.Memory;
   let logBuffer = "";
 
   const wasmObject = await WebAssembly.instantiateStreaming(fetch(wasmUrl), {
     env: {
       ...math_ffi,
-      math_eval: mathEval,
+      // 10 args: node, a b c d, p q r pointers, out pointer, length. The previous per-sample
+      // import had 9 args and returned a value: a wasm built before that change is stale.
+      math_eval: (...a: number[]) => {
+        if (a.length === 10)
+          return void mathEval(
+            mem,
+            ...(a as Parameters<typeof mathEval> extends [unknown, ...infer T]
+              ? T
+              : never),
+          );
+        return 0;
+      },
 
       log_str(ptr: number, len: number) {
         logBuffer += readStr(ptr, len);
@@ -40,6 +52,7 @@ export async function loadWasm(): Promise<WasmExports> {
   });
 
   const exports = wasmObject.instance.exports as unknown as WasmExports;
+  mem = exports.memory;
   readStr = createReader(exports.memory);
 
   return exports;

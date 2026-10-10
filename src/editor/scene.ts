@@ -203,9 +203,7 @@ export function createScene(
       for (const m of g.members) {
         g.body.append(div(groupCss.member, label.get(m)));
         const info = nodes[+m.dataset.k!].params as readonly ParamInfo[];
-        for (const src of m.querySelectorAll<HTMLElement>(
-          `.${knobCss.knob}`,
-        )) {
+        for (const src of m.querySelectorAll<HTMLElement>(`.${knobCss.knob}`)) {
           const k = div(knobCss.knob);
           k.dataset.a = src.dataset.a;
           k.dataset.j = src.dataset.j;

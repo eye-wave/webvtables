@@ -35,7 +35,20 @@ wasm_imports! {
     fn log_f64(val: f64);
     fn log_flush();
 
-    fn math_eval(node: u32, x: f32, a: f32, b: f32, c: f32, d: f32, p: f32, q: f32, r: f32) -> f32;
+    // Fills `out[0..len]` with the node's JS-compiled math expression: x = i/len, knobs a..d,
+    // p/q/r the input buffers. One call per buffer, the loop over samples runs in JS.
+    fn math_eval(
+        node: u32,
+        a: f32,
+        b: f32,
+        c: f32,
+        d: f32,
+        p: *const f32,
+        q: *const f32,
+        r: *const f32,
+        out: *mut f32,
+        len: u32,
+    );
 
     fn log(x: f64) -> f64;
     fn exp(x: f64) -> f64;
@@ -81,18 +94,22 @@ pub fn floor(x: f64) -> f64 {
     }
 }
 
+// Host builds (cargo test) have no JS to import from: write the ramp x.
 #[cfg(not(target_arch = "wasm32"))]
 #[unsafe(export_name = "math_eval")]
 extern "C" fn math_eval_host(
     _: u32,
-    x: f32,
     _: f32,
     _: f32,
     _: f32,
     _: f32,
-    _: f32,
-    _: f32,
-    _: f32,
-) -> f32 {
-    x
+    _: *const f32,
+    _: *const f32,
+    _: *const f32,
+    out: *mut f32,
+    len: u32,
+) {
+    for i in 0..len as usize {
+        unsafe { *out.add(i) = i as f32 / len as f32 };
+    }
 }

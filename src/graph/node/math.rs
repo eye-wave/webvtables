@@ -1,5 +1,5 @@
 use super::helpers;
-use super::{BUFFER_LEN_F32, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeParamDef, Param};
+use super::{BUFFER_LEN, Buffer, MAX_PARAMS, NodeCategory, NodeLogic, NodeParamDef, Param};
 use super::{Label, label};
 use crate::ffi;
 use crate::graph::{scope::CURRENT, state};
@@ -36,12 +36,15 @@ impl NodeLogic for MathNode {
         Self::PARAMS
     }
 
+    // out[i] = f(x = i/N, a, b, c, d, p[i], q[i], r[i]); JS owns f (compiled from the node's LaTeX)
+    // and fills the whole buffer in one call. Without a function yet `out` stays silent (zeroed).
     fn process(
         &self,
         inputs: &[&Buffer],
         params: &[Option<Param>; MAX_PARAMS],
         outs: &mut [Buffer],
     ) {
+        // same address JS gets from get_node(); it keys the compiled function
         let node = (state().arena.base() + unsafe { CURRENT } as usize) as u32;
         let p = |i| helpers::param(params, i, 0.0) as f32;
         let (a, b, c, d) = (p(0), p(1), p(2), p(3));
@@ -50,10 +53,18 @@ impl NodeLogic for MathNode {
             helpers::input(inputs, 1),
             helpers::input(inputs, 2),
         );
-        for (i, o) in outs[0].iter_mut().enumerate() {
-            let x = i as f32 / BUFFER_LEN_F32;
-            let y = ffi::math_eval(node, x, a, b, c, d, ip[i], iq[i], ir[i]);
-            *o = if y.is_finite() { y } else { 0.0 };
-        }
+        let out = &mut outs[0];
+        ffi::math_eval(
+            node,
+            a,
+            b,
+            c,
+            d,
+            ip.as_ptr(),
+            iq.as_ptr(),
+            ir.as_ptr(),
+            out.as_mut_ptr(),
+            BUFFER_LEN as u32,
+        );
     }
 }

@@ -12,7 +12,7 @@ import { createScene } from "./editor/scene";
 import { createTransport } from "./components/transport/transport";
 import { createView } from "./gfx/view";
 import { loadWasm } from "./wasm";
-import { createEffect, createSignal } from "solid-js";
+import { createEffect, createRoot, createSignal } from "solid-js";
 import { render } from "solid-js/web";
 import type { Kf, LazyKf } from "./editor/kf";
 import { createBar } from "./components/keyframes/bar";
@@ -91,7 +91,7 @@ loadWasm().then((wasm) => {
       scene.notify();
     },
   });
-  createEffect(() => bar.setHead(head()));
+  createRoot(() => createEffect(() => bar.setHead(head())));
 
   // Keyframe logic + UI load on the first lane (new or from a project file).
   let real: Kf | undefined, booting: Promise<Kf> | undefined;

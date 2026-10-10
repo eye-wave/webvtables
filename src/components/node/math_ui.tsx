@@ -1,15 +1,21 @@
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import {
+  DEFAULT_TEX,
   dropMath,
   loadMath,
   onMathProgress,
   setMath,
+  setTex,
+  texBoot,
   type MathField,
 } from "./math";
 import { Flags, Head, Knob, Scope, useNode } from "./node";
 import knobCss from "./knob.module.css";
 import css from "./math_ui.module.css";
 
+// Desmos-style typing: Greek names, sum/prod/int/sqrt/nthroot templates and function names turn into
+// math as you type (`sum` opens a sigma with `n=` ready). x runs over [0, 1) across the table, a..d are
+// the knobs, p q r the sample under x from the three inputs; the scope plots the result.
 const GREEK =
   "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi pi rho sigma tau upsilon phi chi psi omega";
 const FUNCS =
@@ -17,6 +23,9 @@ const FUNCS =
 
 export function MathView() {
   const ctx = useNode();
+  const initial = texBoot.get(ctx.i) ?? DEFAULT_TEX; // from a loaded project, else the default
+  texBoot.delete(ctx.i);
+  setTex(ctx.p, initial);
   const [bad, setBad] = createSignal(false);
   const [load, setLoad] = createSignal(0);
   const [ready, setReady] = createSignal(false);
@@ -25,9 +34,15 @@ export function MathView() {
   let field: MathField | undefined;
   let dead = false;
 
-  onMount(async () => {
-    const libs = await loadMath().catch(() => undefined);
-    if (!libs || dead) return;
+  const [failed, setFailed] = createSignal(false);
+  const start = async () => {
+    setFailed(false);
+    // one quiet retry after a pause, then show the failure instead of leaving a dead box
+    const libs = await loadMath()
+      .catch(() => new Promise((r) => setTimeout(r, 500)).then(loadMath))
+      .catch(() => undefined);
+    if (dead) return;
+    if (!libs) return setFailed(true);
     const { mq, compile } = libs;
     setReady(true);
     field = mq.MathField(host, {
@@ -36,13 +51,15 @@ export function MathView() {
       sumStartsWithNEquals: true,
       handlers: {
         edit: (f) => {
+          setTex(ctx.p, f.latex());
           setBad(!setMath(compile, ctx.p, f.latex()));
           ctx.redraw();
         },
       },
     });
-    field.latex("\\sin\\left(2\\pi x\\right)");
-  });
+    field.latex(initial);
+  };
+  onMount(start);
   onCleanup(() => {
     dead = true;
     field?.revert();
@@ -60,17 +77,23 @@ export function MathView() {
       >
         <span ref={host} />
         <Show when={!ready()}>
-          <div class={css.load} title="Loading the math editor">
-            <i style={{ width: `${load() * 100}%` }} />
-          </div>
+          <Show
+            when={failed()}
+            fallback={
+              <div class={css.load} title="Loading the math editor">
+                <i style={{ width: `${load() * 100}%` }} />
+              </div>
+            }
+          >
+            <button class={css.retry} onClick={start}>
+              Couldn't load the math editor. Click to retry
+            </button>
+          </Show>
         </Show>
       </div>
-      <Scope />
+      <Scope style={{ flex: "none", height: "64px", "box-sizing": "border-box" }} />
       {["p", "q", "r"].map((n, j) => (
-        <i
-          class={css.in}
-          style={{ top: `calc(${25 * (j + 1)}% + ${j + 1}px)` }}
-        >
+        <i class={css.in} style={{ top: `calc(${25 * (j + 1)}% + ${j + 1}px)` }}>
           {n}
         </i>
       ))}

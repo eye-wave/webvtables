@@ -10,7 +10,14 @@ import nodeCss from "../node/node.module.css";
 import ctxCss from "./ctx.module.css";
 
 type Item =
-  | { label: string; run(): void; danger?: boolean; add?: boolean; key?: boolean; off?: string }
+  | {
+      label: string;
+      run(): void;
+      danger?: boolean;
+      add?: boolean;
+      key?: boolean;
+      off?: string;
+    }
   | { label: string; sub: Item[] }
   | "-";
 
@@ -55,7 +62,9 @@ export function createContextMenu(
   const esc = (e: KeyboardEvent) => e.key === "Escape" && close();
 
   const paramItems = (e: MouseEvent, node: HTMLElement): Item[] => {
-    const knob = (e.target as HTMLElement).closest<HTMLElement>(`.${knobCss.knob}`);
+    const knob = (e.target as HTMLElement).closest<HTMLElement>(
+      `.${knobCss.knob}`,
+    );
     if (!knob) return [];
     const [p, j, addr] = [+node.dataset.p!, +knob.dataset.j!, +knob.dataset.a!];
     const lanes = kf.lanes();
@@ -66,16 +75,20 @@ export function createContextMenu(
       k.link(lane, p, j, true);
       done();
     };
-    const fresh = (lfo: boolean, mode = 0) => async () => {
-      const k = await kf.load();
-      const lane = k.addLane(lfo, mode);
-      if (lane < 0) return;
-      k.rename(lane, nodes[+node.dataset.k!].params[j].n);
-      take(k, lane);
-    };
+    const fresh =
+      (lfo: boolean, mode = 0) =>
+      async () => {
+        const k = await kf.load();
+        const lane = k.addLane(lfo, mode);
+        if (lane < 0) return;
+        k.rename(lane, nodes[+node.dataset.k!].params[j].n);
+        take(k, lane);
+      };
     // A node may have only one spectral-blended param (mirrors Keyframes::spectral_ok in Rust).
     const mine = new Set(
-      [...node.querySelectorAll<HTMLElement>("[data-a]")].map((n) => +n.dataset.a!),
+      [...node.querySelectorAll<HTMLElement>("[data-a]")].map(
+        (n) => +n.dataset.a!,
+      ),
     );
     const busy = lanes.some(
       (l) => l.mode === 2 && l.addrs.some((a) => a !== addr && mine.has(a)),
@@ -224,7 +237,10 @@ export function createContextMenu(
         it === "-" ? (
           <hr />
         ) : "sub" in it ? (
-          <div class={`${ctxCss.item} ${ctxCss.hasSub}`} style={p.top ? { "--i": i() } : {}}>
+          <div
+            class={`${ctxCss.item} ${ctxCss.hasSub}`}
+            style={p.top ? { "--i": i() } : {}}
+          >
             {it.label}
             <div class={ctxCss.sub}>
               <Items items={it.sub} />
@@ -236,12 +252,12 @@ export function createContextMenu(
               it.off
                 ? `${ctxCss.item} ${ctxCss.off}`
                 : it.danger
-                ? `${ctxCss.item} ${ctxCss.danger}`
-                : it.key
-                  ? `${ctxCss.item} ${ctxCss.addKey}`
-                  : it.add
-                    ? `${ctxCss.item} ${ctxCss.add}`
-                    : ctxCss.item
+                  ? `${ctxCss.item} ${ctxCss.danger}`
+                  : it.key
+                    ? `${ctxCss.item} ${ctxCss.addKey}`
+                    : it.add
+                      ? `${ctxCss.item} ${ctxCss.add}`
+                      : ctxCss.item
             }
             style={p.top ? { "--i": i() } : {}}
             title={it.off}
@@ -280,7 +296,8 @@ export function createContextMenu(
 
   grid.addEventListener("contextmenu", (e) => {
     e.preventDefault();
-    if (e.ctrlKey && (e.target as HTMLElement).closest(`.${knobCss.knob}`)) return;
+    if (e.ctrlKey && (e.target as HTMLElement).closest(`.${knobCss.knob}`))
+      return;
     setOpen(false);
     setItems(itemsFor(e));
     const { offsetWidth: w, offsetHeight: h } = root;

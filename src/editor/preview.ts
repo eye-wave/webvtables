@@ -1,5 +1,6 @@
 import type { Heightmap } from "../gfx/heightmap";
 import type { WasmExports } from "../wasm";
+import { mathRev } from "../components/node/math";
 import type { LazyKf } from "./kf";
 import type { Scene } from "./scene";
 
@@ -19,7 +20,7 @@ export function createPreview(
   let todo = 0;
 
   const signature = () => {
-    const s: number[] = [];
+    const s: number[] = [mathRev()]; // Math node formulas live in JS, not wasm memory
     const m = wasm.memory.buffer;
     const [f32, u8, u16] = [new Float32Array(m), new Uint8Array(m), new Uint16Array(m)];
     for (let i = 0; i < wasm.nodes_len(); i++) {
