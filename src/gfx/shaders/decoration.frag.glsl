@@ -10,7 +10,7 @@ flat in float vKind;
 out vec4 o;
 
 void main() {
-  o = vec4(0.0); // the depth-only pass (uPad == 0) must not leave the output undefined: some mobile drivers ignore colorMask and write garbage (white)
+  o = vec4(0.0);
   vec2 h = vRect.zw * 0.5;
   vec2 q = abs(vP - vRect.xy - h) - h + uR;
   float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - uR;

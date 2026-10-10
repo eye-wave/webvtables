@@ -1,4 +1,4 @@
-import { createShaderCompiler } from "./overlay";
+import { createShaderCompiler, GL_OPTS } from "./overlay";
 import vs from "./shaders/heightmap.vert.glsl";
 import fs from "./shaders/heightmap.frag.glsl";
 import vs3 from "./shaders/heightmap3d.vert.glsl";
@@ -26,7 +26,7 @@ export const mapRect = (
 // Shader only samples it. point-sample columns; peak-pick buckets to avoid aliasing.
 // Shares the overlay's canvas/context (getContext returns the same one) and draws into a scissored corner after it.
 export function createHeightmap(canvas: HTMLCanvasElement) {
-  const gl = canvas.getContext("webgl2");
+  const gl = canvas.getContext("webgl2", GL_OPTS);
   if (!gl)
     return {
       row(_f: number, _t: Float32Array) {},

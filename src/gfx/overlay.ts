@@ -8,6 +8,14 @@ import waveVs from "./shaders/wave.vert.glsl";
 import waveFs from "./shaders/wave.frag.glsl";
 import type { View } from "./view";
 
+export const GL_OPTS: WebGLContextAttributes = {
+  alpha: true,
+  premultipliedAlpha: true,
+  antialias: false,
+  depth: true,
+  stencil: false,
+};
+
 export const STRIDE = 6;
 const PAD = 14;
 export const RADIUS = 8;
@@ -52,7 +60,7 @@ export const createShaderCompiler =
   };
 
 export function createOverlay(canvas: HTMLCanvasElement): Draw {
-  const gl = canvas.getContext("webgl2");
+  const gl = canvas.getContext("webgl2", GL_OPTS);
   if (!gl) return () => {};
 
   const compile = createShaderCompiler(gl);
