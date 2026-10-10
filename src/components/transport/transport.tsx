@@ -1,6 +1,7 @@
 import { createSignal } from "solid-js";
 import { render } from "solid-js/web";
 import Pause from "lucide-solid/icons/pause";
+import Backpack from "lucide-solid/icons/backpack";
 import PanelBottom from "lucide-solid/icons/panel-bottom";
 import Play from "lucide-solid/icons/play";
 import type { Audio } from "../../audio/audio";
@@ -71,11 +72,13 @@ export function createTransport(
   root: HTMLElement,
   audio: Audio,
   wake: () => void,
+  onPack: (on: boolean) => void,
 ) {
   let playing = false;
   let speed = 32;
   const [on, setOn] = createSignal(false);
   const [kfOn, setKfOn] = createSignal(true);
+  const [packOn, setPackOn] = createSignal(false);
 
   const fps = (v: number) => SPEED_MAX ** v;
   const hz = (v: number) => FREQ_MIN * (FREQ_MAX / FREQ_MIN) ** v;
@@ -133,6 +136,15 @@ export function createTransport(
           }}
         >
           <PanelBottom size={14} />
+        </button>
+        <button
+          class={transportCss.play}
+          classList={{ [transportCss.active]: packOn() }}
+          title="Toggle node backpack"
+          aria-pressed={packOn()}
+          onClick={() => (setPackOn(!packOn()), onPack(packOn()))}
+        >
+          <Backpack size={14} />
         </button>
       </>
     ),

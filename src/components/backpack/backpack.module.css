@@ -1,0 +1,123 @@
+.pack {
+  position: absolute;
+  z-index: 3;
+  top: 8px;
+  bottom: 8px;
+  left: 8px;
+  width: 224px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--surface-400);
+  border: 1px solid var(--border-300);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px var(--shadow);
+  color: var(--text-600);
+  font:
+    13px system-ui,
+    sans-serif;
+  cursor: default;
+  user-select: none;
+}
+
+.pack[hidden],
+.cat[hidden],
+.item[hidden] {
+  display: none;
+}
+
+.head {
+  padding: 0 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-300);
+}
+
+.pack input {
+  padding: 5px 8px;
+  background: var(--surface-100);
+  border: 1px solid var(--border-100);
+  border-radius: 4px;
+  outline: none;
+  color: var(--text-600);
+  font: inherit;
+  user-select: text;
+}
+
+.pack input:focus {
+  border-color: var(--accent-200);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  scrollbar-width: thin;
+}
+
+.cat summary {
+  padding: 5px 4px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-300);
+  cursor: pointer;
+}
+
+.cat summary:hover {
+  color: var(--text-600);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-bottom: 6px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  background: var(--surface-600);
+  border: 1px solid var(--border-200);
+  border-radius: 5px;
+  cursor: grab;
+  touch-action: pan-y; /* vertical scrolls the list, a sideways drag picks the node up */
+}
+
+.item:hover {
+  border-color: var(--accent-200);
+  background: var(--surface-700);
+}
+
+.item small {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-200);
+}
+
+.ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  width: 200px;
+  pointer-events: none;
+  cursor: grabbing;
+  color: var(--text-600);
+  font:
+    13px system-ui,
+    sans-serif;
+  border-color: var(--accent-200);
+  background: var(--accent-100);
+  box-shadow: 0 8px 20px var(--shadow);
+}

@@ -47,11 +47,18 @@ loadWasm().then((wasm) => {
   const view = createView(nodeGrid, gridBg);
   const ropes = createRopes(wasm);
   const audio = createAudio();
+  let pack: Promise<{ show(on: boolean): void }> | undefined;
 
   const transport = createTransport(
     document.querySelector<HTMLElement>(".box-playback")!,
     audio,
     () => schedule(),
+    async (on) => {
+      pack ??= import("./components/backpack/backpack").then((m) =>
+        m.createBackpack(canvas.parentElement!, view, scene, schedule),
+      );
+      (await pack).show(on);
+    },
   );
   const [head, setHead] = createSignal(0);
 
