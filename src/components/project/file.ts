@@ -165,7 +165,7 @@ export function format(p: Project): string {
   const group = (g: Group) =>
     [
       `@ ${g.name.padEnd(22)} ${g.mode} @`,
-      ...g.nodes.map((id) => `@ ${id.padEnd(22)} @`),
+      ...g.nodes.map((id) => `@ ${id.padEnd(22)}   @`), // closing @ lines up with the title's
     ].join("\n");
   const at = (id: string) => p.nodes.findIndex((n) => n.id === id);
   return (
@@ -208,7 +208,13 @@ export function parse(
   text: string,
   load?: (id: string) => Uint8Array | undefined,
 ): Project {
-  const p: Project = { nodes: [], links: [], lanes: [], groups: [], assets: [] };
+  const p: Project = {
+    nodes: [],
+    links: [],
+    lanes: [],
+    groups: [],
+    assets: [],
+  };
   let n: Node | undefined,
     id = false;
   let l: Lane | undefined;

@@ -151,11 +151,12 @@ export function createScene(
   const groupEl = new WeakMap<HTMLElement, Group>();
   const rowOwner = new WeakMap<HTMLElement, HTMLElement>(); // param-list knob -> its real node
   const picked = new Set<HTMLElement>();
-  // under the nodes, same transform as the grid (copied in sync)
+  // Same transform as the grid (copied in sync). It has to sit after the grid, which covers the
+  // whole area and would otherwise swallow every click meant for a group.
   const layer = Object.assign(document.createElement("div"), {
     className: groupCss.layer,
   });
-  root.before(layer);
+  root.after(layer);
 
   const shut = (el?: HTMLElement) => {
     const g = el && membership.get(el);
@@ -318,6 +319,16 @@ export function createScene(
       x1 = Math.max(x1, f[i] + f[i + 2]);
       y1 = Math.max(y1, f[i + 1] + f[i + 3]);
     }
+    // fill in the text first: the collapsed box is measured below, and the info line has no height until it has text
+    if (g.mode === 1)
+      g.body
+        .querySelectorAll<HTMLElement>(`.${knobCss.knob}`)
+        .forEach((k) => paint(k, rowOwner.get(k)!, f, driven));
+    if (g.mode === 2) {
+      const text = `${g.members.length} nodes · ${g.ins.length} in · ${g.outs.length} out`;
+      const info = g.body.firstElementChild!;
+      if (info.textContent !== text) info.textContent = text;
+    }
     const s = g.el.style;
     if (g.mode) {
       s.width = `${GW}px`;
@@ -334,15 +345,6 @@ export function createScene(
       s.height = `${g.rect[3]}px`;
     }
     s.transform = `translate(${g.rect[0]}px, ${g.rect[1]}px)`;
-    if (g.mode === 1)
-      g.body
-        .querySelectorAll<HTMLElement>(`.${knobCss.knob}`)
-        .forEach((k) => paint(k, rowOwner.get(k)!, f, driven));
-    if (g.mode === 2) {
-      const text = `${g.members.length} nodes · ${g.ins.length} in · ${g.outs.length} out`;
-      const info = g.body.firstElementChild!;
-      if (info.textContent !== text) info.textContent = text;
-    }
   };
 
   return {

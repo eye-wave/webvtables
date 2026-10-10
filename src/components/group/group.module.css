@@ -1,4 +1,4 @@
-/* Same transform as the node grid (scene.sync copies it), stacked under the nodes. */
+/* Same transform as the node grid (scene.sync copies it), stacked over it; only groups take the pointer. */
 .layer {
   position: absolute;
   inset: 0;
@@ -23,7 +23,6 @@
 .group[data-mode="0"] {
   border: 1px dashed var(--border-300);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--accent-200) 6%, transparent);
 }
 
 /* Collapsed: a node-like box. */
@@ -51,6 +50,8 @@
 
 .group[data-mode="0"] .head {
   padding: 0 4px;
+  background: color-mix(in srgb, var(--accent-200) 12%, var(--surface-400));
+  border-radius: 9px 9px 0 0;
 }
 
 .name {
