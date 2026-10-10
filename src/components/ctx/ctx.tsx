@@ -76,10 +76,10 @@ export function createContextMenu(
       done();
     };
     const fresh =
-      (lfo: boolean, mode = 0) =>
+      (kind: number, mode = 0) =>
       async () => {
         const k = await kf.load();
-        const lane = k.addLane(lfo, mode);
+        const lane = k.addLane(kind, mode);
         if (lane < 0) return;
         k.rename(lane, nodes[+node.dataset.k!].params[j].n);
         take(k, lane);
@@ -108,7 +108,7 @@ export function createContextMenu(
             const k = await kf.load();
             let l = owner;
             if (l < 0) {
-              l = k.addLane(false);
+              l = k.addLane(0);
               if (l < 0) return;
               k.rename(l, nodes[+node.dataset.k!].params[j].n);
             }
@@ -126,10 +126,11 @@ export function createContextMenu(
         run: () => editParam(knob, scene.param(knob, schedule)),
       },
       ...addKey(),
-      { label: "New points lane", add: true, run: fresh(false) },
-      { label: "New LFO lane", add: true, run: fresh(true) },
-      { label: "New crossfade lane", add: true, run: fresh(false, 1) },
-      { label: "New spectral lane", add: true, run: fresh(false, 2), off },
+      { label: "New points lane", add: true, run: fresh(0) },
+      { label: "New LFO lane", add: true, run: fresh(1) },
+      { label: "New random lane", add: true, run: fresh(2) },
+      { label: "New crossfade lane", add: true, run: fresh(0, 1) },
+      { label: "New spectral lane", add: true, run: fresh(0, 2), off },
       ...(lanes.length
         ? [
             {

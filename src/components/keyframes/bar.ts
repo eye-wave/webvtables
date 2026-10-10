@@ -22,7 +22,7 @@ export type Bar = ReturnType<typeof createBar>;
 
 export function createBar(o: {
   setHead(frame: number): void;
-  addLane(lfo: boolean, mode: number): void;
+  addLane(kind: number, mode: number): void;
 }) {
   const ticks = [...kfTrack.querySelectorAll<HTMLElement>("[data-f]")];
   let mult = 1,
@@ -79,16 +79,17 @@ export function createBar(o: {
     Object.assign(menu.style, { left: `${r.left}px`, top: `${r.bottom + 2}px` });
     (
       [
-        ["Points lane", false, 0],
-        ["LFO lane", true, 0],
-        ["Crossfade lane", false, 1],
-        ["Spectral lane", false, 2],
+        ["Points lane", 0, 0],
+        ["LFO lane", 1, 0],
+        ["Random lane", 2, 0],
+        ["Crossfade lane", 0, 1],
+        ["Spectral lane", 0, 2],
       ] as const
-    ).forEach(([text, lfo, mode], n) => {
+    ).forEach(([text, kind, mode], n) => {
       const it = Object.assign(document.createElement("div"), {
         className: `${ctxCss.item} ${ctxCss.add}`,
         textContent: text,
-        onclick: () => (close(), o.addLane(lfo, mode)),
+        onclick: () => (close(), o.addLane(kind, mode)),
       });
       it.style.setProperty("--i", `${n}`);
       menu!.append(it);

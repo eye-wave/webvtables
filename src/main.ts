@@ -86,8 +86,8 @@ loadWasm().then((wasm) => {
   // The ruler/+New shell is plain DOM; the lane editor behind it loads on the first lane.
   const bar = createBar({
     setHead,
-    addLane: async (lfo, mode) => {
-      (await kf.load()).addLane(lfo, mode);
+    addLane: async (kind, mode) => {
+      (await kf.load()).addLane(kind, mode);
       scene.notify();
     },
   });

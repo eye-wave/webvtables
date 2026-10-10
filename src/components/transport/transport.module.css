@@ -1,6 +1,23 @@
 .bar {
+  grid-template-columns: 16px auto minmax(0, 1fr);
+  gap: 4px;
   min-width: 130px;
   touch-action: none;
+}
+
+.bar .val {
+  text-align: left;
+}
+
+@media (max-width: 900px) {
+  .bar {
+    grid-template-columns: 16px auto;
+    min-width: 0;
+  }
+
+  .bar .name {
+    display: none;
+  }
 }
 
 .bar:hover {

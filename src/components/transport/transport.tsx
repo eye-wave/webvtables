@@ -1,6 +1,7 @@
 import { createSignal } from "solid-js";
 import { render } from "solid-js/web";
 import Pause from "lucide-solid/icons/pause";
+import PanelBottom from "lucide-solid/icons/panel-bottom";
 import Play from "lucide-solid/icons/play";
 import type { Audio } from "../../audio/audio";
 import { knobDrag, unlock } from "../../editor/fine";
@@ -58,8 +59,8 @@ function BarKnob(props: {
       onContextMenu={(e) => (e.preventDefault(), edit(e.currentTarget))}
     >
       <div class={knobCss.dial} />
-      <div class={knobCss.pname}>{props.name}</div>
-      <div class={knobCss.pval}>
+      <div class={`${knobCss.pname} ${transportCss.name}`}>{props.name}</div>
+      <div class={`${knobCss.pval} ${transportCss.val}`}>
         {props.show(v())} {props.unit}
       </div>
     </div>
@@ -74,6 +75,7 @@ export function createTransport(
   let playing = false;
   let speed = 32;
   const [on, setOn] = createSignal(false);
+  const [kfOn, setKfOn] = createSignal(true);
 
   const fps = (v: number) => SPEED_MAX ** v;
   const hz = (v: number) => FREQ_MIN * (FREQ_MAX / FREQ_MIN) ** v;
@@ -120,6 +122,18 @@ export function createTransport(
           parse={(s) => log(parseFloat(s), 1, SPEED_MAX)}
           apply={(v) => (speed = fps(v))}
         />
+        <button
+          class={transportCss.play}
+          classList={{ [transportCss.active]: kfOn() }}
+          title="Toggle keyframes"
+          aria-pressed={kfOn()}
+          onClick={() => {
+            setKfOn(!kfOn());
+            document.body.classList.toggle("nokf", !kfOn());
+          }}
+        >
+          <PanelBottom size={14} />
+        </button>
       </>
     ),
     root,

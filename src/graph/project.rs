@@ -270,10 +270,10 @@ mod tests {
         s.add_node(NodeKind::Output, [5.0, 6.0], [7.0, 8.0])
             .unwrap();
         s.link((0, 0), (1, 0)).unwrap();
-        let a = s.lane_add(false).unwrap();
+        let a = s.lane_add(0).unwrap();
         s.key_add(a, 10, 0.25);
         s.key_add(a, 200, 0.75);
-        let b = s.lane_add(true).unwrap();
+        let b = s.lane_add(1).unwrap();
         let node = s.arena.base() + s.nodes[0] as usize;
         assert!(s.lane_link(a, node, 0, true));
         assert!(!s.lane_link(b, node, 0, true), "a param has one lane");

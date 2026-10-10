@@ -14,9 +14,9 @@ export type Node = {
 };
 export type Lane = {
   name: string;
-  type: "P" | "L" | "C" | "S";
+  type: "P" | "L" | "C" | "S" | "R";
   targets: { id: string; j: number }[];
-  lfo: number[]; // shape, phase, amp, freq, skew, dc offset
+  lfo: number[]; // L: shape, phase, amp, freq, skew, dc offset. R: seed, freq, type, amp, phase, dc
   keys: { t: number; v: number; c?: number }[];
 };
 // Visual only: a name, how it is shown (0 expanded, 1 params, 2 name only) and its nodes by id.
@@ -125,9 +125,9 @@ export async function unpack(zip: Uint8Array): Promise<Project> {
 //   0x471dd9900e7:0 -> 0x4a77abc5d17:0       link: node:output -> node:input
 //
 //   -/...................\-
-//   . [Shift----------] f .    lane: name (15 wide, padded with -), f lfo / P points / S spectral / C crossfade
+//   . [Shift----------] f .    lane: name (15 wide, padded with -), f lfo / r random / P points / S spectral / C crossfade
 //   .> 0x4a77abc5d17[0] <.     target: node[param]
-//   .= 0.000000000000000 =.    lfo only: shape, phase, amp, freq, skew, dc offset
+//   .= 0.000000000000000 =.    f: shape, phase, amp, freq, skew, dc offset. r: seed, freq, type, amp, phase, dc
 //   .##0 0.346153855323792.    keys (P S C): frame (3 wide, padded with #) and value
 //   .cur 0.346153855323792.    curve of the key above, when not 0.5
 //   -\.................../-
@@ -213,7 +213,7 @@ const RULES: [Tok, RegExp][] = [
   [Tok.PosY, re(`^\\\\=y\\s*${NUM}\\s*=/$`)],
   [Tok.Link, re(`^${ID}:(\\d+)\\s*->\\s*${ID}:(\\d+)$`)],
   [Tok.LaneTop, re("^-/\\.+\\\\-$")],
-  [Tok.LaneName, re("^\\.\\s\\[(.*)\\]\\s([fPSC])\\s\\.$")],
+  [Tok.LaneName, re("^\\.\\s\\[(.*)\\]\\s([fPSCr])\\s\\.$")],
   [Tok.LaneTarget, re(`^\\.>\\s*${ID}\\[(\\d+)\\]\\s*<\\.$`)],
   [Tok.LaneValue, re(`^\\.=\\s*${NUM}\\s*=\\.$`)],
   [Tok.LaneKey, re(`^\\.([#\\d]{3,})\\s+${NUM}\\.$`)],
@@ -312,12 +312,17 @@ export function parse(
     const head = next(Tok.LaneName);
     const l: Lane = {
       name: head.m[1].replace(/-+$/, ""),
-      type: head.m[2] === "f" ? "L" : (head.m[2] as Lane["type"]),
+      type:
+        head.m[2] === "f"
+          ? "L"
+          : head.m[2] === "r"
+            ? "R"
+            : (head.m[2] as Lane["type"]),
       targets: [],
       lfo: [],
       keys: [],
     };
-    const lfo = l.type === "L";
+    const lfo = l.type === "L" || l.type === "R"; // lanes with values instead of keys
     for (;;) {
       const t = next(
         Tok.LaneTarget,
@@ -331,11 +336,11 @@ export function parse(
           l.targets.push({ id: t.m[1].toLowerCase(), j: +t.m[2] });
           break;
         case Tok.LaneValue:
-          if (!lfo) throw bad(t, "lfo value in a lane that is not f");
+          if (!lfo) throw bad(t, "value in a lane that is not f or r");
           l.lfo.push(+t.m[1]);
           break;
         case Tok.LaneKey:
-          if (lfo) throw bad(t, "key in an f lane");
+          if (lfo) throw bad(t, "key in an f or r lane");
           l.keys.push({ t: +t.m[1].replaceAll("#", ""), v: +t.m[2] });
           break;
         case Tok.LaneCurve:
@@ -431,9 +436,9 @@ export function format(p: Project): string {
   const lane = (l: Lane) =>
     [
       `-/${".".repeat(19)}\\-`,
-      `. [${l.name.slice(0, 15).padEnd(15, "-")}] ${l.type === "L" ? "f" : l.type} .`,
+      `. [${l.name.slice(0, 15).padEnd(15, "-")}] ${l.type === "L" ? "f" : l.type === "R" ? "r" : l.type} .`,
       ...l.targets.map((t) => `.> ${`${t.id}[${t.j}]`.padEnd(17)} <.`),
-      ...(l.type === "L"
+      ...(l.type === "L" || l.type === "R"
         ? Array.from(l.lfo, (v) => `.= ${f15(v ?? 0)} =.`)
         : l.keys.flatMap((k) => [
             `.${String(k.t).padStart(3, "#")} ${f15(k.v)}.`,

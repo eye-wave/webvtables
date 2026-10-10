@@ -3,7 +3,8 @@ import type { WasmExports } from "../wasm";
 
 export type LaneView = {
   name: string;
-  lfo?: number[];
+  lfo?: number[]; // lfo and random lanes: their knob values
+  rand?: boolean; // random lane (has `lfo` values too)
   mode?: number; // points lanes: 1 crossfade, 2 spectral
   keys: { t: number; v: number; c: number }[];
   addrs: number[];
@@ -35,9 +36,11 @@ export function createKf(w: WasmExports) {
           addrs: [],
           curve: new Float32Array(0),
         };
-        if (kind > 1) v.mode = kind - 1;
-        if (kind === 1) v.lfo = [...d.subarray(i, (i += count))];
-        else
+        if (kind === 2 || kind === 3) v.mode = kind - 1;
+        if (kind === 1 || kind === 4) {
+          v.lfo = [...d.subarray(i, (i += count))];
+          v.rand = kind === 4;
+        } else
           for (let k = 0; k < count; k++)
             v.keys.push({ t: d[i++], v: d[i++], c: d[i++] });
         const t = w.lane_targets(l);
@@ -50,9 +53,11 @@ export function createKf(w: WasmExports) {
       });
     },
 
-    addLane(lfo: boolean, mode = 0) {
-      const l = w.lane_add(+lfo as bool);
+    // kind: 0 points, 1 lfo, 2 random
+    addLane(kind: number, mode = 0) {
+      const l = w.lane_add(kind);
       if (l >= 0 && mode) w.lane_mode(l, mode);
+      if (l >= 0 && kind === 2) w.lfo_set(l, 0, Math.floor(Math.random() * 100000) / 99999);
       return l;
     },
     removeLane: (l: number) => w.lane_remove(l),

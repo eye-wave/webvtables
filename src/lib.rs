@@ -228,8 +228,8 @@ pub extern "C" fn lane_targets_ptr() -> i32 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn lane_add(lfo: bool) -> i32 {
-    state().lane_add(lfo).map_or(-1, |i| i as i32)
+pub extern "C" fn lane_add(kind: u8) -> i32 {
+    state().lane_add(kind).map_or(-1, |i| i as i32)
 }
 
 #[unsafe(no_mangle)]

@@ -18,11 +18,13 @@ pub struct Key {
 }
 
 pub const LFO_PARAMS: usize = 6;
+pub const RAND_PARAMS: usize = 6; // seed, freq, type, amp, phase, dc
 
 #[derive(Clone)]
 pub enum Source {
     Points(Vec<Key>),
     Lfo([f32; LFO_PARAMS]),
+    Random([f32; RAND_PARAMS]),
 }
 
 #[derive(Clone)]
@@ -76,22 +78,59 @@ fn wave(p: &[f32; LFO_PARAMS], t: f32) -> f32 {
                 3.0 - 4.0 * q
             }
         }
-        2 => 2.0 * q - 1.0,
-        _ => {
+        2 => {
             if q < 0.5 {
                 1.0
             } else {
                 -1.0
             }
         }
+        _ => 2.0 * q - 1.0,
     };
     0.5 + 0.5 * amp * w + (dc - 0.5)
+}
+
+// -1..1, fixed per (seed, lattice index).
+fn hash(seed: u32, i: i32) -> f32 {
+    let mut h = (i as u32)
+        .wrapping_mul(0x9E37_79B1)
+        .wrapping_add(seed.wrapping_mul(0x85EB_CA6B))
+        .wrapping_add(0x68E3_1DA4);
+    h ^= h >> 15;
+    h = h.wrapping_mul(0x2C1B_3C6D);
+    h ^= h >> 12;
+    h = h.wrapping_mul(0x297A_2D39);
+    h ^= h >> 15;
+    (h >> 8) as f32 / 8_388_608.0 - 1.0
+}
+
+// Same amp/phase/dc mapping as `wave`. Freq is lattice points per lane (0..128); phase scrolls by one point.
+fn noise(p: &[f32; RAND_PARAMS], t: f32) -> f32 {
+    let [seed, freq, kind, amp, phase, dc] = *p;
+    let seed = (seed * 99999.0 + 0.5) as u32;
+    let x = freq * 128.0 * t / FRAMES + phase;
+    let i = libm::floorf(x);
+    let f = x - i;
+    let v = |k: i32| hash(seed, i as i32 + k);
+    let w = match ((kind * 4.0) as usize).min(3) {
+        0 => v(0), // white: a new value per point, held
+        1 => {
+            // perlin: random slopes at the points, blended with a quintic fade
+            let s = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+            let (a, b) = (v(0) * f, v(1) * (f - 1.0));
+            2.0 * (a + (b - a) * s)
+        }
+        2 => v(0) + (v(1) - v(0)) * f,                       // linear
+        _ => v(0) + (v(1) - v(0)) * f * f * (3.0 - 2.0 * f), // smooth
+    };
+    0.5 + 0.5 * (amp * 4.0 - 2.0) * w + (dc - 0.5)
 }
 
 impl Source {
     pub fn at(&self, t: f32) -> Option<f32> {
         let k = match self {
             Source::Lfo(p) => return Some(wave(p, t)),
+            Source::Random(p) => return Some(noise(p, t)),
             Source::Points(k) => k,
         };
         let (mut lo, mut hi): (Option<&Key>, Option<&Key>) = (None, None);
@@ -259,6 +298,10 @@ impl State {
                     d.extend([1.0, LFO_PARAMS as f32]);
                     d.extend(p);
                 }
+                Source::Random(p) => {
+                    d.extend([4.0, RAND_PARAMS as f32]); // 2, 3 are the points lane modes
+                    d.extend(p);
+                }
             }
         }
         d.len()
@@ -294,27 +337,25 @@ impl State {
         t.len()
     }
 
-    pub fn lane_add(&mut self, lfo: bool) -> Option<usize> {
+    // kind: 0 points, 1 lfo, 2 random
+    pub fn lane_add(&mut self, kind: u8) -> Option<usize> {
         let ls = &mut self.keyframes.lanes;
         if ls.len() >= LANES_MAX {
             return None;
         }
+        let (name, source) = match kind {
+            1 => ("LFO", Source::Lfo([0.0, 0.0, 0.75, 0.04, 0.5, 0.5])), // 100% amp, 2 cycles
+            2 => ("Random", Source::Random([0.0, 0.1, 0.375, 0.75, 0.0, 0.5])), // perlin, 100% amp; seed is picked by the UI
+            _ => ("Points", Source::Points(Vec::new())),
+        };
         let same = ls
             .iter()
-            .filter(|l| matches!(l.source, Source::Lfo(_)) == lfo)
+            .filter(|l| core::mem::discriminant(&l.source) == core::mem::discriminant(&source))
             .count();
         ls.push(Lane {
-            name: if lfo {
-                format!("LFO {}", same + 1)
-            } else {
-                format!("Points {}", same + 1)
-            },
+            name: format!("{name} {}", same + 1),
             mode: 0,
-            source: if lfo {
-                Source::Lfo([0.0, 0.0, 0.75, 0.04, 0.5, 0.5]) // 100% amp, 2 cycles
-            } else {
-                Source::Points(Vec::new())
-            },
+            source,
             targets: Vec::new(),
         });
         Some(ls.len() - 1)
@@ -408,7 +449,7 @@ impl State {
     fn points(&mut self, lane: usize) -> Option<&mut Vec<Key>> {
         match &mut self.keyframes.lanes.get_mut(lane)?.source {
             Source::Points(k) => Some(k),
-            Source::Lfo(_) => None,
+            _ => None,
         }
     }
 
@@ -443,13 +484,12 @@ impl State {
     }
 
     pub fn lfo_set(&mut self, lane: usize, j: usize, v: f32) -> bool {
-        match self.keyframes.lanes.get_mut(lane).map(|l| &mut l.source) {
-            Some(Source::Lfo(p)) if j < LFO_PARAMS => {
-                p[j] = unit(v);
-                true
-            }
-            _ => false,
-        }
+        let p: &mut [f32] = match self.keyframes.lanes.get_mut(lane).map(|l| &mut l.source) {
+            Some(Source::Lfo(p)) => p,
+            Some(Source::Random(p)) => p,
+            _ => return false,
+        };
+        p.get_mut(j).map(|x| *x = unit(v)).is_some()
     }
 }
 
@@ -476,6 +516,42 @@ mod curve_tests {
             }
         ]);
         assert!((s.at(50.0).unwrap() - 0.2).abs() < 1e-4);
+    }
+}
+
+#[cfg(test)]
+mod noise_tests {
+    use super::*;
+
+    #[test]
+    fn random_lane_is_seeded_bounded_and_continuous() {
+        let p = |seed: f32, kind: f32| [seed, 0.1, kind, 0.75, 0.0, 0.5];
+        for kind in [0.0, 0.3, 0.6, 0.9] {
+            let a = p(0.0, kind);
+            for i in 0..=510 {
+                let t = i as f32 / 2.0;
+                let v = noise(&a, t);
+                assert!((-0.01..=1.01).contains(&v), "kind {kind} t {t} v {v}");
+                assert_eq!(noise(&a, t), noise(&a, t));
+            }
+            assert_ne!(noise(&a, 100.0), noise(&p(1.0 / 99999.0, kind), 100.0));
+        }
+        // smooth types have no jumps between neighbouring samples; white does
+        let step = |a: &[f32; RAND_PARAMS]| {
+            (0..510)
+                .map(|i| (noise(a, (i + 1) as f32 / 2.0) - noise(a, i as f32 / 2.0)).abs())
+                .fold(0.0, f32::max)
+        };
+        assert!(step(&p(0.0, 0.3)) < 0.1 && step(&p(0.0, 0.9)) < 0.1);
+        assert!(step(&p(0.0, 0.0)) > 0.1);
+    }
+
+    #[test]
+    fn lfo_shapes_match_basic_shapes_order() {
+        let at = |shape: f32, t: f32| wave(&[shape, 0.0, 1.0, 0.02, 0.5, 0.5], t);
+        // 1 cycle over the lane, amp 200%: square is flat at the start, saw ramps
+        assert_eq!(at(0.625, 10.0), at(0.625, 60.0)); // square
+        assert!(at(0.875, 10.0) < at(0.875, 60.0)); // saw
     }
 }
 

@@ -135,7 +135,11 @@ export function createProject(
       .map((g) => ({ ...g, nodes: g.nodes.map((i) => ids[i]) }));
     p.lanes = kf.lanes().map((l) => ({
       name: l.name,
-      type: l.lfo ? "L" : (["P", "C", "S"] as const)[l.mode ?? 0],
+      type: l.rand
+        ? "R"
+        : l.lfo
+          ? "L"
+          : (["P", "C", "S"] as const)[l.mode ?? 0],
       targets: l.addrs.flatMap((a) => at.get(a) ?? []),
       lfo: l.lfo ?? [],
       keys: l.keys,
@@ -182,13 +186,13 @@ export function createProject(
       if (at.has(a) && at.has(b)) wasm.add_link(at.get(a)!, sa, at.get(b)!, sb);
     for (const l of p.lanes) {
       const lane = real!.addLane(
-        l.type === "L",
-        { P: 0, C: 1, S: 2, L: 0 }[l.type],
+        { P: 0, C: 0, S: 0, L: 1, R: 2 }[l.type],
+        { P: 0, C: 1, S: 2, L: 0, R: 0 }[l.type],
       );
       if (lane < 0) break;
       real!.rename(lane, l.name);
       l.lfo.forEach((v, j) => real!.setLfo(lane, j, v));
-      if (l.type !== "L") {
+      if (l.type !== "L" && l.type !== "R") {
         l.keys.forEach((key) =>
           real!.addKey(lane, Math.min(key.t, 255), key.v),
         );

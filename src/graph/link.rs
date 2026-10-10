@@ -92,7 +92,7 @@ mod tests {
     fn removing_a_node_removes_its_lanes() {
         let mut s = State::new();
         s.add_node(NodeKind::Gain, [0.0; 2], [0.0; 2]).unwrap();
-        let lane = s.lane_add(false).unwrap();
+        let lane = s.lane_add(0).unwrap();
         let addr = s.arena.base() + s.nodes[0] as usize;
         assert!(s.lane_link(lane, addr, 0, true));
         s.remove_node(0);

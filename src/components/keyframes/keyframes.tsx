@@ -31,7 +31,7 @@ const ICONS = [
 const clamp = (v: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, v));
 
-const SHAPES = ["Sine", "Tri", "Saw", "Square"];
+const SHAPES = ["Sine", "Tri", "Square", "Saw"]; // Basic shapes order
 // to/from convert normalized <-> displayed value (what ctrl+click edits)
 const shapeAt = (v: number) => Math.min(3, Math.floor(v * 4));
 const LFO = [
@@ -86,6 +86,36 @@ const LFO = [
   from(d: number): number;
   o?: readonly string[];
 }[];
+
+const TYPES = ["White", "Perlin", "Linear", "Smooth"];
+// random lane: seed, freq, type, amp, phase, dc (the last three are the LFO's)
+const RAND = [
+  {
+    name: "seed",
+    def: 0,
+    text: (v: number) => `${Math.round(v * 99999)}`,
+    to: (v: number) => Math.round(v * 99999),
+    from: (d: number) => clamp(Math.round(d), 0, 99999) / 99999,
+  },
+  {
+    name: "freq", // points per lane
+    def: 0.1,
+    text: (v: number) => `${(v * 128).toFixed(1)}×`,
+    to: (v: number) => v * 128,
+    from: (d: number) => d / 128,
+  },
+  {
+    name: "type",
+    def: 0.375,
+    text: (v: number) => TYPES[shapeAt(v)],
+    to: shapeAt,
+    from: (d: number) => (clamp(Math.round(d), 0, 3) + 0.5) / 4,
+    o: TYPES,
+  },
+  LFO[2],
+  LFO[1],
+  LFO[5],
+] as typeof LFO;
 
 // same precision rule as the engine's param text
 const fmt = (v: number) => {
@@ -439,7 +469,7 @@ export function Keyframes(props: { host: Host }) {
                     <Show when={l.lfo}>
                       <div class={kfCss.kfLfo}>
                         <div class={kfCss.kfKnobs}>
-                          {LFO.map((P, j) => (
+                          {(l.rand ? RAND : LFO).map((P, j) => (
                             <div
                               class={kfCss.kfKnob}
                               style={{ "--v": l.lfo![j] }}

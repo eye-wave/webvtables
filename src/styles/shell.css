@@ -91,6 +91,11 @@ body {
   overflow: hidden;
 }
 
+.nokf .box-keyframes,
+.nokf .resize-handle {
+  display: none;
+}
+
 .heightmap {
   pointer-events: none;
   position: absolute;
