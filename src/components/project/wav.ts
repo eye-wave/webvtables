@@ -1,5 +1,5 @@
 // interp: 0 none, 1 crossfade, 2 spectral
-export function encodeWav(tables: Float32Array[], interp = 0, rate = 44100) {
+export function encodeWav(tables: Float32Array[], interp = 0, rate = 88200) {
   const len = tables.reduce((n, t) => n + t.length, 0);
   const sig = "Made with [https://github.com/username/webvtables] ";
 

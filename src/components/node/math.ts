@@ -96,17 +96,7 @@ export const loadMath = () =>
         0.1,
         import("jquery").then(async ({ default: jq }) => {
           (window as any).jQuery = jq; // MathQuill reads it when it evaluates
-          return import("mathquill/build/mathquill.js?raw").then(
-            ({ default: src }) =>
-              // MathQuill 0.10.1 bug: Ctrl+Backspace at the start of a block (or over a selection) calls an
-              // undefined `ctrlr` and throws. Evaluating the source ourselves lets us fix that one line.
-              new Function(
-                src.replace(
-                  "return ctrlr.deleteDir();",
-                  "return this.deleteDir(dir);",
-                ),
-              )(),
-          );
+          return import("mathquill/build/mathquill.js");
         }),
       ),
       step(0.05, import("mathquill/build/mathquill.css")),
