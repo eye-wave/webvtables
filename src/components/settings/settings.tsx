@@ -1,7 +1,9 @@
-import { createEffect, createRoot, For } from "solid-js";
+import { createEffect, createRoot, createSignal, For } from "solid-js";
 import { createStore } from "solid-js/store";
 import { render } from "solid-js/web";
 import Cog from "lucide-solid/icons/settings";
+import Maximize from "lucide-solid/icons/maximize";
+import Minimize from "lucide-solid/icons/minimize";
 import type { FPSMeter } from "lite-fps-meter";
 import type { WasmExports } from "../../wasm";
 import projectCss from "../project/project.module.css";
@@ -271,18 +273,36 @@ export function createSettings(bar: HTMLElement, wasm: WasmExports) {
     settingsRoot,
   );
 
+  const [full, setFull] = createSignal(false);
+  document.onfullscreenchange = () => setFull(!!document.fullscreenElement);
+
   const slot = document.createElement("div");
+  Object.assign(slot.style, { display: "flex", gap: "6px" });
   bar.append(slot);
   render(
     () => (
-      <button
-        class={projectCss.tool}
-        title="Settings"
-        aria-label="Settings"
-        onClick={open}
-      >
-        <Cog size={14} />
-      </button>
+      <>
+        <button
+          class={projectCss.tool}
+          title="Fullscreen"
+          aria-label="Fullscreen"
+          onClick={() =>
+            document.fullscreenElement
+              ? document.exitFullscreen()
+              : document.documentElement.requestFullscreen()
+          }
+        >
+          {full() ? <Minimize size={14} /> : <Maximize size={14} />}
+        </button>
+        <button
+          class={projectCss.tool}
+          title="Settings"
+          aria-label="Settings"
+          onClick={open}
+        >
+          <Cog size={14} />
+        </button>
+      </>
     ),
     slot,
   );

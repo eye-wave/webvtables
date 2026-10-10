@@ -220,12 +220,12 @@ export function createProject(
 
   fileSave.onclick = async () => {
     const lib = await fileLib();
-    const { dedupe, EXT, EXT_ZIP, format, pack } = lib;
+    const { dedupe, EXT, EXT_ZIP, format, needsZip, pack } = lib;
     const p = snapshot(lib);
     // identical Data nodes share one asset; without crypto.subtle (insecure page) they just aren't merged
     await dedupe(p).catch(() => {});
-    if (p.assets.length)
-      download(`${base()}${EXT_ZIP}`, pack(p), "application/zip");
+    if (needsZip(p))
+      download(`${base()}${EXT_ZIP}`, await pack(p), "application/zip");
     else download(`${base()}${EXT}`, format(p), "text/plain");
     fileDialog.close();
   };
@@ -268,7 +268,7 @@ export function createProject(
       // zips start with "PK"
       p =
         buf[0] === 0x50 && buf[1] === 0x4b
-          ? unpack(buf)
+          ? await unpack(buf)
           : parse(new TextDecoder().decode(buf));
     } catch (e) {
       fileMsg.textContent = `Not a valid project file (${(e as Error).message}).`;

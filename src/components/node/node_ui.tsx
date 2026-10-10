@@ -1,10 +1,13 @@
-import { type Component } from "solid-js";
+import { lazy, type Component } from "solid-js";
 import type { nodes } from "../../generated/nodes";
-import { DataView } from "./data_ui";
 import { MathView } from "./math_ui";
 import { Flags, Head, Knob, Scope } from "./node";
 import knobCss from "./knob.module.css";
 import nodeUiCss from "./node_ui.module.css";
+
+const DataView = lazy(() =>
+  import("./data_ui").then((m) => ({ default: m.DataView })),
+);
 
 export type NodeUi = {
   view: Component;
