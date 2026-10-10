@@ -3,7 +3,7 @@ import { render } from "solid-js/web";
 import { nodes } from "../../generated/nodes";
 import { editParam } from "../param_edit/param_edit";
 import type { Kf, LazyKf } from "../../editor/kf";
-import type { Scene } from "../../editor/scene";
+import type { Group, Mode, Scene } from "../../editor/scene";
 import type { ViewCtl } from "../../gfx/view";
 import knobCss from "../node/knob.module.css";
 import nodeCss from "../node/node.module.css";
@@ -136,11 +136,68 @@ export function createContextMenu(
     ];
   };
 
+  const VIEWS = ["Expanded", "Parameters", "Name only"];
+  const groupItems = (g: Group): Item[] => [
+    { label: "Duplicate group", run: () => scene.duplicateGroup(g) },
+    {
+      label: "View",
+      sub: VIEWS.map((label, m) => ({
+        label: `${g.mode === m ? "✓ " : ""}${label}`,
+        run: () => scene.setMode(g, m as Mode),
+      })),
+    },
+    { label: "Ungroup", run: () => scene.ungroup(g) },
+    "-",
+    {
+      label: "Delete group and its nodes",
+      run: () => [...g.members].forEach((m) => scene.remove(m)),
+      danger: true,
+    },
+  ];
+
+  // Shift+click also selects; this is the discoverable route.
+  const pickItems = (node?: HTMLElement): Item[] => {
+    const sel = scene.picked();
+    return [
+      ...(node
+        ? [
+            {
+              label: sel.includes(node) ? "Deselect" : "Select",
+              run: () => scene.select(node),
+            },
+          ]
+        : []),
+      ...(sel.length
+        ? [
+            {
+              label: `Group selected (${sel.length})`,
+              run: () => void scene.group(),
+              off: sel.some((n) => scene.groupOf(n))
+                ? "Some selected nodes are already in a group."
+                : undefined,
+            },
+            { label: "Clear selection", run: () => scene.deselect() },
+          ]
+        : []),
+    ];
+  };
+
   const itemsFor = (e: MouseEvent): Item[] => {
-    const node = (e.target as HTMLElement).closest<HTMLElement>(`.${nodeCss.node}`);
+    const t = e.target as HTMLElement;
+    const g = scene.groupAt(t);
+    if (g) {
+      // a param-list knob belongs to a node hidden inside the group
+      const knob = t.closest<HTMLElement>(`.${knobCss.knob}`);
+      return [
+        ...(knob ? paramItems(e, scene.owner(knob)) : []),
+        ...groupItems(g),
+      ];
+    }
+    const node = t.closest<HTMLElement>(`.${nodeCss.node}`);
     if (!node)
       return [
         { label: "Add node…", run: () => openAdd(e) },
+        ...pickItems(),
         {
           label: "Reset view",
           run() {
@@ -149,9 +206,12 @@ export function createContextMenu(
           },
         },
       ];
+    const own = scene.groupOf(node);
     return [
       ...paramItems(e, node),
-      { label: "Duplicate", run: () => scene.duplicate(node) },
+      ...pickItems(node),
+      ...(own ? [{ label: "Ungroup", run: () => scene.ungroup(own) }] : []),
+      { label: "Duplicate", run: () => void scene.duplicate(node) },
       { label: "Reset parameters", run: () => scene.reset(node) },
       "-",
       { label: "Delete", run: () => scene.remove(node), danger: true },

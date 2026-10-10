@@ -18,10 +18,13 @@ export type Lane = {
   lfo: number[];
   keys: { t: number; v: number; c?: number }[];
 };
+// Visual only: a name, how it is shown (0 expanded, 1 params, 2 name only) and its nodes by id.
+export type Group = { name: string; mode: number; nodes: string[] };
 export type Project = {
   nodes: Node[];
   links: [string, number, string, number][];
   lanes: Lane[];
+  groups: Group[];
   assets: { id: string; data: Uint8Array }[]; // original files, not rendered frames
 };
 
@@ -159,6 +162,11 @@ export function format(p: Project): string {
       .flatMap((sec) => [dash, ...sec])
       .concat(dash)
       .join("\n");
+  const group = (g: Group) =>
+    [
+      `@ ${g.name.padEnd(22)} ${g.mode} @`,
+      ...g.nodes.map((id) => `@ ${id.padEnd(22)} @`),
+    ].join("\n");
   const at = (id: string) => p.nodes.findIndex((n) => n.id === id);
   return (
     [
@@ -170,6 +178,7 @@ export function format(p: Project): string {
           .join("\n"),
       ]),
       ...p.lanes.map(lane),
+      ...p.groups.map(group),
     ]
       .filter(Boolean)
       .join("\n\n") + "\n"
@@ -183,6 +192,8 @@ const RE = {
   big: /^\[\s*([A-Za-z]{3})\*\s*\]\s*&\(\s*(.*?)\s*\)$/,
   link: /^(0x[0-9a-f]+):(\d+)\s*->\s*(0x[0-9a-f]+):(\d+)$/i,
   title: /^=\s(.*?)\s*([PLCS])\s=$/,
+  gtitle: /^@\s(.*?)\s+([012])\s@$/,
+  gnode: /^@\s*(0x[0-9a-f]+)\s*@$/i,
   target: /^=\s*(0x[0-9a-f]+)\[(\d+)\]\s*=$/i,
   cur: new RegExp(`^=\\s*cur\\s*${NUM}\\s*=$`, "i"),
   key: new RegExp(`^=\\s*<(\\d+)>\\s*${NUM}\\s*=$`, "i"),
@@ -197,10 +208,11 @@ export function parse(
   text: string,
   load?: (id: string) => Uint8Array | undefined,
 ): Project {
-  const p: Project = { nodes: [], links: [], lanes: [], assets: [] };
+  const p: Project = { nodes: [], links: [], lanes: [], groups: [], assets: [] };
   let n: Node | undefined,
     id = false;
   let l: Lane | undefined;
+  let gr: Group | undefined;
   text.split(/\r?\n/).forEach((raw, i) => {
     const s = raw.trim();
     const bad = () => {
@@ -213,7 +225,13 @@ export function parse(
         (n = { id: "", kind: "", params: [], x: 0, y: 0, flags: 0 }),
       );
       id = false;
-      l = undefined;
+      l = gr = undefined;
+    } else if (s[0] === "@") {
+      n = l = undefined;
+      if ((m = RE.gtitle.exec(s)))
+        p.groups.push((gr = { name: m[1].trim(), mode: +m[2], nodes: [] }));
+      else if (gr && (m = RE.gnode.exec(s))) gr.nodes.push(m[1].toLowerCase());
+      else bad();
     } else if (s[0] === "#") {
       if (!n) bad();
     } else if (s[0] === "|") {

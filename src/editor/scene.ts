@@ -14,8 +14,29 @@ import type { NodeInfo } from "../components/keyframes/keyframes";
 import type { WasmExports } from "../wasm";
 import knobCss from "../components/node/knob.module.css";
 import nodeCss from "../components/node/node.module.css";
+import groupCss from "../components/group/group.module.css";
 
 export type Sock = { node: number; out: boolean; j: number };
+
+// A group is only a view over real nodes: wasm never hears about it. Mode 0 draws a frame around
+// the members, 1 hides them behind a list of their params, 2 behind just a name and some info.
+// Members are tracked by element (stable across removals, unlike node indices).
+export type Mode = 0 | 1 | 2;
+export type Group = {
+  name: string;
+  mode: Mode;
+  members: HTMLElement[];
+  el: HTMLElement;
+  body: HTMLElement;
+  rect: [number, number, number, number];
+  ins: string[]; // external links of a collapsed group, one slot per socket on its edge
+  outs: string[];
+};
+export const NAME_MAX = 22;
+
+const GW = 180,
+  GHEAD = 20,
+  GPAD = 16;
 
 const KIND_AT = 16,
   FLAGS_AT = KIND_AT + 1;
@@ -70,7 +91,11 @@ export function createScene(
   redraw: () => void = () => {},
 ) {
   const listeners: (() => void)[] = [];
-  const changed = () => listeners.forEach((f) => f());
+  // node names in a param list depend on the other nodes, so rebuild those on any change
+  const changed = () => {
+    groups.forEach((g) => g.mode === 1 && setMode(g, 1));
+    listeners.forEach((f) => f());
+  };
   const f32 = () => new Float32Array(wasm.memory.buffer);
   const u8 = () => new Uint8Array(wasm.memory.buffer);
   const u16 = () => new Uint16Array(wasm.memory.buffer);
@@ -99,23 +124,242 @@ export function createScene(
   const mount = (i: number, p: number, kind: number) =>
     mountNode(root, { wasm, i, kind, p, redraw }, ui[nodes[kind].name]?.view);
 
+  const dom = () => [...root.children] as HTMLElement[];
+  const sorted = () => dom().sort((a, b) => +a.dataset.n! - +b.dataset.n!);
+  const byIndex = () =>
+    new Map(dom().map((e): [number, HTMLElement] => [+e.dataset.n!, e]));
+  // "Gain 2": kind plus its rank among nodes of that kind; shared with the keyframe panel
+  const names = () => {
+    const seen: Record<string, number> = {};
+    return new Map(
+      sorted().map((el): [HTMLElement, string] => {
+        const k = nodes[+el.dataset.k!].name;
+        return [el, `${k} ${(seen[k] = (seen[k] ?? 0) + 1)}`];
+      }),
+    );
+  };
+  const ends = (i: number) => {
+    const w = u16(),
+      u = u8(),
+      p = wasm.get_link(i);
+    return [w[p >> 1], u[p + 2], w[(p >> 1) + 2], u[p + 6]] as const;
+  };
+
+  // ---- groups -------------------------------------------------------------------------------
+  const groups: Group[] = [];
+  const membership = new Map<HTMLElement, Group>();
+  const groupEl = new WeakMap<HTMLElement, Group>();
+  const rowOwner = new WeakMap<HTMLElement, HTMLElement>(); // param-list knob -> its real node
+  const picked = new Set<HTMLElement>();
+  // under the nodes, same transform as the grid (copied in sync)
+  const layer = Object.assign(document.createElement("div"), {
+    className: groupCss.layer,
+  });
+  root.before(layer);
+
+  const shut = (el?: HTMLElement) => {
+    const g = el && membership.get(el);
+    return g && g.mode ? g : undefined;
+  };
+  const visible = () => dom().filter((e) => !shut(e));
+  const owner = (k: HTMLElement) =>
+    rowOwner.get(k) ?? k.closest<HTMLElement>(`.${nodeCss.node}`)!;
+
+  const paint = (
+    k: HTMLElement,
+    node: HTMLElement,
+    f: Float32Array,
+    driven: Set<number>,
+  ) => {
+    const info = nodes[+node.dataset.k!].params as readonly ParamInfo[];
+    k.style.setProperty("--v", `${f[+k.dataset.a! >> 2]}`);
+    k.classList.toggle(knobCss.driven, driven.has(+k.dataset.a!));
+    const j = +k.dataset.j!;
+    const v = numText(+node.dataset.n!, j);
+    const p = info[j];
+    const text = p.o?.[+v] ?? (p.u ? `${v} ${p.u}` : v);
+    const out = k.querySelector(`.${knobCss.pval}`);
+    if (out && out.textContent !== text) out.textContent = text;
+  };
+
+  const div = (cls: string, text = "") =>
+    Object.assign(document.createElement("div"), {
+      className: cls,
+      textContent: text,
+    });
+
+  const MODES = ["Show parameters only", "Show name only", "Expand"];
+  const setMode = (g: Group, mode: Mode) => {
+    g.mode = mode;
+    g.el.dataset.mode = `${mode}`;
+    g.members.forEach((m) => (m.style.display = mode ? "none" : ""));
+    const btn = g.el.querySelector<HTMLElement>(`.${groupCss.mode}`)!;
+    btn.textContent = ["▾", "☰", "▸"][mode];
+    btn.title = MODES[mode];
+    g.body.replaceChildren();
+    if (mode === 1) {
+      const label = names();
+      for (const m of g.members) {
+        g.body.append(div(groupCss.member, label.get(m)));
+        const info = nodes[+m.dataset.k!].params as readonly ParamInfo[];
+        for (const src of m.querySelectorAll<HTMLElement>(
+          `.${knobCss.knob}`,
+        )) {
+          const k = div(knobCss.knob);
+          k.dataset.a = src.dataset.a;
+          k.dataset.j = src.dataset.j;
+          k.append(
+            div(knobCss.dial),
+            div(knobCss.pname, info[+src.dataset.j!].n),
+            div(knobCss.pval),
+          );
+          rowOwner.set(k, m);
+          g.body.append(k);
+        }
+      }
+    } else if (mode === 2) g.body.append(div(groupCss.info));
+    redraw();
+  };
+
+  const makeGroup = (members: HTMLElement[], name: string, mode: Mode) => {
+    const nameBox = Object.assign(document.createElement("input"), {
+      className: groupCss.name,
+      value: name,
+      maxLength: NAME_MAX,
+      spellcheck: false,
+      autocomplete: "off",
+    });
+    const btn = Object.assign(document.createElement("button"), {
+      className: groupCss.mode,
+      type: "button",
+    });
+    const head = div(groupCss.head);
+    head.append(nameBox, btn);
+    const body = div(groupCss.body);
+    const el = div(groupCss.group);
+    el.append(head, body);
+    const g: Group = {
+      name,
+      mode,
+      members,
+      el,
+      body,
+      rect: [0, 0, 0, 0],
+      ins: [],
+      outs: [],
+    };
+    nameBox.oninput = () => (g.name = nameBox.value);
+    btn.onclick = () => setMode(g, ((g.mode + 1) % 3) as Mode);
+    groups.push(g);
+    groupEl.set(el, g);
+    members.forEach((m) => membership.set(m, g));
+    layer.append(el);
+    setMode(g, mode);
+    return g;
+  };
+
+  const dissolve = (g: Group) => {
+    g.members.forEach((m) => {
+      membership.delete(m);
+      m.style.display = "";
+    });
+    groups.splice(groups.indexOf(g), 1);
+    g.el.remove();
+    redraw();
+  };
+
+  const leave = (el: HTMLElement) => {
+    picked.delete(el);
+    const g = membership.get(el);
+    if (!g) return;
+    membership.delete(el);
+    g.members.splice(g.members.indexOf(el), 1);
+    if (!g.members.length) dissolve(g);
+  };
+
+  const deselect = () => {
+    picked.forEach((e) => e.classList.remove(nodeCss.sel));
+    picked.clear();
+  };
+
+  // External links of every collapsed group, one slot per socket, so the ropes can end on its edge.
+  // Runs at the top of sync; links() relies on it.
+  const ports = () => {
+    for (const g of groups) ((g.ins = []), (g.outs = []));
+    if (!groups.some((g) => g.mode)) return;
+    const els = byIndex();
+    const add = (list: string[], key: string) => {
+      if (!list.includes(key)) list.push(key);
+    };
+    for (let i = 0; i < wasm.links_len(); i++) {
+      const [s, ss, t, ts] = ends(i);
+      const [gs, gt] = [shut(els.get(s)), shut(els.get(t))];
+      if (gs === gt) continue; // both outside, or a link inside one group
+      if (gs) add(gs.outs, `${s}:${ss}`);
+      if (gt) add(gt.ins, `${t}:${ts}`);
+    }
+  };
+
+  const edge = (g: Group, out: boolean, node: number, j: number): Pt => {
+    const list = out ? g.outs : g.ins,
+      [x, y, w, h] = g.rect;
+    return [
+      x + (out ? w : 0),
+      y + (h * (list.indexOf(`${node}:${j}`) + 1)) / (list.length + 1),
+    ];
+  };
+
+  const layout = (g: Group, f: Float32Array, driven: Set<number>) => {
+    let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const m of g.members) {
+      const i = at(m);
+      x0 = Math.min(x0, f[i]);
+      y0 = Math.min(y0, f[i + 1]);
+      x1 = Math.max(x1, f[i] + f[i + 2]);
+      y1 = Math.max(y1, f[i + 1] + f[i + 3]);
+    }
+    const s = g.el.style;
+    if (g.mode) {
+      s.width = `${GW}px`;
+      s.height = "";
+      g.rect = [x0, y0, GW, g.el.offsetHeight];
+    } else {
+      g.rect = [
+        x0 - GPAD,
+        y0 - GPAD - GHEAD,
+        x1 - x0 + 2 * GPAD,
+        y1 - y0 + 2 * GPAD + GHEAD,
+      ];
+      s.width = `${g.rect[2]}px`;
+      s.height = `${g.rect[3]}px`;
+    }
+    s.transform = `translate(${g.rect[0]}px, ${g.rect[1]}px)`;
+    if (g.mode === 1)
+      g.body
+        .querySelectorAll<HTMLElement>(`.${knobCss.knob}`)
+        .forEach((k) => paint(k, rowOwner.get(k)!, f, driven));
+    if (g.mode === 2) {
+      const text = `${g.members.length} nodes · ${g.ins.length} in · ${g.outs.length} out`;
+      const info = g.body.firstElementChild!;
+      if (info.textContent !== text) info.textContent = text;
+    }
+  };
+
   return {
     socketPos,
 
     onChange: (f: () => void) => void listeners.push(f),
 
     nodes(): NodeInfo[] {
-      const els = [...root.children] as HTMLElement[];
-      els.sort((a, b) => +a.dataset.n! - +b.dataset.n!);
-      const seen: Record<string, number> = {};
+      const els = sorted();
+      const label = names();
       return els.map((el) => {
         const kind = nodes[+el.dataset.k!];
-        const nth = (seen[kind.name] = (seen[kind.name] ?? 0) + 1);
         const info = kind.params as readonly ParamInfo[];
         return {
           p: +el.dataset.p!,
           n: +el.dataset.n!,
-          name: `${kind.name} ${nth}`,
+          name: label.get(el)!,
           params: [...el.querySelectorAll<HTMLElement>(`.${knobCss.knob}`)].map(
             (k) => ({
               addr: +k.dataset.a!,
@@ -140,6 +384,9 @@ export function createScene(
 
     load() {
       [...root.children].forEach(unmountNode);
+      groups.splice(0).forEach((g) => g.el.remove());
+      membership.clear();
+      picked.clear();
       for (let i = 0; i < wasm.nodes_len(); i++) {
         const [p, k] = [wasm.get_node(i), wasm.node_kind(i)];
         // size is derived, not trusted
@@ -152,10 +399,13 @@ export function createScene(
     sync(driven: Set<number>): Float32Array {
       const f = f32(),
         u = u8();
-      const els = root.children;
-      const inst = new Float32Array(els.length * STRIDE);
+      layer.style.transform = root.style.transform;
+      ports();
+      // nodes hidden inside a collapsed group are skipped everywhere, so z-order = index here
+      const els = visible();
+      const inst = new Float32Array((els.length + groups.length) * STRIDE);
       for (let i = 0; i < els.length; i++) {
-        const el = els[i] as HTMLElement;
+        const el = els[i];
         const p = +el.dataset.p!;
         const [x, y, w, h] = f.subarray(p >> 2, (p >> 2) + 4);
         el.style.transform = `translate(${x}px, ${y}px)`;
@@ -172,26 +422,24 @@ export function createScene(
             !!(u[p + FLAGS_AT] & (1 << +b.dataset.b!)),
           ),
         );
-        const info = nodes[+el.dataset.k!].params as readonly ParamInfo[];
-        el.querySelectorAll<HTMLElement>(`.${knobCss.knob}`).forEach((k) => {
-          k.style.setProperty("--v", `${f[+k.dataset.a! >> 2]}`);
-          k.classList.toggle(knobCss.driven, driven.has(+k.dataset.a!));
-          const j = +k.dataset.j!;
-
-          const v = numText(+el.dataset.n!, j);
-          const p = info[j];
-          const text = p.o?.[+v] ?? (p.u ? `${v} ${p.u}` : v);
-          const out = k.querySelector(`.${knobCss.pval}`);
-          if (out && out.textContent !== text) out.textContent = text;
-        });
+        el.querySelectorAll<HTMLElement>(`.${knobCss.knob}`).forEach((k) =>
+          paint(k, el, f, driven),
+        );
       }
-      return inst;
+      // collapsed groups are drawn like nodes (occlude ropes, glow); open ones are plain frames
+      let n = els.length;
+      for (const g of groups) {
+        layout(g, f, driven);
+        if (g.mode) inst.set([...g.rect, n++, 2], (n - 1) * STRIDE);
+      }
+      return inst.subarray(0, n * STRIDE);
     },
 
     scopes(): Scope[] {
       const out: Scope[] = [];
-      for (let order = 0; order < root.children.length; order++) {
-        const el = root.children.item(order) as HTMLElement;
+      const els = visible();
+      for (let order = 0; order < els.length; order++) {
+        const el = els[order];
         const [x, y] = f32().subarray(at(el), at(el) + 2);
 
         el.querySelectorAll<HTMLElement>(`.${nodeCss.scope}`).forEach((s) => {
@@ -213,15 +461,22 @@ export function createScene(
       return out;
     },
 
-    *links(): Generator<[number, Pt, Pt]> {
+    // null ends: the link lies inside a collapsed group, so it has no rope
+    *links(): Generator<[number, Pt | null, Pt | null]> {
+      const els = byIndex();
       for (let i = 0; i < wasm.links_len(); i++) {
-        const u = u8(),
-          w = u16();
-        const p = wasm.get_link(i);
+        const [s, ss, t, ts] = ends(i);
+        const [gs, gt] = [shut(els.get(s)), shut(els.get(t))];
+        if (gs && gs === gt) {
+          yield [i, null, null];
+          continue;
+        }
         yield [
           i,
-          socketPos({ node: w[p >> 1], out: true, j: u[p + 2] }),
-          socketPos({ node: w[(p >> 1) + 2], out: false, j: u[p + 6] }),
+          gs ? edge(gs, true, s, ss) : socketPos({ node: s, out: true, j: ss }),
+          gt
+            ? edge(gt, false, t, ts)
+            : socketPos({ node: t, out: false, j: ts }),
         ];
       }
     },
@@ -253,8 +508,9 @@ export function createScene(
 
     targets(from: Sock): Pt[] {
       const out: Pt[] = [];
+      const els = byIndex();
       for (let node = 0; node < wasm.nodes_len(); node++)
-        if (node !== from.node)
+        if (node !== from.node && !shut(els.get(node)))
           for (let j = 0; j < sockets(node)[+!from.out]; j++)
             out.push(socketPos({ node, out: !from.out, j }));
       return out;
@@ -282,6 +538,7 @@ export function createScene(
 
     remove(el: HTMLElement) {
       const n = +el.dataset.n!;
+      leave(el);
       wasm.remove_node(n);
       unmountNode(el);
       changed();
@@ -294,9 +551,7 @@ export function createScene(
     },
 
     resetKnob(k: HTMLElement) {
-      const info = nodes[
-        +k.closest<HTMLElement>(`.${nodeCss.node}`)!.dataset.k!
-      ].params as readonly ParamInfo[];
+      const info = nodes[+owner(k).dataset.k!].params as readonly ParamInfo[];
       f32()[+k.dataset.a! >> 2] = info[+k.dataset.j!].d;
     },
 
@@ -310,7 +565,7 @@ export function createScene(
       });
     },
 
-    duplicate(el: HTMLElement) {
+    duplicate(el: HTMLElement): HTMLElement | undefined {
       const i = at(el);
       const count = root.children.length;
       this.add(+el.dataset.k!, f32()[i] + 24, f32()[i + 1] + 24);
@@ -323,6 +578,77 @@ export function createScene(
         f[+k.dataset.a! >> 2] = f[+src[j].dataset.a! >> 2];
       });
       u[+copy.dataset.p! + FLAGS_AT] = u[+el.dataset.p! + FLAGS_AT];
+      return copy;
+    },
+
+    // ---- groups ----
+
+    /** Which knob's real node: a param-list knob inside a collapsed group belongs to a hidden one. */
+    owner,
+    groupOf: (el: HTMLElement) => membership.get(el),
+    groupAt(t: Element) {
+      const e = t.closest<HTMLElement>(`.${groupCss.group}`);
+      return e ? groupEl.get(e) : undefined;
+    },
+    picked: () => [...picked],
+    select(el: HTMLElement) {
+      picked.has(el) ? picked.delete(el) : picked.add(el);
+      el.classList.toggle(nodeCss.sel, picked.has(el));
+    },
+    deselect,
+
+    /** Group the selected nodes (all must be ungrouped). */
+    group(): Group | undefined {
+      const m = [...picked].sort((a, b) => +a.dataset.n! - +b.dataset.n!);
+      if (!m.length || m.some((e) => membership.has(e))) return;
+      deselect();
+      return makeGroup(m, `Group ${groups.length + 1}`, 0);
+    },
+
+    ungroup: dissolve,
+    setMode,
+
+    // Copies the members (params, flags) and the links between them, as one new group.
+    duplicateGroup(g: Group) {
+      const copies = new Map<number, HTMLElement>(); // old node index -> copy
+      for (const m of g.members) {
+        const c = this.duplicate(m);
+        if (c) copies.set(+m.dataset.n!, c);
+      }
+      for (let i = 0, n = wasm.links_len(); i < n; i++) {
+        const [s, ss, t, ts] = ends(i);
+        const [a, b] = [copies.get(s), copies.get(t)];
+        if (a && b) wasm.add_link(+a.dataset.n!, ss, +b.dataset.n!, ts);
+      }
+      if (copies.size)
+        makeGroup(
+          [...copies.values()],
+          `${g.name} copy`.slice(0, NAME_MAX),
+          g.mode,
+        );
+    },
+
+    list: () =>
+      groups.map((g) => ({
+        name: g.name,
+        mode: g.mode,
+        nodes: g.members.map((m) => +m.dataset.n!),
+      })),
+
+    // After load(): node indices are valid again, so groups can be rebuilt over them.
+    restore(list: { name: string; mode: number; nodes: number[] }[]) {
+      const els = byIndex();
+      for (const { name, mode, nodes: ns } of list) {
+        const m = [...new Set(ns)]
+          .map((n) => els.get(n))
+          .filter((e): e is HTMLElement => !!e && !membership.has(e));
+        if (m.length)
+          makeGroup(
+            m,
+            name.slice(0, NAME_MAX),
+            Math.min(2, Math.max(0, mode)) as Mode,
+          );
+      }
     },
 
     pos(el: HTMLElement): Pt {
@@ -344,9 +670,10 @@ export function createScene(
     },
 
     param(k: HTMLElement, after = () => {}): ParamEdit {
-      const n = +k.closest<HTMLElement>(`.${nodeCss.node}`)!.dataset.n!,
+      const node = owner(k);
+      const n = +node.dataset.n!,
         j = +k.dataset.j!;
-      const kind = +k.closest<HTMLElement>(`.${nodeCss.node}`)!.dataset.k!;
+      const kind = +node.dataset.k!;
       return {
         options: (nodes[kind].params as readonly ParamInfo[])[j].o,
         value: numText(n, j),

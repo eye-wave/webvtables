@@ -1,7 +1,7 @@
 import { knobDrag, unlock } from "./fine";
 import { editParam } from "../components/param_edit/param_edit";
 import type { Pt, Ropes } from "../gfx/ropes";
-import type { Scene, Sock } from "./scene";
+import type { Group, Scene, Sock } from "./scene";
 import type { ViewCtl } from "../gfx/view";
 import knobCss from "../components/node/knob.module.css";
 import nodeCss from "../components/node/node.module.css";
@@ -50,6 +50,21 @@ export function createInput(
       move(e) {
         const [x, y] = view.world(e);
         scene.move(el, x - dx, y - dy);
+      },
+    };
+  };
+
+  // Moves every member; a collapsed group sits at its members' top-left, so it follows.
+  const dragGroup = (e: PointerEvent, g: Group): Drag => {
+    const [wx, wy] = view.world(e);
+    const from = g.members.map((m) => scene.pos(m));
+    g.members.forEach((m) => scene.raise(m));
+    return {
+      move(e) {
+        const [x, y] = view.world(e);
+        g.members.forEach((m, i) =>
+          scene.move(m, from[i][0] + x - wx, from[i][1] + y - wy),
+        );
       },
     };
   };
@@ -144,24 +159,34 @@ export function createInput(
   grid.addEventListener("pointerdown", (e) => {
     if (e.button) return;
     const t = e.target as HTMLElement;
+    const grp = scene.groupAt(t);
+    if (grp && t.closest("input, button")) return; // the name box and view button handle themselves
     const flag = t.closest<HTMLElement>(`.${nodeCss.flag}`);
     if (flag) return (scene.flag(flag), schedule());
     const knob = t.closest<HTMLElement>(`.${knobCss.knob}`);
     if (knob && e.ctrlKey) return editParam(knob, scene.param(knob, schedule));
     const sock = t.closest<HTMLElement>(`.${nodeCss.socket}`);
     const node = t.closest<HTMLElement>(`.${nodeCss.node}`);
+    if (e.shiftKey && node && !knob && !sock)
+      return (scene.select(node), schedule());
     const link =
-      knob || sock || node ? -1 : ropes.hit(view.world(e), HIT / view.v[2]);
+      knob || sock || node || grp
+        ? -1
+        : ropes.hit(view.world(e), HIT / view.v[2]);
     hover(knob);
     if (link >= 0) unlink(link);
-    else
+    else {
+      if (!node && !grp && !knob && !sock) scene.deselect();
       drag = knob
         ? dragKnob(e, scene.knob(knob))
         : sock
           ? dragLink(e, scene.socket(sock))
           : node
             ? dragNode(e, node)
-            : dragPan(e);
+            : grp
+              ? dragGroup(e, grp)
+              : dragPan(e);
+    }
     schedule();
   });
 

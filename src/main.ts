@@ -12,7 +12,7 @@ import { createScene } from "./editor/scene";
 import { createTransport } from "./components/transport/transport";
 import { createView } from "./gfx/view";
 import { loadWasm } from "./wasm";
-import { createEffect, createRoot, createSignal } from "solid-js";
+import { createEffect, createSignal } from "solid-js";
 import { render } from "solid-js/web";
 import type { Kf, LazyKf } from "./editor/kf";
 import { createBar } from "./components/keyframes/bar";
@@ -91,7 +91,7 @@ loadWasm().then((wasm) => {
       scene.notify();
     },
   });
-  createRoot(() => createEffect(() => bar.setHead(head())));
+  createEffect(() => bar.setHead(head()));
 
   // Keyframe logic + UI load on the first lane (new or from a project file).
   let real: Kf | undefined, booting: Promise<Kf> | undefined;
@@ -149,7 +149,8 @@ loadWasm().then((wasm) => {
     wasm.scope_begin();
     const driven = kf.apply(head());
     const inst = scene.sync(driven);
-    for (const [id, a, b] of scene.links()) ropes.pin(id, a, b);
+    for (const [id, a, b] of scene.links())
+      a && b ? ropes.pin(id, a, b) : ropes.drop(id);
     const table = scene.outputTable();
     audio.table(table);
     const moving = ropes.step(Math.min(dt, 0.05));

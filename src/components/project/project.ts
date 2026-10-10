@@ -81,7 +81,7 @@ export function createProject(
     const ids = newIds(n);
     const aids = newIds(n, 20); // spare ids; only nodes holding data use one
     const at = new Map<number, { id: string; j: number }>();
-    const p: Project = { nodes: [], links: [], lanes: [], assets: [] };
+    const p: Project = { nodes: [], links: [], lanes: [], groups: [], assets: [] };
     for (let i = 0; i < n; i++) {
       const [x, y] = f32().subarray(
         wasm.get_node(i) >> 2,
@@ -119,6 +119,9 @@ export function createProject(
         u8[a + 6],
       ]);
     }
+    p.groups = scene
+      .list()
+      .map((g) => ({ ...g, nodes: g.nodes.map((i) => ids[i]) }));
     p.lanes = kf.lanes().map((l) => ({
       name: l.name,
       type: l.lfo ? "L" : (["P", "C", "S"] as const)[l.mode ?? 0],
@@ -131,6 +134,7 @@ export function createProject(
 
   // Model -> fresh wasm state, replayed through the normal editing calls.
   // Unknown node kinds are dropped along with their links and lane targets.
+  // Returns the groups with node ids turned into indices, for scene.restore() once the nodes are mounted.
   const apply = (p: Project, decoded: Map<string, Asset>, real?: Kf) => {
     wasm.project_new();
     pending.clear();
@@ -187,6 +191,10 @@ export function createProject(
         if (at.has(t.id))
           real!.link(lane, wasm.get_node(at.get(t.id)!), t.j, true);
     }
+    return p.groups.map((g) => ({
+      ...g,
+      nodes: g.nodes.flatMap((id) => at.get(id) ?? []),
+    }));
   };
 
   // Strip characters filesystems reject; fall back to "project".
@@ -263,9 +271,10 @@ export function createProject(
       fileMsg.textContent = `Could not decode an asset (${(e as Error).message}).`;
       return;
     }
-    apply(p, decoded, p.lanes.length ? await kf.load() : undefined);
+    const groups = apply(p, decoded, p.lanes.length ? await kf.load() : undefined);
     fileName.value = file.name.replace(/\.(wtp|wtx)$/i, "");
     scene.load();
+    scene.restore(groups);
     pending.clear();
     loaded();
     fileDialog.close();
