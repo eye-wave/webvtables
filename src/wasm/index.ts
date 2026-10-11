@@ -7,6 +7,8 @@ export type WasmExports = WasmFns & {
   memory: WebAssembly.Memory;
 };
 
+export let main: WasmExports;
+
 export async function loadWasm(): Promise<WasmExports> {
   let readStr: Reader<string>;
   let mem: WebAssembly.Memory;
@@ -55,7 +57,7 @@ export async function loadWasm(): Promise<WasmExports> {
   mem = exports.memory;
   readStr = createReader(exports.memory);
 
-  return exports;
+  return (main = exports);
 }
 
 function readStr(mem: WebAssembly.Memory, ptr: number, len: number): string {

@@ -5,7 +5,7 @@
     "": {
       "name": "webvtabes",
       "dependencies": {
-        "@cortex-js/compute-engine": "^0.151.0",
+        "@cortex-js/compute-engine": "^0.152.0",
         "fflate": "^0.8.3",
         "jquery": "4.0.0",
         "lite-fps-meter": "^1.3.0",
@@ -65,7 +65,7 @@
 
     "@babel/types": ["@babel/types@7.29.8", "", { "dependencies": { "@babel/helper-string-parser": "^7.29.7", "@babel/helper-validator-identifier": "^7.29.7" } }, "sha512-Vj1jF3cPfxg7OAfoI7QnVKLoILlm2JF9pnVHrX8qx7AHMiYWT+NDAA7jChlNgRS4WTLc/fD1lXLmPixluj+3Gg=="],
 
-    "@cortex-js/compute-engine": ["@cortex-js/compute-engine@0.151.0", "", { "dependencies": { "@arnog/colors": "^0.7.0", "complex.js": "^2.4.3" }, "bin": { "epsil": "dist/esm-min/cli/epsil.js" } }, "sha512-fE1ZQJ6rxUGdHTJ6Aqb1DxGHJiSLsZvqJWYkP6DCL2IRqpEgtd77xp2RD6/kRjhj1dBZIzSm8dw9WNnEvxKCGw=="],
+    "@cortex-js/compute-engine": ["@cortex-js/compute-engine@0.152.0", "", { "dependencies": { "@arnog/colors": "^0.7.0", "complex.js": "^2.4.3" }, "bin": { "epsil": "dist/esm-min/cli/epsil.js" } }, "sha512-4gYJtfr+6mQ/ezq+SASkwpWcLZvcMet0b7HjH4P30Q1dQCwGTqZOc9/BNRDFrIuvLfsIhcVfu2jJXqSV3/RojQ=="],
 
     "@jridgewell/gen-mapping": ["@jridgewell/gen-mapping@0.3.13", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.0", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA=="],
 

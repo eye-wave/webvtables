@@ -467,7 +467,8 @@ export function createScene(
       for (let i = 0; i < wasm.links_len(); i++) {
         const [s, ss, t, ts] = ends(i);
         const [gs, gt] = [shut(els.get(s)), shut(els.get(t))];
-        if (gs && gs === gt) {
+        // no DOM here = a guide demo's link, parked in this graph: no rope
+        if ((gs && gs === gt) || !els.has(s) || !els.has(t)) {
           yield [i, null, null];
           continue;
         }
