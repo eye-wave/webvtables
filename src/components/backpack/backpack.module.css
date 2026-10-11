@@ -81,7 +81,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 5px 8px;
+  min-height: 38px;
+  padding: 8px 6px 8px 10px;
   background: var(--surface-600);
   border: 1px solid var(--border-200);
   border-radius: 5px;
@@ -94,10 +95,48 @@
   background: var(--surface-700);
 }
 
+.item span {
+  flex: 1;
+  min-width: 0;
+}
+
 .item small {
   flex: none;
   font-size: 11px;
   color: var(--text-200);
+}
+
+.info {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--text-100); /* gray: no written guide */
+  background: none;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.info:hover {
+  color: var(--text-400);
+  background: var(--surface-800);
+}
+
+.guided {
+  color: var(--accent-200); /* has a guide */
+}
+
+.guided:hover {
+  color: var(--accent-300);
+  background: var(--accent-100);
+}
+
+.ghost .info {
+  display: none;
 }
 
 .ghost {

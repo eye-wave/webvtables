@@ -1,0 +1,25 @@
+Output is the end of the graph. Whatever arrives here is the wavetable: the editor evaluates your graph once for each of the 256 frames, and Output collects the result of every frame.
+
+## At a glance
+
+<Params />
+
+## What it does
+
+- **Feeds the preview.** The heightmap in the bottom-right corner of the grid is drawn from Output's results. Click it to flip between flat and 3D.
+- **Feeds the export.** The .wav you export is rendered from Output, not from any other node.
+- **Shows the current frame.** The Output node has two small displays: the waveform of the frame under the playhead, and its spectrum.
+
+### Reading the spectrum
+
+The spectrum shows the first 1024 harmonics on a logarithmic scale. The top edge is a full-scale sine wave. The DC component (harmonic 0) is left out. A sawtooth shows a steady slope of harmonics, a sine shows a single spike, and noise fills the whole display.
+
+<Tip>
+  If a project contains several Output nodes, only the oldest one (the first you
+  added) is used for the preview and the export. Delete extras to avoid
+  confusion.
+</Tip>
+
+## Good to know
+
+- With nothing connected to its input, the table stays flat.

@@ -3,7 +3,16 @@
 import { categories, nodes } from "../../generated/nodes";
 import type { Scene } from "../../editor/scene";
 import type { ViewCtl } from "../../gfx/view";
+import type { Doc } from "./guide";
 import css from "./backpack.module.css";
+
+// lucide "info"
+const INFO =
+  '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>';
+
+// Guides are MDX files named after the node id; the loaders are lazy, so this costs nothing until one opens.
+const docs = import.meta.glob<{ default: Doc }>("../../docs/*.mdx");
+const guide = (id: string) => docs[`../../docs/${id}.mdx`];
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = "") =>
   Object.assign(document.createElement(tag), { className: cls, textContent: text });
@@ -36,7 +45,13 @@ export function createBackpack(
         const it = el("div", css.item);
         it.dataset.kind = `${kind}`;
         it.dataset.name = n.name.toLowerCase();
-        it.append(el("span", "", n.name), el("small", "", `${n.inputs} → ${n.outputs}`));
+        const info = el("button", guide(n.id) ? `${css.info} ${css.guided}` : css.info);
+        info.type = "button";
+        info.title = guide(n.id) ? `Guide: ${n.name}` : `${n.name}: no guide yet, shows a summary`;
+        info.setAttribute("aria-label", info.title);
+        info.dataset.info = "";
+        info.innerHTML = INFO;
+        it.append(el("span", "", n.name), el("small", "", `${n.inputs} → ${n.outputs}`), info);
         list.append(it);
         return it;
       });
@@ -60,9 +75,17 @@ export function createBackpack(
     return !!t && grid.contains(t);
   };
 
+  // the guide (and its MDX) loads on first use
+  body.onclick = (e) => {
+    const b = (e.target as Element).closest("[data-info]");
+    if (!b) return;
+    const kind = +b.parentElement!.dataset.kind!;
+    void import("./guide").then((m) => m.openGuide(kind, guide(nodes[kind].id)));
+  };
+
   body.onpointerdown = (e) => {
     const it = (e.target as Element).closest<HTMLElement>("[data-kind]");
-    if (!it || e.button) return;
+    if (!it || e.button || (e.target as Element).closest("[data-info]")) return;
     const [x0, y0] = [e.clientX, e.clientY];
     let ghost: HTMLElement | undefined;
     it.setPointerCapture(e.pointerId);
