@@ -10,16 +10,21 @@ flat in float vKind;
 out vec4 o;
 
 void main() {
-  o = vec4(0.0);
   vec2 h = vRect.zw * 0.5;
   vec2 q = abs(vP - vRect.xy - h) - h + uR;
   float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - uR;
+
   if (uPad == 0.0) {
+    // depth-only pass: the node's rounded rect (colour is masked off)
     if (d > 0.0) discard;
-    return;
+    o = vec4(0.0);
+  } else {
+    // Glow outside the rect. Zero inside it by arithmetic, not by `discard`: some mobile
+    // drivers (seen on Firefox/Brave Android) keep the interior, where the unclamped
+    // falloff is > 1 and saturates to white.
+    float x = clamp(1.0 - d / uPad, 0.0, 1.0);
+    float a = (x * x * 0.55 + (1.0 - smoothstep(1.0, 2.0, d)) * 0.45) * step(0.0, d);
+    vec3 col = vKind == 0.0 ? vec3(0.3, 0.6, 1.0) : vKind == 1.0 ? vec3(1.0, 0.6, 0.25) : vec3(0.4, 0.9, 0.5);
+    o = vec4(col * a, a);
   }
-  if (d < 0.0 || d > uPad) discard;
-  float a = pow(1.0 - d / uPad, 2.0) * 0.55 + (1.0 - smoothstep(1.0, 2.0, d)) * 0.45;
-  vec3 col = vKind == 0.0 ? vec3(0.3, 0.6, 1.0) : vKind == 1.0 ? vec3(1.0, 0.6, 0.25) : vec3(0.4, 0.9, 0.5);
-  o = vec4(col * a, a);
 }
