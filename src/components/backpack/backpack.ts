@@ -1,4 +1,4 @@
-// Node backpack: a panel over the left of the grid, listing every node by category.
+// Node backpack: a box left of the grid, listing every node by category.
 // Drag an item onto the grid to add it there. Loaded on first open (see main.ts).
 import { categories, nodes } from "../../generated/nodes";
 import type { Scene } from "../../editor/scene";
@@ -14,7 +14,7 @@ export function createBackpack(
   scene: Scene,
   schedule: () => void,
 ) {
-  const root = el("aside", css.pack);
+  const root = el("aside", `box ${css.pack}`);
   const search = Object.assign(el("input"), {
     placeholder: "Search nodes…",
     spellcheck: false,
@@ -57,7 +57,7 @@ export function createBackpack(
 
   const over = (e: PointerEvent) => {
     const t = document.elementFromPoint(e.clientX, e.clientY);
-    return !!t && grid.contains(t) && !root.contains(t);
+    return !!t && grid.contains(t);
   };
 
   body.onpointerdown = (e) => {
@@ -83,10 +83,6 @@ export function createBackpack(
     };
   };
 
-  // keep the grid underneath from panning, zooming or opening its menus through the panel
-  for (const ev of ["pointerdown", "dblclick", "contextmenu", "wheel"])
-    root.addEventListener(ev, (e) => e.stopPropagation());
-
-  grid.append(root);
+  grid.before(root);
   return { show: (on: boolean) => (root.hidden = !on) };
 }

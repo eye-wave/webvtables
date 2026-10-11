@@ -1,18 +1,13 @@
 .pack {
-  position: absolute;
-  z-index: 3;
-  top: 8px;
-  bottom: 8px;
-  left: 8px;
+  flex: none;
   width: 224px;
+  min-height: 0;
+  contain: size; /* its height comes from the row (stretch), never from the node list, which scrolls */
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 8px;
-  background: var(--surface-400);
-  border: 1px solid var(--border-300);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px var(--shadow);
   color: var(--text-600);
   font:
     13px system-ui,

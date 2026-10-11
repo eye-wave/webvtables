@@ -9,17 +9,20 @@ const COLS = 256;
 
 export type Heightmap = ReturnType<typeof createHeightmap>;
 
-// Static inset, bottom-right of the grid box (CSS px, top-left origin). Keep in sync with .heightmap in shell.css.
+// Inset, bottom-right of the grid box (CSS px, top-left origin). Full size from 900px of viewport
+// width, shrinking in proportion below. Keep in sync with .heightmap in shell.css.
 const W = 280,
   H = 160,
+  FULL_AT = 900,
   MARGIN = 8,
   BORDER = 1;
 export const mapRect = (
   bw: number,
   bh: number,
 ): [number, number, number, number] => {
-  const h = Math.min(H, bh - 2 * MARGIN);
-  return [bw - MARGIN - W, bh - MARGIN - h, W, h];
+  const s = Math.min(1, innerWidth / FULL_AT);
+  const h = Math.min(H * s, bh - 2 * MARGIN);
+  return [bw - MARGIN - W * s, bh - MARGIN - h, W * s, h];
 };
 
 // All frames in one COLS x (FRAMES + 1) float texture; extra row = live wave.

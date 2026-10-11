@@ -58,6 +58,7 @@ loadWasm().then((wasm) => {
         m.createBackpack(canvas.parentElement!, view, scene, schedule),
       );
       (await pack).show(on);
+      schedule();
     },
   );
   const [head, setHead] = createSignal(0);

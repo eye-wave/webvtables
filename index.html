@@ -10,6 +10,7 @@
       content="Node editor for creating wavetable files."
     />
 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta property="og:url" content="https://eye-wave.github.io/webvtables/" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="webvtables" />
@@ -50,12 +51,14 @@
       >
     </div>
     <div class="box box-playback"></div>
-    <div class="box box-node-grid">
-      <div id="fps" hidden></div>
-      <div id="gridBg"></div>
-      <div id="nodeGrid"></div>
-      <div class="heightmap"></div>
-      <canvas class="overlay-canvas" id="canvas"></canvas>
+    <div class="row">
+      <div class="box box-node-grid">
+        <div id="fps" hidden></div>
+        <div id="gridBg"></div>
+        <div id="nodeGrid"></div>
+        <div class="heightmap"></div>
+        <canvas class="overlay-canvas" id="canvas"></canvas>
+      </div>
     </div>
     <div class="resize-handle" id="kfHandle"></div>
     <div class="box box-keyframes">

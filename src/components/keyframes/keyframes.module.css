@@ -212,6 +212,8 @@
   height: 12px;
   margin: -6px 0 0 -6px;
   cursor: ns-resize;
+  touch-action: none; /* else the scrolling lane steals the drag */
+  user-select: none;
 }
 
 .kfKey::before {
@@ -257,6 +259,17 @@
   background: #111;
   opacity: 0.55;
   cursor: ns-resize;
+  touch-action: none;
+}
+
+/* fingers are fat: invisible, bigger hit areas on touch */
+@media (any-pointer: coarse) {
+  .kfKey::after,
+  .kfMid::after {
+    content: "";
+    position: absolute;
+    inset: -14px;
+  }
 }
 
 .kfMid:hover {

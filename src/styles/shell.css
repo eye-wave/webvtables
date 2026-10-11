@@ -32,10 +32,18 @@ body {
   user-select: none;
 }
 
+.row {
+  flex: 1;
+  display: flex;
+  gap: 4px;
+  min-height: 120px;
+}
+
 .box-node-grid {
   position: relative;
   overflow: hidden;
   flex: 1;
+  min-width: 0;
 }
 
 #gridBg {
@@ -64,10 +72,6 @@ body {
   position: absolute;
   width: 100%;
   height: 100%;
-}
-
-.box-node-grid {
-  min-height: 120px;
 }
 
 .resize-handle {
@@ -101,8 +105,8 @@ body {
   position: absolute;
   right: 8px;
   bottom: 8px;
-  width: 280px;
-  height: 160px;
+  width: min(280px, 31.111vw); /* 280 / 900 */
+  height: min(160px, 17.778vw); /* 160 / 900 */
   max-height: calc(100% - 16px);
   background: var(--surface-300);
   border: 1px solid var(--border-100);
@@ -352,7 +356,7 @@ body {
   display: none;
 }
 
-@media (max-width: 739px) {
+@media (max-width: 589px) {
   html,
   body {
     overflow: hidden;
@@ -494,4 +498,3 @@ body {
   padding: 12px 8px 12px 154px;
   color: var(--text-100);
 }
-
