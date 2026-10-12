@@ -94,6 +94,19 @@ pub fn floor(x: f64) -> f64 {
     }
 }
 
+#[inline]
+pub fn floorf(x: f32) -> f32 {
+    #[cfg(target_arch = "wasm32")]
+    {
+        core::arch::wasm32::f32_floor(x)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        x.floor()
+    }
+}
+
 // Host builds (cargo test) have no JS to import from: write the ramp x.
 #[cfg(not(target_arch = "wasm32"))]
 #[unsafe(export_name = "math_eval")]

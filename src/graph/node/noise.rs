@@ -175,7 +175,7 @@ fn norm(val: f32) -> f32 {
 }
 
 #[inline]
-fn xorshift(x: &mut u64) -> f32 {
+pub fn xorshift(x: &mut u64) -> f32 {
     *x ^= *x << 13;
     *x ^= *x >> 7;
     *x ^= *x << 17;
@@ -185,7 +185,7 @@ fn xorshift(x: &mut u64) -> f32 {
 }
 
 #[inline]
-fn splitmix64(x: &mut u64) -> f32 {
+pub fn splitmix64(x: &mut u64) -> f32 {
     *x = x.wrapping_add(0x9E3779B97F4A7C15);
 
     let mut z = *x;
@@ -197,7 +197,7 @@ fn splitmix64(x: &mut u64) -> f32 {
 }
 
 #[inline]
-fn wyrand(x: &mut u64) -> f32 {
+pub fn wyrand(x: &mut u64) -> f32 {
     *x = x.wrapping_add(0xa0761d6478bd642f);
 
     let t = (*x as u128).wrapping_mul((*x ^ 0xe7037ed1a0b428db) as u128);
@@ -208,7 +208,7 @@ fn wyrand(x: &mut u64) -> f32 {
 }
 
 #[inline]
-fn sfc64(x: &mut u64) -> f32 {
+pub fn sfc64(x: &mut u64) -> f32 {
     *x = x
         .wrapping_mul(6364136223846793005)
         .wrapping_add(1442695040888963407);
@@ -219,7 +219,7 @@ fn sfc64(x: &mut u64) -> f32 {
 }
 
 #[inline]
-fn wang_hash(x: &mut u64) -> f32 {
+pub fn wang_hash(x: &mut u64) -> f32 {
     let mut v = *x;
 
     v = (!v).wrapping_add(v << 21);
@@ -236,7 +236,7 @@ fn wang_hash(x: &mut u64) -> f32 {
 }
 
 #[inline]
-fn jenkins(x: &mut u64) -> f32 {
+pub fn jenkins(x: &mut u64) -> f32 {
     *x = (*x).wrapping_add(0x7ed55d16);
     *x ^= *x >> 12;
     *x = (*x).wrapping_add(*x << 25);
@@ -247,7 +247,7 @@ fn jenkins(x: &mut u64) -> f32 {
 }
 
 #[inline]
-fn lcg(x: &mut u64) -> f32 {
+pub fn lcg(x: &mut u64) -> f32 {
     *x = x.wrapping_mul(6364136223846793005).wrapping_add(1);
 
     (*x >> 32) as u32 as f32 / u32::MAX as f32
