@@ -1,3 +1,5 @@
+import type { WasmExports } from "../../wasm";
+
 // Data stores the original file bytes for saving and the browser-decoded content.
 // Browsers handle decoding; WASM needs no codecs or libraries.
 export type Spec = Record<string, string>;
@@ -62,6 +64,26 @@ export function decode(
 }
 
 export const pending = new Map<number, { asset: Asset; spec: Spec }>();
+
+// Copies `d` into the node's wasm storage (the engine reads it from there); false if it was refused.
+export const store = (wasm: WasmExports, node: number, d: Float32Array) => {
+  const p = wasm.data_alloc(node, d.length);
+  // the view is made after the alloc: it may have grown (and detached) memory
+  if (p >= 0) new Float32Array(wasm.memory.buffer, p, d.length).set(d);
+  return p >= 0;
+};
+
+// The Waveshaper's asset is its points: x y pairs as raw float32, no codec, no settings.
+// Like Math's LaTeX they are read straight from the asset (see project.ts) and wait here for the node view.
+export type Pt = readonly [x: number, y: number];
+export const ptsBoot = new Map<number, Pt[]>();
+export const encodePoints = (p: readonly Pt[]) => Float32Array.from(p.flat());
+// Whole pairs only; anything odd in a file (stray bytes, NaN, out of range) is repaired.
+export const decodePoints = (b: Uint8Array): Pt[] => {
+  const f = new Float32Array(b.slice(0, b.length & ~7).buffer);
+  const v = (x: number) => (Number.isFinite(x) ? Math.min(1, Math.max(-1, x)) : 0);
+  return Array.from({ length: f.length / 2 }, (_, i) => [v(f[2 * i]), v(f[2 * i + 1])]);
+};
 
 export type Saved = { bytes: Uint8Array; spec: Spec };
 const live = new Set<{

@@ -9,7 +9,7 @@ export type Node = {
   x: number;
   y: number;
   flags: number; // bit 0 norm, bit 1 remdc, bit 2 clip
-  asset?: string; // Data/Math nodes: id of the original file in `assets`
+  asset?: string; // Data/Math/Waveshaper nodes: id of the original file in `assets`
   spec?: Record<string, string>; // Data nodes: settings, 3-letter keys (see LONG)
 };
 export type Lane = {
@@ -118,7 +118,8 @@ export async function unpack(zip: Uint8Array): Promise<Project> {
 //   [=- 0x471dd9900e7 -=]      node id
 //   | _shapes_ 0 &null  |      kind (8 wide, centered in _), flags 0-7, asset id (5 hex) or null (Math has none)
 //   | 1.000000000000000 |      params
-//   |< *extern Data    >| &…   nodes with an asset: Data settings as JSON, Math LaTeX as is
+//   |< *extern Data    >| &…   nodes with an asset: Data settings as JSON, Math LaTeX as is. Waveshaper has no such
+//                                line: its points (x y pairs, raw float32) are the asset itself
 //   |=x -293.0000000000=|      position
 //   \=y 182.00000000000=/
 //
@@ -427,7 +428,9 @@ export function format(p: Project): string {
       `[=- ${n.id} -=]`,
       `| ${center(n.kind)} ${n.flags & 7} ${("&" + (n.kind === "math" || !n.asset ? "null" : n.asset.slice(2))).padEnd(6)} |`,
       ...n.params.map((v) => `| ${f15(v)} |`),
-      ...(n.asset ? [`|< *extern Data    >|${tail && ` &${tail}`}`] : []),
+      ...(n.asset && n.kind !== "wavshape"
+        ? [`|< *extern Data    >|${tail && ` &${tail}`}`]
+        : []),
       `|=x ${p15(n.x)}=|`,
       `\\=y ${p15(n.y)}=/`,
     ].join("\n");

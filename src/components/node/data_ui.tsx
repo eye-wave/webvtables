@@ -19,6 +19,7 @@ import {
   panelViews,
   pending,
   registerData,
+  store,
   TYPES,
   type Asset,
   type Audio,
@@ -642,10 +643,7 @@ export function DataView() {
   );
 
   const put: Put = (d) => {
-    const p = ctx.wasm.data_alloc(+ctx.el!.dataset.n!, d.length / N);
-    if (p < 0) return setErr("out of memory");
-    // the view is made after the alloc: it may have grown (and detached) memory
-    new Float32Array(ctx.wasm.memory.buffer, p, d.length).set(d);
+    if (!store(ctx.wasm, +ctx.el!.dataset.n!, d)) return setErr("out of memory");
     setErr("");
     ctx.redraw();
   };

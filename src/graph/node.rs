@@ -123,6 +123,7 @@ define_nodes!(
     Spectrum = "spectrum",
     SyncWarp = "syncwarp",
     Vowel = "vowel",
+    Waveshaper = "wavshape",
     Window = "window",
     XyMerge = "xymerge",
 );

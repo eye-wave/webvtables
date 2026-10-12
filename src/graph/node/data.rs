@@ -1,4 +1,5 @@
 use super::helpers;
+use super::waveshaper::MAX_POINTS;
 use super::{Buffer, MAX_PARAMS, N, NodeCategory, NodeKind, NodeLogic, NodeParamDef, Param, State};
 use super::{Label, label};
 use crate::graph::{scope::CURRENT, state};
@@ -42,11 +43,16 @@ impl NodeLogic for DataNode {
     ) {
         let frame = helpers::param(params, 0, 0.0) as f32;
         let spectral = helpers::param(params, 1, 0.0) as u8 == 1;
-        let off = unsafe { CURRENT };
-        if let Some((_, d)) = state().data.iter().find(|(o, _)| *o == off) {
+        if let Some(d) = current() {
             pick(d, frame, spectral, &mut outs[0]);
         }
     }
+}
+
+// The stored floats of the node whose `process` is running (a Data node's frames, a Waveshaper's points).
+pub fn current() -> Option<&'static [f32]> {
+    let off = unsafe { CURRENT };
+    state().data.iter().find(|d| d.0 == off).map(|d| &d.1[..])
 }
 
 fn frame_at(d: &[f32], k: usize) -> &Buffer {
@@ -87,23 +93,28 @@ impl State {
         self.data_of(idx).map_or(0, |d| d.len() / N)
     }
 
-    /// Allocates zeroed storage for `frames` frames and returns its address.
-    /// Returns None for invalid nodes, frame counts, or allocation failure.
-    /// Frees a Data node's buffer.
+    /// Frees a node's buffer.
     pub fn data_free(&mut self, idx: usize) {
         if let Some(&off) = self.nodes.get(idx) {
             self.data.retain(|d| d.0 != off);
         }
     }
 
-    pub fn data_alloc(&mut self, idx: usize, frames: usize) -> Option<usize> {
+    /// Allocates zeroed storage for `len` floats and returns its address: whole frames (1..=256)
+    /// for Data, x y pairs for Waveshaper. None for invalid nodes, lengths, or allocation failure.
+    pub fn data_alloc(&mut self, idx: usize, len: usize) -> Option<usize> {
         let off = *self.nodes.get(idx)?;
-        if self.kind(idx)? != NodeKind::Data || !(1..=256).contains(&frames) {
+        let ok = match self.kind(idx)? {
+            NodeKind::Data => len.is_multiple_of(N) && (1..=256).contains(&(len / N)),
+            NodeKind::Waveshaper => len.is_multiple_of(2) && len <= 2 * MAX_POINTS,
+            _ => false,
+        };
+        if !ok {
             return None;
         }
         let mut v = Vec::new();
-        v.try_reserve_exact(frames * N).ok()?;
-        v.resize(frames * N, 0.0);
+        v.try_reserve_exact(len).ok()?;
+        v.resize(len, 0.0);
         let ptr = v.as_ptr() as usize;
         self.data.retain(|d| d.0 != off);
         self.data.push((off, v));

@@ -104,9 +104,9 @@ pub extern "C" fn add_node(kind: u8, x: f32, y: f32, w: f32, h: f32) -> i32 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn data_alloc(idx: u16, frames: u16) -> i32 {
+pub extern "C" fn data_alloc(idx: u16, len: u32) -> i32 {
     state()
-        .data_alloc(idx as usize, frames as usize)
+        .data_alloc(idx as usize, len as usize)
         .map_or(-1, |p| p as i32)
 }
 

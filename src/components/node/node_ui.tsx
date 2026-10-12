@@ -9,6 +9,10 @@ const DataView = lazy(() =>
   import("./data_ui").then((m) => ({ default: m.DataView })),
 );
 
+const WaveshaperView = lazy(() =>
+  import("./waveshaper_ui").then((m) => ({ default: m.WaveshaperView })),
+);
+
 export type NodeUi = {
   view: Component;
 
@@ -18,6 +22,8 @@ export type NodeUi = {
 
 export const ui: Partial<Record<(typeof nodes)[number]["name"], NodeUi>> = {
   Data: { size: [320, 360], auto: true, view: DataView },
+
+  Waveshaper: { size: [220, 420], auto: true, view: WaveshaperView },
 
   Math: { size: [300, 360], auto: true, view: MathView },
 

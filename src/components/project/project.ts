@@ -2,7 +2,14 @@ import { nodes as kinds } from "../../generated/nodes";
 import type { Kf, LazyKf } from "../../editor/kf";
 import type { Scene } from "../../editor/scene";
 import type { WasmExports } from "../../wasm";
-import { decode, pending, savedAt, type Asset } from "../node/data_asset";
+import {
+  decode,
+  decodePoints,
+  pending,
+  ptsBoot,
+  savedAt,
+  type Asset,
+} from "../node/data_asset";
 import { texBoot, texOf } from "../node/math";
 import type { Project } from "./file";
 
@@ -154,6 +161,7 @@ export function createProject(
     wasm.project_new();
     pending.clear();
     texBoot.clear();
+    ptsBoot.clear();
     const at = new Map<string, number>();
     for (const n of p.nodes) {
       const kind = kinds.findIndex((k) => k.id === n.kind);
@@ -175,6 +183,10 @@ export function createProject(
         const a = p.assets.find((x) => x.id === text);
         if (a) texBoot.set(i, new TextDecoder().decode(a.data));
       }
+      // Waveshaper: the asset is its points as raw float32
+      const pts =
+        n.kind === "wavshape" && p.assets.find((x) => x.id === n.asset);
+      if (pts) ptsBoot.set(i, decodePoints(pts.data));
       const d = n.asset ? decoded.get(n.asset) : undefined;
       if (d)
         pending.set(i, {
@@ -283,7 +295,7 @@ export function createProject(
     try {
       for (const a of p.assets) {
         const n = p.nodes.find((x) => x.asset === a.id)!;
-        if (n.kind === "math") continue; // plain text, read straight from the asset
+        if (n.kind === "math" || n.kind === "wavshape") continue; // read straight from the asset
         decoded.set(
           a.id,
           await decode(n.spec?.Typ, a.data, n.spec?.Nam ?? a.id),
@@ -303,6 +315,7 @@ export function createProject(
     scene.restore(groups);
     // pending.clear();
     texBoot.clear();
+    ptsBoot.clear();
     loaded();
     fileDialog.close();
   };

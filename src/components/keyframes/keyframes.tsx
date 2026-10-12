@@ -11,11 +11,17 @@ import Blend from "lucide-solid/icons/blend";
 import Check from "lucide-solid/icons/check";
 import Close from "lucide-solid/icons/x";
 import { createStore, reconcile } from "solid-js/store";
-import { fineScale, knobDrag, unlock } from "../../editor/fine";
+import { knobDrag, unlock } from "../../editor/fine";
 import type { Kf, LaneView } from "../../editor/kf";
 import { editParam } from "../param_edit/param_edit";
+import {
+  clamp,
+  createPoints,
+  drag,
+  placeTip,
+  plotAt,
+} from "../points/points";
 import { laneColors } from "../settings/settings";
-import ctxCss from "../ctx/ctx.module.css";
 import knobCss from "../node/knob.module.css";
 import kfCss from "./keyframes.module.css";
 import { FRAMES, H, LABEL, PADX, type Bar } from "./bar";
@@ -28,8 +34,6 @@ const ICONS = [
   () => <Blend class={kfCss.kfIcon} size={14} />, // crossfade
   () => <AudioLines class={kfCss.kfIcon} size={14} />, // spectral
 ];
-const clamp = (v: number, lo: number, hi: number) =>
-  Math.min(hi, Math.max(lo, v));
 
 const SHAPES = ["Sine", "Tri", "Square", "Saw"]; // Basic shapes order
 // to/from convert normalized <-> displayed value (what ctrl+click edits)
@@ -154,11 +158,8 @@ export function Keyframes(props: { host: Host }) {
   const [width, setWidth] = createSignal(bar.scroll.clientWidth);
   const [z, setZ] = createSignal(bar.z());
   bar.onLayout(() => (setWidth(bar.scroll.clientWidth), setZ(bar.z())));
-  const [sel, setSel] = createSignal<[lane: number, key: number]>();
-  const [menu, setMenu] = createSignal<{ x: number; y: number }>();
   const { head } = host;
   const { scroll, root } = bar;
-  let pop: HTMLDivElement | undefined;
 
   const refresh = () => {
     set("lanes", reconcile(host.lanes()));
@@ -170,81 +171,23 @@ export function Keyframes(props: { host: Host }) {
   });
   createEffect(() => (head(), host.schedule()));
 
-  const del = ([l, k]: [number, number]) => {
-    host.removeKey(l, k);
-    setSel();
-    setMenu();
-    refresh();
-  };
-
-  createEffect(() => {
-    const k = sel();
-    if (!k) return;
-    const key = (e: KeyboardEvent) => {
-      if (e.key !== "Delete" && e.key !== "Backspace") return;
-      if (
-        (e.target as Element).closest("input,textarea,select,[contenteditable]")
-      )
-        return;
-      e.preventDefault();
-      del(k);
-    };
-    const away = (e: Event) => {
-      const t = e.target as Node;
-      if (!root.contains(t) && !pop?.contains(t)) setSel();
-    };
-    addEventListener("keydown", key);
-    addEventListener("pointerdown", away, true);
-    onCleanup(() => {
-      removeEventListener("keydown", key);
-      removeEventListener("pointerdown", away, true);
-    });
-  });
-
-  createEffect(() => {
-    if (!menu()) return;
-    const away = (e: Event) => pop?.contains(e.target as Node) || setMenu();
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setMenu();
-    addEventListener("pointerdown", away, true);
-    addEventListener("keydown", esc, true);
-    onCleanup(() => {
-      removeEventListener("pointerdown", away, true);
-      removeEventListener("keydown", esc, true);
-    });
+  const pts = createPoints({
+    del: ([l, k]) => (host.removeKey(l, k), refresh()),
+    inside: (t) => root.contains(t),
+    label: "Delete keyframe",
   });
 
   const X = (t: number) => PADX + t * z();
   const Y = (v: number) => PADY + (1 - v) * INNER;
-  const frameAt = (e: MouseEvent, track: Element) =>
-    clamp(
-      Math.round((e.clientX - track.getBoundingClientRect().left - PADX) / z()),
-      0,
-      FRAMES,
-    );
-
-  const drag = (e: PointerEvent, move: (e: PointerEvent) => void) => {
-    const el = e.currentTarget as HTMLElement;
-    el.setPointerCapture(e.pointerId);
-    el.onpointermove = move;
-    el.onpointerup = () => (el.onpointermove = el.onpointerup = null);
-    move(e);
-  };
-
+  // Tooltips stay inside the visible lanes
   const place = (chip: HTMLElement) => {
-    const tip = chip.firstElementChild as HTMLElement;
-    const c = chip.getBoundingClientRect(),
-      v = scroll.getBoundingClientRect();
-    const [w, h, gap] = [tip.offsetWidth, tip.offsetHeight, 6];
-    const [l, t, r, b] = [
+    const v = scroll.getBoundingClientRect();
+    placeTip(chip, [
       v.left + LABEL,
       v.top + RULER,
       v.left + scroll.clientWidth,
       v.top + scroll.clientHeight,
-    ];
-    const cx = c.left + c.width / 2;
-    const above = c.top - gap - h >= t || c.bottom + gap + h > b;
-    tip.style.top = `${above ? -h - gap : c.height + gap}px`;
-    tip.style.left = `${cx - w / 2 < l ? 0 : cx + w / 2 > r ? c.width - w : (c.width - w) / 2}px`;
+    ]);
   };
 
   const line = (l: LaneView) =>
@@ -443,7 +386,7 @@ export function Keyframes(props: { host: Host }) {
                       title="Remove lane"
                       onClick={() => {
                         host.removeLane(i());
-                        setSel();
+                        pts.clear();
                         refresh();
                       }}
                     >
@@ -453,17 +396,18 @@ export function Keyframes(props: { host: Host }) {
                   <div
                     class={"kf-track"}
                     onDblClick={(e) => {
-                      if (l.lfo || (e.target as Element).closest(".kf-key"))
-                        return;
-                      const y =
-                        e.clientY - e.currentTarget.getBoundingClientRect().top;
-                      const k = host.addKey(
-                        i(),
-                        frameAt(e, e.currentTarget),
-                        clamp(1 - (y - PADY) / INNER, 0, 1),
+                      if (l.lfo) return;
+                      const [fx, fy] = plotAt(
+                        e,
+                        e.currentTarget,
+                        [PADX, PADY],
+                        [FRAMES * z(), INNER],
                       );
-                      if (k >= 0) setSel([i(), k]);
-                      refresh();
+                      pts.add(e, () => {
+                        const k = host.addKey(i(), Math.round(fx * FRAMES), fy);
+                        refresh();
+                        return k >= 0 ? [i(), k] : undefined;
+                      });
                     }}
                   >
                     <Show when={l.lfo}>
@@ -574,10 +518,7 @@ export function Keyframes(props: { host: Host }) {
                       {(k, ki) => (
                         <b
                           class={kfCss.kfKey}
-                          classList={{
-                            [kfCss.on]:
-                              sel()?.[0] === i() && sel()?.[1] === ki(),
-                          }}
+                          classList={{ [kfCss.on]: pts.isSel(i(), ki()) }}
                           style={{ left: `${X(k.t)}px`, top: `${Y(k.v)}px` }}
                           ref={(el) => {
                             createEffect(
@@ -586,82 +527,63 @@ export function Keyframes(props: { host: Host }) {
                                 k.v,
                                 z(),
                                 width(),
-                                sel(),
+                                pts.isSel(i(), ki()),
                                 queueMicrotask(() => place(el))
                               ),
                             );
                           }}
                           onPointerEnter={(e) => place(e.currentTarget)}
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setSel([i(), ki()]);
-                            setMenu({ x: e.clientX, y: e.clientY });
-                          }}
-                          onPointerDown={(e) => {
-                            e.stopPropagation();
-                            if (e.button) return;
-                            setSel([i(), ki()]);
-                            if (e.ctrlKey) {
-                              const t = k.t;
-                              const set = (v: number) => {
-                                host.setKey(i(), ki(), t, clamp(v, 0, 1));
+                          {...pts.point(
+                            () => [i(), ki()],
+                            () => ({
+                              at: [k.t, k.v],
+                              per: [1 / z(), -1 / INNER],
+                              min: [0, 0],
+                              max: [FRAMES, 1],
+                              move: (t, v) => {
+                                host.setKey(i(), ki(), Math.round(t), v);
                                 refresh();
-                              };
-                              // one entry per target that resolves to a param
-                              const ts = nodes().flatMap((n) =>
-                                n.params
-                                  .filter((p) => l.addrs.includes(p.addr))
-                                  .map((p) => ({ n, p })),
-                              );
-                              const views = ts.map(({ n, p }) => {
-                                const d = host.denorm(n.n, p.j, k.v);
-                                return {
-                                  label: `${n.name} · ${p.name}`,
-                                  options: p.o,
-                                  value: p.o ? `${Math.round(d)}` : fmt(d),
+                              },
+                              edit: () => {
+                                const t = k.t;
+                                const set = (v: number) => {
+                                  host.setKey(i(), ki(), t, clamp(v, 0, 1));
+                                  refresh();
+                                };
+                                // one entry per target that resolves to a param
+                                const ts = nodes().flatMap((n) =>
+                                  n.params
+                                    .filter((p) => l.addrs.includes(p.addr))
+                                    .map((p) => ({ n, p })),
+                                );
+                                const views = ts.map(({ n, p }) => {
+                                  const d = host.denorm(n.n, p.j, k.v);
+                                  return {
+                                    label: `${n.name} · ${p.name}`,
+                                    options: p.o,
+                                    value: p.o ? `${Math.round(d)}` : fmt(d),
+                                    commit(s: string) {
+                                      const x = parseFloat(s);
+                                      if (!isNaN(x)) set(host.norm(n.n, p.j, x));
+                                    },
+                                  };
+                                });
+                                const normed = {
+                                  label: "norm",
+                                  value: k.v.toFixed(4),
                                   commit(s: string) {
                                     const x = parseFloat(s);
-                                    if (!isNaN(x)) set(host.norm(n.n, p.j, x));
+                                    if (!isNaN(x)) set(x);
                                   },
                                 };
-                              });
-                              const normed = {
-                                label: "norm",
-                                value: k.v.toFixed(4),
-                                commit(s: string) {
-                                  const x = parseFloat(s);
-                                  if (!isNaN(x)) set(x);
-                                },
-                              };
-                              return editParam(
-                                e.currentTarget,
-                                views.length === 1
+                                return views.length === 1
                                   ? views[0]
                                   : views.length
                                     ? { ...views[0], alts: [...views, normed] }
-                                    : normed,
-                              );
-                            }
-                            let [x, y, t, v] = [e.clientX, e.clientY, k.t, k.v];
-
-                            drag(e, (m) => {
-                              const f = fineScale(m);
-                              t = clamp(
-                                t + ((m.clientX - x) / z()) * f,
-                                0,
-                                FRAMES,
-                              );
-                              v = clamp(
-                                v + ((y - m.clientY) / INNER) * f,
-                                0,
-                                1,
-                              );
-                              [x, y] = [m.clientX, m.clientY];
-                              host.setKey(i(), ki(), Math.round(t), v);
-                              refresh();
-                            });
-                          }}
+                                    : normed;
+                              },
+                            }),
+                          )}
                         >
                           <span>
                             {k.t} · {k.v.toFixed(4)}
@@ -674,29 +596,7 @@ export function Keyframes(props: { host: Host }) {
               );
             }}
           </For>
-          <Show when={menu()}>
-            {(m) => (
-              <Portal ref={(el) => (el.style.display = "contents")}>
-                <div
-                  class={`${ctxCss.ctx} ${ctxCss.open}`}
-                  ref={pop}
-                  style={{
-                    left: `${Math.min(m().x, innerWidth - 180)}px`,
-                    top: `${Math.min(m().y, innerHeight - 48)}px`,
-                  }}
-                  onContextMenu={(e) => e.preventDefault()}
-                >
-                  <div
-                    class={`${ctxCss.item} ${ctxCss.danger}`}
-                    style={{ "--i": 0 }}
-                    onClick={() => sel() && del(sel()!)}
-                  >
-                    Delete keyframe
-                  </div>
-                </div>
-              </Portal>
-            )}
-          </Show>
+          <pts.Menu />
 
     </>
   );
