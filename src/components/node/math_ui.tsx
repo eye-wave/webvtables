@@ -9,6 +9,7 @@ import {
   texBoot,
   type MathField,
 } from "./math";
+import { softKeyboard } from "./soft_keyboard";
 import { Flags, Head, Knob, Scope, useNode } from "./node";
 import knobCss from "./knob.module.css";
 import css from "./math_ui.module.css";
@@ -57,6 +58,7 @@ export function MathView() {
         },
       },
     });
+    softKeyboard(field, host.querySelector("textarea")!); // phones: see soft_keyboard.ts
     field.latex(initial);
   };
   onMount(start);

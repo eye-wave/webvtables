@@ -1,6 +1,6 @@
 import "./styles/theme.css";
 import "./styles/shell.css";
-import { createAudio } from "./audio/audio";
+import { createAudio, Held } from "./audio/audio";
 import { createContextMenu } from "./components/ctx/ctx";
 import { createInput } from "./editor/input";
 import { createPreview } from "./editor/preview";
@@ -61,6 +61,16 @@ loadWasm().then((wasm) => {
       schedule();
     },
   );
+
+  const away = () =>
+    audio.hold(Held.Away, document.hidden || !document.hasFocus());
+  addEventListener("blur", away);
+  addEventListener("focus", away);
+  document.addEventListener("visibilitychange", away);
+  new ResizeObserver(() =>
+    audio.hold(Held.Narrow, narrow.clientWidth > 0),
+  ).observe(narrow);
+
   const [head, setHead] = createSignal(0);
 
   // Click the map to flip flat <-> 3D; keep the grid underneath from seeing it.

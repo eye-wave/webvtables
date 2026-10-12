@@ -53,6 +53,8 @@ export type MathField = {
   latex(l: string): void;
   focus(): void;
   revert(): void;
+  typedText(text: string): void;
+  keystroke(keys: string): void;
 };
 type MQ = {
   MathField(

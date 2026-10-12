@@ -19,6 +19,7 @@
     "shiki": "^4.5.0",
     "typescript": "~7.0.2",
     "vite": "^8.3.4",
+    "vite-plugin-better-enums": "git+https://github.com/eye-wave/better-enums.git",
     "vite-plugin-glsl": "^1.6.2",
     "vite-plugin-html": "^3.2.2",
     "vite-plugin-solid": "^2.11.14"

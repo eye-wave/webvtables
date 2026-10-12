@@ -5,9 +5,6 @@ import { readFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import type { Plugin } from "vite";
 
-// <md-lookup src="../path/to/file.rs" /> -> the highlighted body of that file's `fn process`, found by indent:
-// ponytail: assumes rustfmt (the fn ends at the first line that is just `}` at its own indent), and takes the first
-// `fn process`; a real parser if a file ever has two.
 async function lookup(from: string, attrs: string) {
   const rel = /src=["']([^"']+)["']/.exec(attrs)?.[1];
   if (!rel) throw new Error(`<md-lookup ${attrs}> needs src="path/to/file.rs"`);

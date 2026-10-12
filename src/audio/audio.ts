@@ -2,6 +2,11 @@ import workletUrl from "./resampler.worklet.js?worker&url";
 
 export const TABLE = 2048;
 
+export enum Held {
+  Away,
+  Narrow,
+}
+
 export function createAudio() {
   let ctx: AudioContext | undefined;
   let node: AudioWorkletNode | undefined;
@@ -10,6 +15,8 @@ export function createAudio() {
   let freq = 220;
   let volume = 0.25;
   let playing = false;
+  const held = new Set<Held>();
+  const live = () => playing && !held.size;
 
   const send = (m: object) => node?.port.postMessage(m);
 
@@ -21,25 +28,37 @@ export function createAudio() {
       outputChannelCount: [1],
     });
     node.connect(ctx.destination);
-    send({ table, freq, volume, playing });
+    send({ table, freq, volume, playing: live() });
+  };
+
+  const pause = () => {
+    playing = false;
+    send({ playing: false });
+    setTimeout(() => !playing && ctx?.suspend(), 200);
   };
 
   return {
     async toggle(): Promise<boolean> {
-      playing = !playing;
-      if (playing) {
-        try {
-          ready ??= start();
-          await ready;
-          await ctx!.resume();
-        } catch (e) {
-          console.error(e);
-          ready = undefined;
-          return (playing = false);
-        }
-      } else setTimeout(() => !playing && ctx?.suspend(), 200);
-      send({ playing });
+      if (playing) return (pause(), false);
+      playing = true;
+      try {
+        ready ??= start();
+        await ready;
+        await ctx!.resume();
+      } catch (e) {
+        console.error(e);
+        ready = undefined;
+        return (playing = false);
+      }
+      send({ playing: live() });
       return playing;
+    },
+
+    pause,
+
+    hold(why: Held, on: boolean) {
+      held[on ? "add" : "delete"](why);
+      send({ playing: live() });
     },
 
     setFreq(hz: number) {
