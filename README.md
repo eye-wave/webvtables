@@ -62,7 +62,7 @@ webvtables is designed to fit into a real music production workflow. You can exp
 
 Examples of compatible synthesizers include:
 
-- [Serum by Xfer Records](https://xferrecords.com/products/serum)
+- [Serum by Xfer Records](https://xferrecords.com/products/serum-2)
 - [Vital by Matt Tytel](https://vital.audio/)
 
 The workflow is straightforward:
