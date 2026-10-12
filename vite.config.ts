@@ -3,7 +3,7 @@ import glsl from "vite-plugin-glsl";
 import solid from "vite-plugin-solid";
 import { createHtmlPlugin } from "vite-plugin-html";
 import betterEnums from "vite-plugin-better-enums";
-import md from "./scripts/md.ts";
+import md from "./scripts/md.js";
 
 export default defineConfig({
   base: "/webvtables/",

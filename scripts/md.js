@@ -3,9 +3,13 @@ import { marked } from "marked";
 import { codeToHtml } from "shiki";
 import { readFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
-import type { Plugin } from "vite";
 
-async function lookup(from: string, attrs: string) {
+/**
+ *
+ * @param {string} from
+ * @param {string} attrs
+ */
+async function lookup(from, attrs) {
   const rel = /src=["']([^"']+)["']/.exec(attrs)?.[1];
   if (!rel) throw new Error(`<md-lookup ${attrs}> needs src="path/to/file.rs"`);
   const path = resolve(dirname(from), rel);
@@ -16,13 +20,16 @@ async function lookup(from: string, attrs: string) {
 }
 const LOOKUP = /<md-lookup\s+([^>]*?)\s*(?:\/>|><\/md-lookup>)/g;
 
-// `x.md?url` -> a compiled x.html asset, fetched at runtime. <md-*> tags pass through as-is for Solid to mount into.
-export default function md(): Plugin {
+/**
+ * `x.md?url` -> a compiled x.html asset, fetched at runtime. <md-*> tags pass through as-is for Solid to mount into.
+ * @returns {import("vite").Plugin}
+ */
+export default function md() {
   let dev = false;
   return {
     name: "md",
     enforce: "pre",
-    // the compiled guides get their own folder; every other asset keeps vite's default name
+
     config: () => ({
       build: {
         rolldownOptions: {
@@ -47,20 +54,26 @@ export default function md(): Plugin {
         looked.forEach((l) => this.addWatchFile(l.path));
         let n = 0;
         const parked = text.replace(LOOKUP, () => `\n\n@@code${n++}@@\n\n`);
-        // <md-latex>m_a</md-latex> becomes MathML right here (no katex css, fonts or runtime; bad TeX fails the build).
-        // It is parked behind a placeholder so markdown can't touch the TeX (m_a ... m_b is not emphasis).
-        const math: string[] = [];
+
+        /**
+         *  <md-latex>m_a</md-latex> becomes MathML right here (no katex css, fonts or runtime; bad TeX fails the build).
+         * It is parked behind a placeholder so markdown can't touch the TeX (m_a ... m_b is not emphasis).
+         @type {string[]}
+         */
+        const math = [];
         const tex = parked.replace(
           /<md-latex>([\s\S]*?)<\/md-latex>/g,
           (_, t) =>
             `@@math${math.push(katex.renderToString(t.trim(), { output: "mathml" })) - 1}@@`,
         );
+
         // a line holding only an <md-*> tag gets blank lines around it, or markdown stops at the html block
         const src = tex.replace(
           /^[ \t]*(<\/?md-[\w-]+[^>]*>)[ \t]*\r?$/gm,
           "\n$1\n",
         );
-        const html = (marked.parse(src) as string)
+
+        const html = (await marked.parse(src))
           // html has no self-closing custom elements: <md-x /> would swallow what follows
           .replace(/<(md-[\w-]+)([^>]*?)\s*\/>/g, "<$1$2></$1>")
           // a lone <md-x></md-x> line isn't a block to markdown; drop the <p> it gets wrapped in
