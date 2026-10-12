@@ -1,16 +1,15 @@
-// Node guide dialog. The backpack hands over the lazy loader of the node's MDX guide (src/docs/<id>.mdx);
-// nodes without one get an auto-generated summary. Guides get <Params />, <Tip> and <Demo>.
-import { For, lazy, Show, Suspense, type Component, type JSX } from "solid-js";
-import { Dynamic, render } from "solid-js/web";
+// Node guide dialog. The backpack hands over the URL of the node's guide (src/info/<id>.md, compiled
+// to .html and fetched here); nodes without one get an auto-generated summary. Solid mounts into the guide's
+// <md-params> and <md-demo nodes='json' links='json'>; <md-tip> and <md-warning> are plain CSS.
+import { For, Show } from "solid-js";
+import { render } from "solid-js/web";
 import { nodes } from "../../generated/nodes";
 import css from "./guide.module.css";
-import type { DemoProps } from "./demo";
 
 type Node = (typeof nodes)[number];
-export type Doc = Component<{ components?: Record<string, Component<any>> }>;
 type Param = { n: string; o?: readonly string[]; u?: string };
 
-// Available to every guide as <Params />, built from the node's own metadata so it can't go stale.
+// Mounted into every <md-params>, built from the node's own metadata so it can't go stale.
 const Params = (p: { node: Node }) => (
   <>
     <p class={css.ports}>
@@ -42,24 +41,10 @@ const Params = (p: { node: Node }) => (
   </>
 );
 
-const LazyDemo = lazy(() => import("./demo"));
-const Demo = (p: DemoProps) => (
-  <Suspense fallback={<p class={css.empty}>Loading demo…</p>}>
-    <LazyDemo {...p} />
-  </Suspense>
-);
-
-const Tip = (p: { children?: JSX.Element }) => (
-  <aside class={css.tip}>{p.children}</aside>
-);
-
-const Warning = (p: { children?: JSX.Element }) => (
-  <aside class={css.warning}>{p.children}</aside>
-);
-
 let dlg: HTMLDialogElement | undefined;
 let title: HTMLElement, host: HTMLElement;
-let dispose: (() => void) | undefined;
+let ds: (() => void)[] = [];
+const stop = () => (ds.forEach((d) => d()), (ds = []));
 let current = -1;
 
 function build() {
@@ -78,33 +63,32 @@ function build() {
   d.append(head, host);
   x.onclick = () => d.close();
   d.onclick = (e) => e.target === d && d.close(); // the backdrop
-  d.onclose = () => (dispose?.(), (dispose = undefined), (current = -1));
+  d.onclose = () => (stop(), (current = -1), host.replaceChildren());
   document.body.append(d);
   return d;
 }
 
-export async function openGuide(
-  kind: number,
-  load?: () => Promise<{ default: Doc }>,
-) {
+export async function openGuide(kind: number, url?: string) {
   const node = nodes[kind];
   dlg ??= build();
   current = kind;
-  dispose?.();
-  dispose = undefined;
+  stop();
   title.textContent = node.name;
   host.textContent = "Loading…";
   host.scrollTop = 0;
   if (!dlg.open) dlg.showModal();
 
-  const Doc = load && (await load().catch(() => undefined))?.default;
+  const html =
+    url &&
+    (await fetch(url)
+      .then((r) => (r.ok ? r.text() : undefined))
+      .catch(() => undefined));
   if (current !== kind) return; // closed or switched while loading
-  host.textContent = "";
-  dispose = render(
-    () => (
-      <Show
-        when={Doc}
-        fallback={
+  if (!html) {
+    host.textContent = "";
+    return void ds.push(
+      render(
+        () => (
           <>
             <p class={css.empty}>
               No written guide for this node yet. Here is what it takes and
@@ -112,19 +96,27 @@ export async function openGuide(
             </p>
             <Params node={node} />
           </>
-        }
-      >
-        <Dynamic
-          component={Doc}
-          components={{
-            Params: () => <Params node={node} />,
-            Tip,
-            Warning,
-            Demo,
-          }}
-        />
-      </Show>
-    ),
-    host,
-  );
+        ),
+        host,
+      ),
+    );
+  }
+  host.innerHTML = html;
+  for (const el of host.querySelectorAll<HTMLElement>("md-params"))
+    ds.push(render(() => <Params node={node} />, el));
+  for (const el of host.querySelectorAll<HTMLElement>("md-demo"))
+    void import("./demo").then(({ default: Demo }) => {
+      if (el.isConnected)
+        ds.push(
+          render(
+            () => (
+              <Demo
+                nodes={JSON.parse(el.getAttribute("nodes")!)}
+                links={JSON.parse(el.getAttribute("links") ?? "null")}
+              />
+            ),
+            el,
+          ),
+        );
+    });
 }

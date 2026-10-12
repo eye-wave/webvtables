@@ -32,3 +32,16 @@
   color: var(--danger, #f77);
   font-size: 13px;
 }
+
+/* a hidden node: a small dotted circle with its sockets on the rim (see demo.tsx) */
+.world .hidden {
+  background: none;
+  border-color: var(--border-500);
+  border-style: dotted;
+  border-radius: 999px !important; /* beats the inline radius */
+}
+
+/* sockets are the only children with data-o */
+.world .hidden > :not([data-o]) {
+  display: none;
+}

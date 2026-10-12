@@ -1,0 +1,40 @@
+Spectral Subtract performs noise reduction and spectral subtraction by removing the frequency magnitude spectrum of a second reference signal from a primary audio signal, enabling subtractive synthesis or noise suppression.
+
+## Try it
+
+<md-demo
+nodes='[
+["Basic shapes", { Shape: "Sawtooth" }],
+["Noise", { Algorithm: "Xorshift", Color: "White", Seed: 12345 }],
+["Spectral Subtract", { Mix: 100.0 }],
+]'
+/>
+
+This is the real node, running. Connect a primary audio source and a reference noise profile to subtract spectra in real time.
+
+## At a glance
+
+<md-params />
+
+## Parameters
+
+**Mix** blends the dry signal with the spectrally subtracted output signal (0.0% to 100.0%).
+
+<md-tip>
+  Adjusting the **Mix** parameter allows you to blend between full background
+  noise removal and a subtle spectral gating effect.
+</md-tip>
+
+## How it works
+
+Spectral Subtract converts both incoming audio inputs into the frequency domain using a Fast Fourier Transform (FFT). It calculates the magnitude spectrum for each input, subtracts the reference magnitude from the primary signal (clamping negative values at zero), scales the complex phase spectrum accordingly, and reconstructs the time-domain signal using an inverse FFT. Finally, it blends the processed result with the original dry signal according to the **Mix** parameter.
+
+## Tutorial: removing noise or extracting spectral differences
+
+1. Drop a primary audio source node and a reference noise/signal node onto the grid, alongside a **Spectral Subtract** node and an **Output** node.
+2. Connect the primary signal into the first input and the reference signal into the second input of the Spectral Subtract node.
+3. Route the output to the Output node and adjust the **Mix** parameter to control the subtraction depth.
+
+## Good to know
+
+- Because spectral subtraction works directly on frequency bin magnitudes, subtracting a recorded noise profile from a noisy signal can effectively strip away stationary background hiss or hums.

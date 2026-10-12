@@ -1,0 +1,47 @@
+Vowel Filter simulates vocal tract resonances by applying formant filters to an audio signal, shaping its frequency spectrum to sound like spoken vowels.
+
+## Try it
+
+<md-demo
+nodes='[
+["Basic shapes", { Shape: "Sawtooth" }],
+["Vowel Filter", { Vowel: 0.0, Freq: 9.09, Q: 6.0, Mix: 100.0 }],
+]'
+/>
+
+This is the real node, running. Drag the knobs to change the vowel parameters and watch the formant peaks shift. Double-click a knob to reset it.
+
+## At a glance
+
+<md-params />
+
+## Parameters
+
+**Vowel** morphs smoothly through five classic vowel sounds (0.0 to 4.0):
+
+- **0.0:** "i" (ee) sound
+- **1.0:** "ɪ" (ih) sound
+- **2.0:** "ɑ" (ah) sound
+- **3.0:** "o" (oh) sound
+- **4.0:** "u" (oo) sound
+
+**Freq** scales the formant frequency placement across bins.
+
+**Q** adjusts the resonance sharpness or bandwidth of the formant peaks (1.0 to 30.0).
+
+**Mix** blends between the original dry signal and the filtered wet signal (0% to 100%).
+
+<md-tip>
+  Sweeping the **Vowel** parameter using a keyframe lane creates talking
+  synthesizer effects or vocal movement from a static input wave.
+</md-tip>
+
+## Tutorial: making a synth talk
+
+1. Drop a **Basic shapes** node set to Sawtooth, then add a **Vowel Filter** and an **Output** node.
+2. Connect Basic shapes to Vowel Filter, and Vowel Filter to the Output node.
+3. Sweep the **Vowel** knob back and forth between 0.0 and 4.0 to hear the timbre morph through vowel sounds.
+
+## Good to know
+
+- By modeling the resonant frequencies of the human vocal tract, this filter turns bright, harsh waveforms into expressive, vowel-like tones.

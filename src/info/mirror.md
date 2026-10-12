@@ -1,0 +1,50 @@
+Mirror reflects, repeats, or flips sections of an audio buffer across its midpoint, acting as a waveform-folding or buffer-manipulation effect.
+
+## Try it
+
+<md-demo
+nodes='[
+["Basic shapes", { Shape: "Sine" }],
+["Mirror", { Mode: "Repeat", Source: "First", Mix: 100.0 }],
+]'
+/>
+
+This is the real node, running. Connect an audio source to mirror and fold its waveform in real time.
+
+## At a glance
+
+<md-params />
+
+## Parameters
+
+**Mode** selects the mirroring or folding style:
+
+| Mode        | Effect                                                         |
+| ----------- | -------------------------------------------------------------- |
+| Repeat      | copies the source half to repeat across the buffer             |
+| Flip        | copies the source half and inverts its polarity                |
+| Reflect     | mirrors the buffer symmetrically back toward the center        |
+| Reflect Inv | symmetrically reflects the buffer while inverting its polarity |
+
+**Source** chooses which half of the buffer serves as the template (`First` or `Second`).
+
+**Mix** controls the wet/dry balance of the mirroring effect (0.0% to 100.0%).
+
+<md-tip>
+  Using **Reflect Inv** mode on a simple sine wave introduces abrupt symmetrical
+  foldbacks that instantly generate rich odd and even harmonics.
+</md-tip>
+
+## How it works
+
+The Mirror node processes the audio buffer by taking either the first or second half as a source template and mapping it across the buffer according to the selected **Mode**. It optionally applies a negative sign multiplier for inverted modes, and then blends the resulting waveform with the original dry signal using the **Mix** parameter.
+
+## Tutorial: folding waveforms symmetrically
+
+1. Drop a **Basic shapes** node and a **Mirror** node onto the grid, alongside an **Output** node.
+2. Connect the Basic shapes node into the input of the Mirror node.
+3. Route the output to the Output node and toggle between **Mode** and **Source** options to hear how the waveform changes shape.
+
+## Good to know
+
+- Because waveform folding introduces sharp geometric reflections and boundary points, it acts as a wavefolder that adds complex harmonic overtones without altering pitch.

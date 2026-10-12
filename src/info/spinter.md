@@ -1,0 +1,47 @@
+Intersect combines the frequency spectra of two audio signals using geometric mean, minimum, or multiplication, acting as a spectral cross-synthesis or filtering effect.
+
+## Try it
+
+<md-demo
+nodes='[
+["Basic shapes", { Shape: "Sawtooth" }],
+["Noise", { Algorithm: "Xorshift", Color: "White", Seed: 12345 }],
+["Intersect", { Mode: "Geometric", Phase: "A" }],
+]'
+/>
+
+## At a glance
+
+<md-params />
+
+## Parameters
+
+**Mode** selects the mathematical operation used to combine the frequency magnitudes of the two inputs:
+
+| Mode      | Effect                                                                             |
+| --------- | ---------------------------------------------------------------------------------- |
+| Geometric | calculates the geometric mean of both input magnitudes `($\sqrt{m_a \times m_b}$)` |
+| Min       | retains the lowest magnitude between the two inputs                                |
+| Multiply  | multiplies both magnitude spectra together ($m_a \times m_b$)                      |
+
+**Phase** chooses which input's phase spectrum is preserved for the output (`A` or `B`).
+
+<md-tip>
+  Using **Multiply** mode will heavily attenuate signals unless both inputs
+  share overlapping harmonic content, creating a sharp gating or filtering
+  effect.
+</md-tip>
+
+## How it works
+
+The Intersect node transforms both incoming audio signals into the frequency domain using Fast Fourier Transforms (FFTs). It computes the magnitudes for each bin and combines them according to the selected **Mode**. It then applies the phase information from either input **A** or input **B** depending on the **Phase** parameter, before reconstructing the final signal back into the time domain via inverse FFT.
+
+## Tutorial: cross-synthesizing two audio streams
+
+1. Drop two distinct audio source nodes and an **Intersect** node onto the grid, alongside an **Output** node.
+2. Connect the first source to input `0` and the second source to input `1` of the Intersect node.
+3. Route the output to the Output node and toggle between **Mode** and **Phase** options to hear how the two sounds blend together spectrally.
+
+## Good to know
+
+- By combining the magnitude spectrum of one sound with the phase spectrum of another you can achieve vocoder-style cross-synthesis results.

@@ -1,0 +1,50 @@
+LPC (Linear Predictive Coding) models the spectral envelope of an audio signal by estimating its formants and resonances, commonly used in speech analysis and vocoding. Read more on [Linear predictive coding](https://en.wikipedia.org/wiki/Linear_predictive_coding) via Wikipedia.
+
+## Try it
+
+<md-demo
+nodes='[
+["Basic shapes", { Shape: "Sawtooth" }],
+["Noise", { Algorithm: "Xorshift", Color: "White", Seed: 12345 }],
+["LPC", { Mode: "Smooth", Order: 12, Mix: 100.0 }],
+]'
+/>
+
+This is the real node, running. Connect audio sources to shape the spectral envelope in real time.
+
+## At a glance
+
+<md-params />
+
+## Parameters
+
+**Mode** selects the processing behavior:
+
+| Mode   | Effect                                                                     |
+| ------ | -------------------------------------------------------------------------- |
+| Smooth | applies the spectral envelope of the primary input                         |
+| Whiten | flattens the input spectrum by removing its resonances                     |
+| Cross  | transfers the spectral envelope from the second input onto the first input |
+
+**Order** (1 to 48) sets the number of poles used to model the spectral peaks.
+
+**Mix** blends between the original dry signal and the processed wet signal (0% to 100%).
+
+<md-tip>
+  Using **Cross** mode with a vocal sample or harmonic source on input A and a
+  noise source on input B creates classic robotic vocoder effects.
+</md-tip>
+
+## How it works
+
+LPC analyzes the incoming audio waveform by computing its autocorrelation sequence, applying the Levinson-Durbin recursion algorithm to find the linear prediction coefficients. These coefficients define an all-pole filter model that traces the smoothed spectral envelope (formants) of the sound. Depending on the chosen mode, the node either flattens the spectrum (whitening), smooths it based on its own shape, or maps the spectral envelope of a secondary input onto the primary signal.
+
+## Tutorial: applying vocal tract filtering
+
+1. Drop a **Basic shapes** node and a **Noise** node onto the grid, then add an **LPC** node and an **Output** node.
+2. Connect Basic shapes to the first input and Noise to the second input of the LPC node.
+3. Switch the **Mode** parameter to **Cross** and adjust the **Order** knob to hear the harmonic source take on the formant characteristics of the secondary input.
+
+## Good to know
+
+- By mathematical necessity, LPC models signals using an all-pole filter representation, making it exceptionally good at tracking peaks like formants while ignoring harmonic fine structure.

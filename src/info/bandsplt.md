@@ -1,0 +1,28 @@
+Band split divides an incoming audio signal into three distinct frequency bands, outputting each band through its own socket for multi-band processing.
+
+## At a glance
+
+<md-params />
+
+## Parameters
+
+**Low band** sets the cutoff frequency (in bins) between the low and middle bands.
+
+**High band** sets the cutoff frequency (in bins) between the middle and high bands.
+
+The node's built-in display visually shows only the lowest band, as it specifically renders the first output channel.
+
+## Tutorial: multi-band processing
+
+1. Drop a **Basic shapes** node and a **Band split** node onto the grid.
+2. Connect the Basic shapes output to the Band split input.
+3. Add three separate **Output** nodes (or processing nodes like filters or distortion) and connect them to Band split's three output sockets:
+   - **Socket 0 (Low):** contains frequencies below the Low band cutoff.
+   - **Socket 1 (Mid):** contains frequencies between the Low and High band cutoffs.
+   - **Socket 2 (High):** contains frequencies above the High band cutoff.
+4. Adjust the **Low band** and **High band** knobs to change where the spectrum is split.
+
+## Good to know
+
+- Because this node outputs three independent signals, you can apply effects like distortion or saturation exclusively to the high end while leaving the low end clean.
+- This precisely cuts bands up to a single frequency. You could use it, instead of the Filter node in some cases.

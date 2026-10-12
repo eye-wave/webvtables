@@ -3,16 +3,20 @@
 import { categories, nodes } from "../../generated/nodes";
 import type { Scene } from "../../editor/scene";
 import type { ViewCtl } from "../../gfx/view";
-import type { Doc } from "./guide";
 import css from "./backpack.module.css";
 
 // lucide "info"
 const INFO =
   '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>';
 
-// Guides are MDX files named after the node id; the loaders are lazy, so this costs nothing until one opens.
-const docs = import.meta.glob<{ default: Doc }>("../../info/*.mdx");
-const guide = (id: string) => docs[`../../info/${id}.mdx`];
+// Guides are markdown files named after the node id, compiled to .html; only their URLs are bundled (eager: no
+// chunk per guide), the html is fetched when one opens.
+const docs = import.meta.glob<string>("../../info/*.md", {
+  query: "?url",
+  import: "default",
+  eager: true,
+});
+const guide = (id: string) => docs[`../../info/${id}.md`];
 
 const el = <K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -92,7 +96,7 @@ export function createBackpack(
     return !!t && grid.contains(t);
   };
 
-  // the guide (and its MDX) loads on first use
+  // the guide (and its html) loads on first use
   body.onclick = (e) => {
     const b = (e.target as Element).closest("[data-info]");
     if (!b) return;

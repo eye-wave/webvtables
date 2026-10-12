@@ -1,0 +1,34 @@
+Disperser smears frequencies across time by shifting their phase. It alters the transient shape and texture of a sound without changing its volume levels.
+
+## Try it
+
+<md-demo
+nodes='[
+["Basic shapes", { Shape: "Sawtooth" }],
+["Disperser", { Exponent: 2.2 }],
+]'
+/>
+
+## At a glance
+
+<md-params />
+
+## Parameters
+
+**Exponent** controls the amount and direction of phase dispersion (-10.0 to 10.0):
+
+| Range    | Effect                            |
+| -------- | --------------------------------- |
+| 0.0      | no phase shift (bypassed)         |
+| Positive | smears higher frequencies forward |
+| Negative | smears lower frequencies          |
+
+## Tutorial: shaping transients
+
+1. Drop a **Basic shapes** node set to Sawtooth, then add a **Disperser** and an **Output** node.
+2. Connect Basic shapes to Disperser, and Disperser to the Output node.
+3. Sweep the **Exponent** slider to hear the waveform stretch out and take on a hollow or metallic character.
+
+## Good to know
+
+- Because this is an all-pass effect, the volume and frequency spectrum remain identical while the time alignment of individual frequencies shifts.

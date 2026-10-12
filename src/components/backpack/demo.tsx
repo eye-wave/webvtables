@@ -17,9 +17,15 @@ import nodeCss from "../node/node.module.css";
 import css from "./demo.module.css";
 
 export type DemoProps = {
-  /** [node name or id, { parameter name: option name, or a value in the units the knob shows }] */
-  nodes: [name: string, params?: Record<string, number | string>][];
-  /** [from, to, from's output socket = 0, to's input socket = 0], by index into `nodes`. Default: a chain. */
+  /** [node name or id, { parameter name: option name, or a value in the units the knob shows }, hidden = false].
+   *  A hidden node is a small dotted circle with its sockets, to keep the demo small. */
+  nodes: [
+    name: string,
+    params?: Record<string, number | string>,
+    hidden?: boolean,
+  ][];
+  /** [from, to, from's output socket = 0, to's input socket = 0], by index into `nodes`.
+   *  Default: each node takes the latest unused outputs, one per input socket, in order. */
   links?: [from: number, to: number, out?: number, into?: number][];
 };
 
@@ -27,6 +33,7 @@ const GAP_X = 56,
   GAP_Y = 16,
   PAD = 16,
   OFF = 1e6,
+  RING = 28,
   LINK = "rgb(199, 209, 230)";
 
 const rgb = (c: readonly number[]) =>
@@ -66,6 +73,19 @@ function place(
     x += Math.max(...c.map((i) => size[i][0])) + GAP_X;
   });
   return [x - GAP_X + PAD, tall + 2 * PAD];
+}
+
+// Default wiring. Every node's outputs wait in `open`; a node with inputs takes the latest ones, in order.
+// A chain wires up as a chain, two sources into a 2-input node as a fan-in.
+function autoLinks(kinds: number[]) {
+  const open: [number, number][] = [],
+    links: [number, number, number, number][] = [];
+  kinds.forEach((k, i) => {
+    const n: number = nodes[k].inputs;
+    if (n) open.splice(-n).forEach(([a, so], si) => links.push([a, i, so, si]));
+    for (let j = 0; j < nodes[k].outputs; j++) open.push([i, j]);
+  });
+  return links;
 }
 
 // Demos on one page share the tail of the graph; it is cut only when the last one goes (indices shift).
@@ -114,7 +134,7 @@ function start(host: HTMLElement, props: DemoProps): () => void {
     return world.lastElementChild as HTMLElement;
   });
 
-  const wires = (props.links ?? els.slice(1).map((_, i) => [i, i + 1])).map(
+  const wires = (props.links ?? autoLinks(kinds)).map(
     ([a, b, so = 0, si = 0]) => {
       const from = { node: base + a, out: true, j: so },
         to = { node: base + b, out: false, j: si };
@@ -125,6 +145,17 @@ function start(host: HTMLElement, props: DemoProps): () => void {
       return [from, to] as const;
     },
   );
+
+  // hidden nodes shrink to a small circle (wasm owns the size, the editor's sync applies it); css hides the rest
+  props.nodes.forEach(([, , hide], i) => {
+    if (!hide) return;
+    els[i].classList.add(css.hidden);
+    const k = nodes[kinds[i]],
+      p = wasm.get_node(base + i) >> 2,
+      f = new Float32Array(wasm.memory.buffer);
+    f[p + 2] = RING;
+    f[p + 3] = Math.max(RING, 18 * Math.max(k.inputs, k.outputs));
+  });
 
   const [w, h] = place(
     wasm,
