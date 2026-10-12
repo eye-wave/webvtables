@@ -141,3 +141,12 @@
   border-left: 3px solid var(--accent-200);
   border-radius: 4px;
 }
+
+.warning {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: var(--warning-bg);
+  border-left: 3px solid var(--warning-border);
+  border-radius: 4px;
+  color: var(--warning-text);
+}

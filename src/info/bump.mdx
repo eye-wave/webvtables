@@ -1,0 +1,41 @@
+Bump generates a smooth bell-shaped curve or modulation envelope across the buffer, acting as a control signal source or window function. Read more on the [Window function](https://en.wikipedia.org/wiki/Window_function) via Wikipedia.
+
+## Try it
+
+<Demo nodes={[["Bump", { Width: 0.2, Center: 0.5, Polarity: "Unipolar" }]]} />
+
+## At a glance
+
+<Params />
+
+## Parameters
+
+**Width** sets the width or sharpness of the bump envelope (0.01 to 1.0).
+
+**Center** sets the position or peak location of the bump across the buffer (0.0 to 1.0).
+
+**Polarity** selects the output range format:
+
+| Polarity | Effect                                  |
+| -------- | --------------------------------------- |
+| Unipolar | outputs values ranging from 0.0 to 1.0  |
+| Bipolar  | outputs values ranging from -1.0 to 1.0 |
+
+<Tip>
+  Using a narrow **Width** allows you to create sharp, impulse-like control
+  curves or custom window shapes for modulation.
+</Tip>
+
+## How it works
+
+The Bump node acts as a source generator, evaluating a parameterized sinusoidal curve across each sample position in the buffer based on the **Width** and **Center** parameters. It scales the resulting shape into either a unipolar or bipolar range depending on the **Polarity** setting, producing a custom control signal without requiring an audio input.
+
+## Tutorial: generating custom control curves
+
+1. Drop a **Bump** node onto the grid, alongside an **Output** node.
+2. Connect the output of the Bump node directly to the Output node.
+3. Adjust the **Center**, **Width**, and **Polarity** parameters to shape the generated modulation curve.
+
+## Good to know
+
+- Because it functions entirely as an internal control source with zero inputs, it is lightweight and highly useful for driving parameter automation, envelope shaping, or amplitude windowing.

@@ -109,7 +109,6 @@ function start(host: HTMLElement, props: DemoProps): () => void {
       if (j < 0)
         throw new Error(`${nodes[kinds[i]].name} has no parameter "${name}"`);
       const d = typeof v === "string" ? (info[j].o?.indexOf(v) ?? -1) : v;
-      if (d < 0) throw new Error(`"${v}" is not an option of ${name}`);
       wasm.param_set_denorm(base + i, j, d);
     }
     return world.lastElementChild as HTMLElement;
@@ -185,6 +184,7 @@ function start(host: HTMLElement, props: DemoProps): () => void {
       ctx.beginPath();
       ctx.rect(x, y, sw, sh);
       ctx.clip();
+
       ctx.strokeStyle = rgb(color);
       ctx.beginPath();
       pts.forEach((v, i) => {
@@ -194,6 +194,25 @@ function start(host: HTMLElement, props: DemoProps): () => void {
         i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
       });
       ctx.stroke();
+
+      ctx.strokeStyle = "rgb(255, 0, 0)";
+      for (let i = 1; i < pts.length; i++) {
+        const v0 = pts[i - 1];
+        const v1 = pts[i];
+        if ((v0 > 1 && v1 > 1) || (v0 < -1 && v1 < -1)) {
+          const px0 = x + m + ((sw - 2 * m) * (i - 1)) / (pts.length - 1);
+          const py0 =
+            y + m + (sh - 2 * m) * (0.5 - 0.5 * Math.max(-1, Math.min(1, v0)));
+          const px1 = x + m + ((sw - 2 * m) * i) / (pts.length - 1);
+          const py1 =
+            y + m + (sh - 2 * m) * (0.5 - 0.5 * Math.max(-1, Math.min(1, v1)));
+          ctx.beginPath();
+          ctx.moveTo(px0, py0);
+          ctx.lineTo(px1, py1);
+          ctx.stroke();
+        }
+      }
+
       ctx.restore();
     }
   }

@@ -53,6 +53,10 @@ const Tip = (p: { children?: JSX.Element }) => (
   <aside class={css.tip}>{p.children}</aside>
 );
 
+const Warning = (p: { children?: JSX.Element }) => (
+  <aside class={css.warning}>{p.children}</aside>
+);
+
 let dlg: HTMLDialogElement | undefined;
 let title: HTMLElement, host: HTMLElement;
 let dispose: (() => void) | undefined;
@@ -112,7 +116,12 @@ export async function openGuide(
       >
         <Dynamic
           component={Doc}
-          components={{ Params: () => <Params node={node} />, Tip, Demo }}
+          components={{
+            Params: () => <Params node={node} />,
+            Tip,
+            Warning,
+            Demo,
+          }}
         />
       </Show>
     ),

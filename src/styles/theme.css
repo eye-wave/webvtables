@@ -32,6 +32,10 @@
   --driven: #fa5;
   --white: #fff;
   --shadow: #000c;
+
+  --warning-bg: #2b2111;
+  --warning-border: #e5a33d;
+  --warning-text: #f5d9a8;
 }
 
 :root[data-theme="light"] {
@@ -62,4 +66,7 @@
   --danger-200: #c22;
   --white: #000;
   --shadow: #0005;
+  --warning-bg: #fff3cd;
+  --warning-border: #d39e00;
+  --warning-text: #664d03;
 }

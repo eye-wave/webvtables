@@ -1,0 +1,45 @@
+Gain controls the amplitude and overall output level of an audio signal, acting as a volume control or amplifier stage.
+
+## Try it
+
+<Demo
+  nodes={[
+    ["Basic shapes", { Shape: "Sine" }],
+    ["Gain", { Volume: 5.0 }],
+  ]}
+/>
+
+This is the real node, running. Connect an audio source to adjust its volume level in real time.
+
+## At a glance
+
+<Params />
+
+## Parameters
+
+**Volume** sets the signal gain level in decibels (-30.0 dB to 30.0 dB).
+
+<Tip>
+  Setting the **Volume** to 0.0 dB passes the audio signal through at unity gain
+  without boosting or attenuating its amplitude.
+</Tip>
+
+## How it works
+
+The Gain node scales each sample in the input buffer by a linear multiplier derived from the decibel-based **Volume** parameter, increasing or decreasing the signal amplitude before routing it to the output.
+
+<Tip>
+  You can click the clip button directly on the node interface for a hard
+  clipper, which cuts any exceeding peaks. Notice how the red overflowing line
+  turns green when 'clip' is on.
+</Tip>
+
+## Tutorial: adjusting signal volume
+
+1. Drop a **Basic shapes** node and a **Gain** node onto the grid, alongside an **Output** node.
+2. Connect the Basic shapes node into the input of the Gain node.
+3. Route the output to the Output node and adjust the **Volume** parameter to hear the level change.
+
+## Good to know
+
+- Because volume adjustments operate linearly on every sample, boosting the gain excessively on hot signals can clip the output buffer and introduce digital distortion.
