@@ -25,9 +25,9 @@ This is the real node, running. Connect two sources to process them through conv
 | Convolve   | multiplies frequency spectra to apply spectral coloring or impulse responses      |
 | Deconvolve | divides frequency spectra to reverse filtering or extract impulse characteristics |
 
-**Gain** scales the amplitude of the output signal (0.0 to 1.0).
+**Gain** scales the amplitude of the output signal (0.0 to 1.0). It only applies in **Convolve** mode, **Deconvolve** mode ignores it.
 
-**Reg** (regularization) adds a tiny epsilon floor to prevent division by zero during deconvolution (1e-6 to 1.0).
+**Reg** (regularization) adds a small epsilon to the denominator to prevent division by zero during deconvolution (1e-6 to 1.0). Higher values keep quiet bins of the second input from blowing up, at the cost of a less exact inverse.
 
 <md-tip>
   Using **Convolve** mode with a rhythmic noise burst and a tonal sound lets you
@@ -36,7 +36,16 @@ This is the real node, running. Connect two sources to process them through conv
 
 ## How it works
 
-Convolve transforms both input signals into the frequency domain using the Fast Fourier Transform (FFT). In **Convolve** mode, it multiplies the complex spectrum of the first input by the second input, which corresponds to convolution in the time domain-effectively applying the frequency characteristics (such as a room's reverb or an acoustic filter) of one signal onto another. In **Deconvolve** mode, it divides the spectra instead, reversing the filtering process or estimating the transfer function between the two signals while using the **Reg** parameter to maintain mathematical stability.
+Convolve transforms both input signals into the frequency domain using the Fast Fourier Transform (FFT). In **Convolve** mode, it multiplies the complex spectrum of the first input by the second input, which corresponds to convolution in the time domain, effectively applying the frequency characteristics (such as a room's reverb or an acoustic filter) of one signal onto another. In **Deconvolve** mode, it divides the spectra instead, reversing the filtering process or estimating the transfer function between the two signals while using the **Reg** parameter to maintain mathematical stability.
+
+With <md-latex>A</md-latex> and <md-latex>B</md-latex> as the spectra of the first and second input, <md-latex>g</md-latex> as **Gain** and <md-latex>\varepsilon</md-latex> as **Reg**, each frequency bin is computed as:
+
+| Mode       | Output spectrum                                                                  |
+| ---------- | -------------------------------------------------------------------------------- |
+| Convolve   | <md-latex>Y = g \cdot A \cdot B</md-latex>                                       |
+| Deconvolve | <md-latex>Y = \dfrac{A \cdot \overline{B}}{\lvert B \rvert^{2} + \varepsilon}</md-latex> |
+
+The frame is treated as circular, so the result wraps around instead of tailing off past the end.
 
 ## Tutorial: combining signals via convolution
 
@@ -47,3 +56,7 @@ Convolve transforms both input signals into the frequency domain using the Fast 
 ## Good to know
 
 - Because frequency-domain multiplication is mathematically equivalent to time-domain convolution, this node provides an efficient way to achieve complex acoustic filtering without heavy processing overhead.
+
+## The code
+
+<md-lookup src="../graph/node/convolve.rs" />

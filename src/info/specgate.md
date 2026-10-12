@@ -18,7 +18,7 @@ This is the real node, running. Connect an audio source to gate and attenuate qu
 
 ## Parameters
 
-**Threshold** sets the amplitude level below which frequency bins are attenuated (-80.0 dB to 10.0 dB).
+**Threshold** sets the amplitude level below which frequency bins are attenuated (-80.0 dB to 10.0 dB). 0 dB is the level of a full-scale sine wave (amplitude 1) on a single harmonic, so a harmonic that is quieter than that is gated.
 
 **Mix** controls the wet/dry balance of the spectral gating effect (0.0% to 100.0%).
 
@@ -30,7 +30,11 @@ This is the real node, running. Connect an audio source to gate and attenuate qu
 
 ## How it works
 
-The Spectral Gate node transforms the incoming audio signal into the frequency domain using a Fast Fourier Transform (FFT). It calculates the energy of each frequency bin and compares it against the decibel-based **Threshold**. Bins falling at or below the threshold are scaled down by a floor factor determined by the **Mix** parameter, after which the spectrum is reconstructed back into the time domain via inverse FFT.
+The Spectral Gate node transforms the incoming audio signal into the frequency domain using a Fast Fourier Transform (FFT). It calculates the magnitude of each frequency bin and compares it against the decibel-based **Threshold**. Bins falling at or below the threshold are scaled down by a floor factor determined by the **Mix** parameter, after which the spectrum is reconstructed back into the time domain via inverse FFT. With <md-latex>X_k</md-latex> as the bin of harmonic <md-latex>k</md-latex>:
+
+<md-latex>Y_k = (1 - \text{mix}) \cdot X_k \text{ if } \lvert X_k \rvert \le T \cdot 1024, \quad Y_k = X_k \text{ otherwise}, \qquad T = 10^{\text{Threshold}/20}</md-latex>
+
+The factor 1024 is half of the frame length and makes the 0 dB level match a full-scale sine. At a **Mix** of 100% the gated bins are removed completely.
 
 Because frequency bins are gated independently without psychoacoustic smoothing, aggressive threshold settings can produce distinct musical artifacts that sound like low-bitrate MP3 digital compression noises or robotic quantization crackle.
 
@@ -43,3 +47,7 @@ Because frequency bins are gated independently without psychoacoustic smoothing,
 ## Good to know
 
 - Because gating operates on individual frequency bins rather than the overall signal amplitude, it can selectively remove background noise or carve out specific frequency regions with high precision.
+
+## The code
+
+<md-lookup src="../graph/node/spectral_gate.rs" />

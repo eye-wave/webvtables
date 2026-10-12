@@ -2,9 +2,11 @@ Spectral Blur diffuses the energy of adjacent frequency bins across the spectrum
 
 ## Try it
 
+> hidden node in this demo is a square wave.
+
 <md-demo
 nodes='[
-["Basic shapes", { Shape: "Square" }],
+["Basic shapes", { Shape: "Square" },true],
 ["Spectral Blur", { Mode: "Magnitude", Width: 4.0, Mix: 100.0 }],
 ["Output"],
 ]'
@@ -36,7 +38,7 @@ This is the real node, running. Connect an audio source to smooth and smear its 
 
 ## How it works
 
-Spectral Blur converts the input signal into the frequency domain via Fast Fourier Transform (FFT). It applies a weighted triangular window across neighboring frequency bins based on the **Width** parameter. In **Magnitude** mode, it averages the bin magnitudes while retaining the original phase components, preventing destructive phase cancellation. In **Complex** mode, it averages the real and imaginary parts directly. Finally, the processed spectrum is converted back into the time domain via inverse FFT and blended with the dry signal using the **Mix** parameter.
+Spectral Blur converts the input signal into the frequency domain via Fast Fourier Transform (FFT). It applies a weighted triangular window across neighboring frequency bins based on the **Width** parameter. With <md-latex>r</md-latex> as the Width (rounded down to a whole number of bins), the bin <md-latex>j</md-latex> at distance <md-latex>|j - k|</md-latex> from the bin being smoothed gets the weight <md-latex>w_j = 1 - \frac{|j-k|}{r+1}</md-latex>, and the result is the weighted average <md-latex>\bar{X}_k = \frac{\sum_j w_j X_j}{\sum_j w_j}</md-latex> over <md-latex>k - r \le j \le k + r</md-latex>. In **Magnitude** mode, it averages the bin magnitudes while retaining the original phase components, preventing destructive phase cancellation. In **Complex** mode, it averages the real and imaginary parts directly. Finally, the processed spectrum is converted back into the time domain via inverse FFT and blended with the dry signal using the **Mix** parameter: <md-latex>X'_k = X_k + \text{mix} \cdot (\bar{X}_k - X_k)</md-latex>. The lowest bin (which holds DC) is left untouched.
 
 ## Tutorial: smearing harmonic content
 
@@ -47,3 +49,7 @@ Spectral Blur converts the input signal into the frequency domain via Fast Fouri
 ## Good to know
 
 - Because spectral blur diffuses sharp spectral peaks across neighboring bins, it effectively softens harsh timbres and creates ambient, reverb-like smearing without adding artificial room reflections.
+
+## The code
+
+<md-lookup src="../graph/node/blur.rs" />

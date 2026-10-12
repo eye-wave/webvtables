@@ -135,7 +135,8 @@
 }
 
 .body md-params,
-.body md-demo {
+.body md-demo,
+.body md-lookup {
   display: block;
 }
 
@@ -170,4 +171,21 @@
 
 .body blockquote > :last-child {
   margin-bottom: 0;
+}
+
+.body md-lookup code {
+  padding: 0;
+  font-size: inherit;
+  background: none;
+  border-radius: 0;
+}
+
+.body md-lookup pre {
+  margin-top: 12px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.5;
+  border-radius: 6px;
+  scrollbar-width: thin;
 }

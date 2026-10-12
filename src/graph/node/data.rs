@@ -1,7 +1,6 @@
 use super::helpers;
 use super::{Buffer, MAX_PARAMS, N, NodeCategory, NodeKind, NodeLogic, NodeParamDef, Param, State};
 use super::{Label, label};
-use crate::ffi;
 use crate::graph::{scope::CURRENT, state};
 use alloc::vec::Vec;
 
@@ -68,35 +67,14 @@ fn pick(d: &[f32], frame: f32, spectral: bool, out: &mut Buffer) {
     if t == 0.0 {
         out.copy_from_slice(a);
     } else if spectral {
-        helpers::fft_combine(a, b, out, |ar, ai, br, bi| polar_mix(ar, ai, br, bi, t));
+        helpers::fft_combine(a, b, out, |ar, ai, br, bi| {
+            helpers::polar_mix(ar, ai, br, bi, t)
+        });
     } else {
         for ((o, x), y) in out.iter_mut().zip(a).zip(b) {
             *o = x + (y - x) * t;
         }
     }
-}
-
-// Blends two complex values by magnitude and phase, taking the short way round the circle.
-// A silent side has no phase of its own, so it borrows the other's.
-fn polar_mix(ar: f32, ai: f32, br: f32, bi: f32, t: f32) -> (f32, f32) {
-    use core::f32::consts::{PI, TAU};
-    let (ma, mb) = (ffi::sqrtf(ar * ar + ai * ai), ffi::sqrtf(br * br + bi * bi));
-    let (pa, pb) = (ffi::atan2f(ai, ar), ffi::atan2f(bi, br)); // JS Math.atan2(y, x)
-    let mut d = pb - pa;
-    if d > PI {
-        d -= TAU;
-    } else if d < -PI {
-        d += TAU;
-    }
-    let p = if ma < 1e-9 {
-        pb
-    } else if mb < 1e-9 {
-        pa
-    } else {
-        pa + d * t
-    };
-    let m = ma + (mb - ma) * t;
-    (m * ffi::cosf(p), m * ffi::sinf(p))
 }
 
 impl State {

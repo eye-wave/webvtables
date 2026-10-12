@@ -24,6 +24,16 @@ This node has no adjustable parameters; it strictly converts any positive sample
   it off, adding extreme harmonic richness and digital edge.
 </md-tip>
 
+## How it works
+
+Every sample is replaced by its sign:
+
+<md-latex>y_i = \operatorname{sgn}(x_i)</md-latex>
+
+Positive samples become <md-latex>+1</md-latex>, negative samples become <md-latex>-1</md-latex>, and samples that are exactly 0 stay 0.
+
+Only the zero crossings of the input survive, so the output switches between +1 and -1 exactly where the input crosses zero.
+
 ## Tutorial: squaring off a waveform
 
 1. Drop a **Basic shapes** node set to Sine, then add a **Sign** node and an **Output** node.
@@ -33,3 +43,7 @@ This node has no adjustable parameters; it strictly converts any positive sample
 ## Good to know
 
 - This node acts as an extreme form of hard clipping, reducing any input down to its raw directional sign and maximizing its harmonic content.
+
+## The code
+
+<md-lookup src="../graph/node/sign.rs" />

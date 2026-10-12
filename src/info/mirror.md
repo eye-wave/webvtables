@@ -31,13 +31,26 @@ This is the real node, running. Connect an audio source to mirror and fold its w
 **Mix** controls the wet/dry balance of the mirroring effect (0.0% to 100.0%).
 
 <md-tip>
-  Using **Reflect Inv** mode on a simple sine wave introduces abrupt symmetrical
-  foldbacks that instantly generate rich odd and even harmonics.
+  Using **Repeat** or **Reflect** on a sine wave turns it into a rectified-looking
+  wave one octave higher, while **Flip** and **Reflect Inv** leave a sine
+  unchanged, because a sine is already antisymmetric around its midpoint. Try
+  them on a sawtooth instead.
 </md-tip>
 
 ## How it works
 
 The Mirror node processes the audio buffer by taking either the first or second half as a source template and mapping it across the buffer according to the selected **Mode**. It optionally applies a negative sign multiplier for inverted modes, and then blends the resulting waveform with the original dry signal using the **Mix** parameter.
+
+With **Source** set to First, the first 1024 samples stay as they are and the other half is rebuilt from them. With <md-latex>x</md-latex> as the input and <md-latex>y</md-latex> as the wet signal, for <md-latex>n \ge 1024</md-latex>:
+
+| Mode        | Second half                                           |
+| ----------- | ----------------------------------------------------- |
+| Repeat      | <md-latex>y_n = x_{n - 1024}</md-latex>               |
+| Flip        | <md-latex>y_n = -x_{n - 1024}</md-latex>              |
+| Reflect     | <md-latex>y_n = x_{2047 - n}</md-latex>               |
+| Reflect Inv | <md-latex>y_n = -x_{2047 - n}</md-latex>              |
+
+With **Source** set to Second, the same happens the other way round: the second half is kept and the first half is rebuilt from it. The final output is <md-latex>\text{out} = x + \text{mix} \cdot (y - x)</md-latex>.
 
 ## Tutorial: folding waveforms symmetrically
 
@@ -47,4 +60,9 @@ The Mirror node processes the audio buffer by taking either the first or second 
 
 ## Good to know
 
-- Because waveform folding introduces sharp geometric reflections and boundary points, it acts as a wavefolder that adds complex harmonic overtones without altering pitch.
+- Because one half of the frame is rebuilt from the other, the result has a fixed symmetry. Repeat makes the wave repeat twice per frame, so only even harmonics are left and the pitch jumps an octave up. Flip makes the second half the negative of the first, which leaves only odd harmonics. Reflect and Reflect Inv make the wave symmetric or antisymmetric around the midpoint of the frame.
+- Where the two halves meet, the waveform can jump sharply, which adds bright overtones.
+
+## The code
+
+<md-lookup src="../graph/node/mirror.rs" />

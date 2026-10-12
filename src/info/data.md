@@ -34,7 +34,14 @@ When loading an image asset, additional configuration settings become available 
 
 ## How it works
 
-The Data node acts as a container for imported external assets like WAV audio or static images. It slices the loaded source data into sequential buffers of size `N` (frames). During processing, it reads the **Frame** parameter to pick the corresponding slice, performing fractional interpolation either directly in the time domain or via complex polar mixing in the frequency domain.
+The Data node acts as a container for imported external assets like WAV audio or static images. It slices the loaded source data into sequential frames of 2048 samples each (1 to 256 frames). During processing, it reads the **Frame** parameter to pick the corresponding slice, performing fractional interpolation either directly in the time domain or via complex polar mixing in the frequency domain. With <md-latex>t</md-latex> as the fractional part of **Frame** and <md-latex>A</md-latex>, <md-latex>B</md-latex> as the two frames around it:
+
+| Interpolation | Result                                                                                                                                                                                                                                       |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Time          | <md-latex>y = (1 - t)\thinspace A + t\thinspace B</md-latex>                                                                                                                                                                                 |
+| Spectral      | per bin, <md-latex>m = m_A + t\thinspace (m_B - m_A)</md-latex> and <md-latex>\varphi = \varphi_A + t\thinspace \Delta\varphi</md-latex>, with <md-latex>\Delta\varphi</md-latex> the phase difference taking the short way round the circle |
+
+A **Frame** value past the last frame holds the last frame, and a Data node with nothing loaded outputs silence.
 
 When an image is loaded, it undergoes row-by-row sampling where individual pixel rows are resampled and mapped directly into time-domain waveforms or spectral magnitude bins depending on the chosen mode.
 
@@ -46,4 +53,8 @@ When an image is loaded, it undergoes row-by-row sampling where individual pixel
 
 ## Good to know
 
-- The asset data is stored directly in the engine state arena, allowing zero-copy real-time access during audio rendering while supporting dynamic re-sampling, cropping, and channel selection for images.
+- The asset data is kept in the engine state as one 2048-sample buffer per frame, so the node can read any frame directly during rendering. Loading a new asset replaces the previous one.
+
+## The code
+
+<md-lookup src="../graph/node/data.rs" />

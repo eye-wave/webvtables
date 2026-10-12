@@ -26,7 +26,11 @@ This is the real node, running. Connect an audio source to adjust its volume lev
 
 ## How it works
 
-The Gain node scales each sample in the input buffer by a linear multiplier derived from the decibel-based **Volume** parameter, increasing or decreasing the signal amplitude before routing it to the output.
+The Gain node scales each sample in the input buffer by a linear multiplier derived from the decibel-based **Volume** parameter, increasing or decreasing the signal amplitude before routing it to the output:
+
+<md-latex>\text{out} = \text{in} \cdot 10^{\text{dB}/20}</md-latex>
+
+So +6 dB roughly doubles the amplitude (<md-latex>\times 2</md-latex>), -6 dB roughly halves it, and +/-30 dB corresponds to a factor of about <md-latex>31.6</md-latex> or <md-latex>0.0316</md-latex>.
 
 <md-tip>
   You can click the clip button directly on the node interface for a hard
@@ -43,3 +47,7 @@ The Gain node scales each sample in the input buffer by a linear multiplier deri
 ## Good to know
 
 - Because volume adjustments operate linearly on every sample, boosting the gain excessively on hot signals can clip the output buffer and introduce digital distortion.
+
+## The code
+
+<md-lookup src="../graph/node/gain.rs" />

@@ -19,7 +19,7 @@ Basic shapes is where most wavetables begin. It draws one of four classic wavefo
 | Square   | flat top, flat bottom                     | hollow and buzzy, odd harmonics                  |
 | Sawtooth | a ramp from -1 up to +1, then a jump back | bright, every harmonic present                   |
 
-**Repeats** (1 to 100) is how many cycles fit into the frame. It is always a whole number, so the cycles line up and the frame loops without a click. In a wavetable synth, Repeats 2 plays one octave higher than Repeats 1, and Repeats 3 an octave and a fifth higher.
+**Repeats** (1 to 100) is how many cycles fit into the frame. It is always a whole number, so the cycles line up and the frame loops without a click. In a wavetable synth the pitch scales with the ratio of Repeats values: Repeats 2 plays one octave higher than Repeats 1 (<md-latex>2/1</md-latex>), and Repeats 3 an octave and a fifth higher (<md-latex>3/1</md-latex>).
 
 <md-tip>
 
@@ -38,4 +38,9 @@ Square and Sawtooth are drawn as perfect, sharp-edged shapes, not band-limited o
 ## Good to know
 
 - There is no input, so this node always starts a chain. Use as many as you like and combine them.
-- Sine is read from an exact table, so it is perfectly clean. Triangle, Square and Sawtooth are computed from a running phase.
+- Sine is read from an exact table, so it is perfectly clean: <md-latex>y_i = \sin\left(2\pi \cdot \frac{R \thinspace i}{2048}\right)</md-latex>, where <md-latex>R</md-latex> is Repeats and <md-latex>i</md-latex> is the sample index.
+- Triangle, Square and Sawtooth are computed from a running phase <md-latex>\varphi \in [0, 1)</md-latex> that advances by <md-latex>R / 2048</md-latex> per sample and wraps back to 0. Sawtooth is <md-latex>2\varphi - 1</md-latex>, Square is <md-latex>+1</md-latex> for <md-latex>\varphi \lt 0.5</md-latex> and <md-latex>-1</md-latex> otherwise, and Triangle rises as <md-latex>4\varphi - 1</md-latex> then falls as <md-latex>3 - 4\varphi</md-latex>.
+
+## The code
+
+<md-lookup src="../graph/node/basic_shapes.rs" />

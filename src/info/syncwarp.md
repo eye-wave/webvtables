@@ -17,7 +17,15 @@ This is the real node, running. Drag the knob to change Multiply and watch the w
 
 ## Parameters
 
-**Multiply** sets how many times the waveform repeats across the buffer (0.0 to 50.0x).
+**Multiply** sets how many times the waveform repeats across the buffer (0.0 to 50.0x). Fractional values are allowed, but they leave a partial copy at the end of the frame, so the wave does not loop smoothly.
+
+## How it works
+
+Sync warp reads the input buffer faster than normal and wraps around when it reaches the end. For output sample <md-latex>i</md-latex> and a **Multiply** value of <md-latex>m</md-latex>, the read position is <md-latex>p = i \cdot m</md-latex>, and the output is a linear interpolation between the two samples around <md-latex>p</md-latex> (with the position wrapping at 2048):
+
+<md-latex>y_i = (1 - t) \cdot x_{\lfloor p \rfloor \bmod 2048} + t \cdot x_{(\lfloor p \rfloor + 1) \bmod 2048}, \qquad t = p - \lfloor p \rfloor</md-latex>
+
+A Multiply of 1 leaves the wave unchanged, and 0 repeats the first sample for the whole frame.
 
 ## Tutorial: hard-sync effects
 
@@ -28,3 +36,7 @@ This is the real node, running. Drag the knob to change Multiply and watch the w
 ## Good to know
 
 - Because hard edges at the frame boundaries can click when repeating, you can use a **Window** node right after Sync warp to fade the edges smoothly for a cleaner pitch-shifting effect.
+
+## The code
+
+<md-lookup src="../graph/node/sync_warp.rs" />

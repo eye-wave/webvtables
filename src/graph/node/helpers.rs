@@ -200,3 +200,24 @@ pub fn sample_linear(src: &Buffer, p: f32) -> f32 {
     let (a, b) = (src[i % BUFFER_LEN], src[(i + 1) % BUFFER_LEN]);
     a + f * (b - a)
 }
+
+pub fn polar_mix(ar: f32, ai: f32, br: f32, bi: f32, t: f32) -> (f32, f32) {
+    use core::f32::consts::{PI, TAU};
+    let (ma, mb) = (ffi::sqrtf(ar * ar + ai * ai), ffi::sqrtf(br * br + bi * bi));
+    let (pa, pb) = (ffi::atan2f(ai, ar), ffi::atan2f(bi, br));
+    let mut d = pb - pa;
+    if d > PI {
+        d -= TAU;
+    } else if d < -PI {
+        d += TAU;
+    }
+    let p = if ma < 1e-9 {
+        pb
+    } else if mb < 1e-9 {
+        pa
+    } else {
+        pa + d * t
+    };
+    let m = ma + (mb - ma) * t;
+    (m * ffi::cosf(p), m * ffi::sinf(p))
+}

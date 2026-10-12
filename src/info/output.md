@@ -18,7 +18,7 @@ The green line is the waveform that reaches the Output, the orange one is its sp
 
 ### Reading the spectrum
 
-The spectrum shows the first 1024 harmonics on a logarithmic scale that spans 80 dB. The top edge is a full-scale sine and the bottom edge is -80 dB. The DC component (harmonic 0) is left out. A sawtooth shows a steady slope of harmonics, a sine shows a single spike, and noise fills the whole display.
+The spectrum shows 1024 values, from harmonic 0 (the DC component) up to harmonic 1023, on a logarithmic scale that spans 80 dB. The top edge is a full-scale sine (0 dB) and the bottom edge is -80 dB. Each harmonic <md-latex>k</md-latex> is drawn at <md-latex>m_k = \frac{2\thinspace |X_k|}{N}</md-latex> with <md-latex>N = 2048</md-latex> (DC is not doubled), and the height on the display is <md-latex>1 + \tfrac{1}{2}\log_{10}(\max(m_k,\thinspace 10^{-4}))</md-latex>, which maps <md-latex>0\ \text{dB}</md-latex> to the top edge and <md-latex>-80\ \text{dB}</md-latex> to the bottom. A sawtooth shows a steady slope of harmonics, a sine shows a single spike, and noise fills the whole display.
 
 <md-tip>
 
@@ -38,3 +38,7 @@ If a project contains several Output nodes, only the oldest one (the first you a
 
 - Output has an input and no output socket. It is a dead end by design.
 - With nothing connected to its input, the table stays flat.
+
+## The code
+
+<md-lookup src="../graph/node/output.rs" />

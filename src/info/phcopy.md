@@ -26,6 +26,14 @@ This node has no adjustable parameters; it strictly copies the phase from the se
   transients across time.
 </md-tip>
 
+## How it works
+
+Phase copy takes the FFT of both inputs and, for every frequency bin <md-latex>k</md-latex>, combines the magnitude of the first input with the phase of the second. With <md-latex>A_k</md-latex> and <md-latex>B_k</md-latex> as the bins of the first and second input:
+
+<md-latex>Y_k = \lvert A_k \rvert \cdot \frac{B_k}{\lvert B_k \rvert}</md-latex>
+
+If a bin of the second input is silent it has no phase, so that bin is given a phase of 0 instead.
+
 ## Tutorial: cross-synthesizing phase
 
 1. Drop a **Basic shapes** node and a **Noise** node onto the grid, then add a **Phase copy** node and an **Output** node.
@@ -35,3 +43,7 @@ This node has no adjustable parameters; it strictly copies the phase from the se
 ## Good to know
 
 - By borrowing the timing information from one sound and applying it to the volume levels of another, this node lets you morph the texture of two completely different signals together.
+
+## The code
+
+<md-lookup src="../graph/node/phase_copy.rs" />

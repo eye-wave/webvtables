@@ -3,7 +3,7 @@ Math lets you plot, evaluate, and transform equations directly on audio buffers 
 <md-warning>
   This node requires downloading an additional 4.18 MB of runtime code and can
   be significantly slower and more CPU-intensive than standard built-in nodes.
-</Warning>
+</md-warning>
 
 ## At a glance
 
@@ -21,7 +21,11 @@ Math lets you plot, evaluate, and transform equations directly on audio buffers 
 
 ## How it works
 
-The Math node evaluates custom functions across the audio buffer sample by sample, functioning similarly to an interactive equation graph adapted for real-time audio rate processing. In addition to the automatable parameters **a**, **b**, **c**, and **d**, it accepts three live audio inputs referenced as **p**, **q**, and **r** in your formulas. This allows you to combine external audio signals with custom mathematical logic to build completely unique synthesizers, wavefolders, or distortion effects.
+The Math node evaluates a custom function across the audio buffer sample by sample, functioning similarly to an interactive equation graph adapted for real-time audio rate processing. For every sample <md-latex>i</md-latex> of the 2048-sample buffer it computes:
+
+<md-latex>\text{out}_i = f(x_i,\ a,\ b,\ c,\ d,\ p_i,\ q_i,\ r_i), \qquad x_i = i / 2048</md-latex>
+
+where <md-latex>x</md-latex> is the position across the buffer (0 at the start, just below 1 at the end), so you can draw any waveform without an input. Until a function has been entered, the node outputs silence. In addition to the automatable parameters **a**, **b**, **c**, and **d**, it accepts three live audio inputs referenced as **p**, **q**, and **r** in your formulas. This allows you to combine external audio signals with custom mathematical logic to build completely unique synthesizers, wavefolders, or distortion effects.
 
 Because this node compiles and executes custom expression logic dynamically at runtime, it requires an external asset download and incurs a higher performance overhead compared to fixed, highly optimized node logic.
 
@@ -34,4 +38,9 @@ Because this node compiles and executes custom expression logic dynamically at r
 ## Good to know
 
 - Because the node runs custom expressions directly on the buffer, any valid mathematical combination of the audio inputs (`p`, `q`, `r`) and parameters (`a`, `b`, `c`, `d`) can be used to generate or mangle sound instantly.
+- The variable **x** (the position across the buffer, from 0 to 1) is always available in the formula, in addition to **a** to **d** and **p**, **q** and **r**.
 - Experience with graphing calculator [Desmos](https://www.desmos.com/) will feel very familiar here, as this node shares the `mathquill` library for equation input.
+
+## The code
+
+<md-lookup src="../graph/node/math.rs" />

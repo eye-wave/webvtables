@@ -1,4 +1,4 @@
-Amplitude Modulation multiplies a carrier signal by a modulator signal scaled by a depth parameter, creating sideband frequencies and classic tremolo or ring-modulation effects. Read more on [Amplitude modulation](https://en.wikipedia.org/wiki/Amplitude_modulation) via Wikipedia.
+Amplitude Modulation multiplies a carrier signal by a modulator signal scaled by a depth parameter, creating sideband frequencies and classic tremolo or ring-modulation-like effects. Unlike Ring Modulation, the original carrier is kept in the output. Read more on [Amplitude modulation](https://en.wikipedia.org/wiki/Amplitude_modulation) via Wikipedia.
 
 ## Try it
 
@@ -19,7 +19,11 @@ Amplitude Modulation multiplies a carrier signal by a modulator signal scaled by
 
 ## How it works
 
-The Amplitude Modulation node takes two input buffers-a carrier signal and a modulator signal-and processes them sample by sample. It scales the modulator value by the **Depth** parameter, adds 1.0, and multiplies it directly with the carrier signal, generating upper and lower frequency sidebands around the carrier's frequency spectrum.
+The Amplitude Modulation node takes two input buffers, a carrier signal and a modulator signal, and processes them sample by sample. It scales the modulator value by the **Depth** parameter, adds 1.0, and multiplies it directly with the carrier signal, generating upper and lower frequency sidebands around the carrier's frequency spectrum. With <md-latex>c</md-latex> as the carrier, <md-latex>m</md-latex> as the modulator and <md-latex>d</md-latex> as **Depth**:
+
+<md-latex>y_n = c_n \cdot (1 + d \cdot m_n)</md-latex>
+
+At a Depth of 0 the carrier passes through unchanged. For a sine modulator on harmonic <md-latex>k_m</md-latex> and a sine carrier on harmonic <md-latex>k_c</md-latex>, the output holds the carrier itself plus the sidebands <md-latex>k_c + k_m</md-latex> and <md-latex>\lvert k_c - k_m \rvert</md-latex>.
 
 ## Tutorial: modulating carrier signals
 
@@ -29,4 +33,8 @@ The Amplitude Modulation node takes two input buffers-a carrier signal and a mod
 
 ## Good to know
 
-- Because amplitude modulation shifts the frequency spectrum to create new sidebands based on the sum and difference of the input frequencies, using low-frequency control signals produces rhythmic tremolo while audio-rate modulators generate metallic, bell-like timbre shifts.
+- Because amplitude modulation creates new sidebands based on the sum and difference of the input frequencies, using low-frequency control signals produces rhythmic tremolo while audio-rate modulators generate metallic, bell-like timbre shifts.
+
+## The code
+
+<md-lookup src="../graph/node/am.rs" />

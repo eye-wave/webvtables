@@ -2,7 +2,7 @@ XY Merge blends up to four audio input signals across a two-dimensional coordina
 
 ## Try it
 
-> Hidden nodes in this demo are all: _Basic shape_ nodes producing Sine, Triangle, Square, Sawtooth cycles in that order.
+> Hidden nodes in this demo are all _Basic shapes_ nodes, producing Sine, Triangle, Square and Sawtooth cycles in that order.
 
 <md-demo
   nodes='[
@@ -28,14 +28,23 @@ This is the real node, running. Connect multiple audio sources to crossfade and 
 
 <md-tip>
   Setting **x** and **y** to 0.5 places the blend precisely in the center,
-  equally weighting all four incoming signals.
+  equally weighting all four incoming signals (each at a quarter of its level).
 </md-tip>
 
 ## How it works
 
-The XY Merge node takes up to four input buffers and applies bilinear interpolation weights based on the **x** and **y** parameters. It computes independent amplitude gains for each of the four quadrants, summing the scaled input samples into a single output buffer.
+The XY Merge node takes up to four input buffers and applies bilinear interpolation weights based on the **x** and **y** parameters. It computes independent amplitude gains for each of the four corners of the plane, summing the scaled input samples into a single output buffer. The inputs sit in the corners like this: input 0 at the top left (x = 0, y = 1), input 1 at the top right (x = 1, y = 1), input 2 at the bottom left (x = 0, y = 0) and input 3 at the bottom right (x = 1, y = 0). With <md-latex>x</md-latex> and <md-latex>y</md-latex> as the parameters:
 
-Unlike traditional addition or math nodes-which typically combine only 2 signals by summing their amplitudes directly-the XY Merge node handles up to 4 concurrent signals, providing smooth, continuous 2D spatial crossfading instead of fixed addition.
+| Input | Gain                                       |
+| ----- | ------------------------------------------ |
+| 0     | <md-latex>(1 - x) \cdot y</md-latex>       |
+| 1     | <md-latex>x \cdot y</md-latex>             |
+| 2     | <md-latex>(1 - x)(1 - y)</md-latex>        |
+| 3     | <md-latex>x \cdot (1 - y)</md-latex>       |
+
+The four gains always add up to 1. An input that is not connected counts as silence.
+
+Unlike the Add node, which only combines 2 signals, the XY Merge node handles up to 4 concurrent signals, providing smooth, continuous 2D spatial crossfading instead of a one-dimensional crossfade.
 
 ## Tutorial: crossfading four sources
 
@@ -46,3 +55,7 @@ Unlike traditional addition or math nodes-which typically combine only 2 signals
 ## Good to know
 
 - Because the gain distribution is calculated via bilinear interpolation across a 2D space, moving the XY coordinates allows for seamless quadraphonic-style mixing without abrupt volume leaps.
+
+## The code
+
+<md-lookup src="../graph/node/xy_merge.rs" />

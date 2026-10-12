@@ -18,11 +18,11 @@ nodes='[
 
 **Mode** selects the mathematical operation used to combine the frequency magnitudes of the two inputs:
 
-| Mode      | Effect                                                                             |
-| --------- | ---------------------------------------------------------------------------------- |
-| Geometric | calculates the geometric mean of both input magnitudes `($\sqrt{m_a \times m_b}$)` |
-| Min       | retains the lowest magnitude between the two inputs                                |
-| Multiply  | multiplies both magnitude spectra together ($m_a \times m_b$)                      |
+| Mode      | Effect                                                                                       |
+| --------- | -------------------------------------------------------------------------------------------- |
+| Geometric | calculates the geometric mean of both input magnitudes (<md-latex>\sqrt{m_a \times m_b}</md-latex>) |
+| Min       | retains the lowest magnitude between the two inputs (<md-latex>\min(m_a, m_b)</md-latex>)    |
+| Multiply  | multiplies both magnitude spectra together (<md-latex>m_a \times m_b</md-latex>)             |
 
 **Phase** chooses which input's phase spectrum is preserved for the output (`A` or `B`).
 
@@ -34,7 +34,7 @@ nodes='[
 
 ## How it works
 
-The Intersect node transforms both incoming audio signals into the frequency domain using Fast Fourier Transforms (FFTs). It computes the magnitudes for each bin and combines them according to the selected **Mode**. It then applies the phase information from either input **A** or input **B** depending on the **Phase** parameter, before reconstructing the final signal back into the time domain via inverse FFT.
+The Intersect node transforms both incoming audio signals into the frequency domain using Fast Fourier Transforms (FFTs). It computes the magnitudes for each bin and combines them according to the selected **Mode**. It then applies the phase information from either input **A** or input **B** depending on the **Phase** parameter, before reconstructing the final signal back into the time domain via inverse FFT. With <md-latex>m</md-latex> as the combined magnitude and <md-latex>\varphi</md-latex> as the phase of the chosen input, each bin becomes <md-latex>Y_k = m_k \cdot e^{j\varphi_k}</md-latex>. A bin that is silent in the input that supplies the phase stays silent.
 
 ## Tutorial: cross-synthesizing two audio streams
 
@@ -45,3 +45,7 @@ The Intersect node transforms both incoming audio signals into the frequency dom
 ## Good to know
 
 - By combining the magnitude spectrum of one sound with the phase spectrum of another you can achieve vocoder-style cross-synthesis results.
+
+## The code
+
+<md-lookup src="../graph/node/intersect.rs" />

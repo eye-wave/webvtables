@@ -1,7 +1,23 @@
+import katex from "katex";
 import { marked } from "marked";
+import { codeToHtml } from "shiki";
 import { readFileSync } from "node:fs";
-import { basename } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import type { Plugin } from "vite";
+
+// <md-lookup src="../path/to/file.rs" /> -> the highlighted body of that file's `fn process`, found by indent:
+// ponytail: assumes rustfmt (the fn ends at the first line that is just `}` at its own indent), and takes the first
+// `fn process`; a real parser if a file ever has two.
+async function lookup(from: string, attrs: string) {
+  const rel = /src=["']([^"']+)["']/.exec(attrs)?.[1];
+  if (!rel) throw new Error(`<md-lookup ${attrs}> needs src="path/to/file.rs"`);
+  const path = resolve(dirname(from), rel);
+  const file = readFileSync(path, "utf8");
+
+  const html = await codeToHtml(file, { lang: "rust", theme: "github-dark" });
+  return { path, html: `<md-lookup>${html}</md-lookup>` };
+}
+const LOOKUP = /<md-lookup\s+([^>]*?)\s*(?:\/>|><\/md-lookup>)/g;
 
 // `x.md?url` -> a compiled x.html asset, fetched at runtime. <md-*> tags pass through as-is for Solid to mount into.
 export default function md(): Plugin {
@@ -23,10 +39,31 @@ export default function md(): Plugin {
     configResolved: (c) => void (dev = c.command === "serve"),
     load: {
       filter: { id: /\.md\?url$/ },
-      handler(id) {
+      async handler(id) {
         const file = id.slice(0, -4);
         this.addWatchFile(file);
-        const html = (marked.parse(readFileSync(file, "utf8")) as string)
+        const text = readFileSync(file, "utf8");
+        // md-lookup blocks (highlighting is async) are parked behind placeholders too, on their own paragraph
+        const looked = await Promise.all(
+          [...text.matchAll(LOOKUP)].map(([, a]) => lookup(file, a)),
+        );
+        looked.forEach((l) => this.addWatchFile(l.path));
+        let n = 0;
+        const parked = text.replace(LOOKUP, () => `\n\n@@code${n++}@@\n\n`);
+        // <md-latex>m_a</md-latex> becomes MathML right here (no katex css, fonts or runtime; bad TeX fails the build).
+        // It is parked behind a placeholder so markdown can't touch the TeX (m_a ... m_b is not emphasis).
+        const math: string[] = [];
+        const tex = parked.replace(
+          /<md-latex>([\s\S]*?)<\/md-latex>/g,
+          (_, t) =>
+            `@@math${math.push(katex.renderToString(t.trim(), { output: "mathml" })) - 1}@@`,
+        );
+        // a line holding only an <md-*> tag gets blank lines around it, or markdown stops at the html block
+        const src = tex.replace(
+          /^[ \t]*(<\/?md-[\w-]+[^>]*>)[ \t]*\r?$/gm,
+          "\n$1\n",
+        );
+        const html = (marked.parse(src) as string)
           // html has no self-closing custom elements: <md-x /> would swallow what follows
           .replace(/<(md-[\w-]+)([^>]*?)\s*\/>/g, "<$1$2></$1>")
           // a lone <md-x></md-x> line isn't a block to markdown; drop the <p> it gets wrapped in
@@ -39,6 +76,12 @@ export default function md(): Plugin {
               (_, k, v) =>
                 `${k}='${JSON.stringify(new Function(`return (${v})`)()).replaceAll("'", "&#39;")}'`,
             ),
+          )
+          .replaceAll("<a ", '<a target="_blank" ')
+          .replace(/@@math(\d+)@@/g, (_, i) => math[+i])
+          .replace(
+            /(?:<p>)?@@code(\d+)@@(?:<\/p>)?/g,
+            (_, i) => looked[+i].html,
           );
         if (dev)
           return `export default ${JSON.stringify("data:text/html;charset=utf-8," + encodeURIComponent(html))}`;

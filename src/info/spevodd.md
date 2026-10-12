@@ -1,4 +1,4 @@
-Even/Odd Split separates the harmonic spectrum of an audio signal into even and independent odd frequency components, allowing you to process or route harmonic layers separately.
+Even/Odd Split separates the harmonic spectrum of an audio signal into its even and odd harmonics, allowing you to process or route harmonic layers separately.
 
 ## Try it
 
@@ -25,7 +25,11 @@ nodes='[
 
 ## How it works
 
-Even/Odd Split converts the incoming audio signal into the frequency domain using a Fast Fourier Transform (FFT). It iterates through each frequency bin, sorting even-numbered bins into the first spectrum and odd-numbered bins into the second spectrum while factoring in the **Bleed** parameter. Finally, it transforms both spectra back into the time domain via inverse FFT, providing two distinct outputs-one dominated by even harmonics and the other by odd harmonics.
+Even/Odd Split converts the incoming audio signal into the frequency domain using a Fast Fourier Transform (FFT). It iterates through each frequency bin, sorting even-numbered bins into the first spectrum and odd-numbered bins into the second spectrum while factoring in the **Bleed** parameter. With <md-latex>E</md-latex> and <md-latex>O</md-latex> as the even and odd harmonics of the input and <md-latex>b</md-latex> as Bleed (as a fraction, so 100% is <md-latex>b = 1</md-latex>):
+
+<md-latex>\text{out}_0 = E + b\thinspace O \qquad \text{out}_1 = O + b\thinspace E</md-latex>
+
+The DC component only goes to the first output. Finally, it transforms both spectra back into the time domain via inverse FFT, providing two distinct outputs: one dominated by even harmonics and the other by odd harmonics.
 
 The node's built-in display visually shows only the even waveform, as it specifically renders the first output channel.
 
@@ -37,4 +41,9 @@ The node's built-in display visually shows only the even waveform, as it specifi
 
 ## Good to know
 
+- At 0% Bleed the two outputs add up to the original signal, and at 100% both outputs sound like the full input.
 - Because a sawtooth wave contains both even and odd harmonics, splitting them apart creates distinct timbral textures that can be heavily processed independently before being recombined.
+
+## The code
+
+<md-lookup src="../graph/node/even_odd.rs" />

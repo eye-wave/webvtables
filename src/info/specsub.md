@@ -27,7 +27,11 @@ This is the real node, running. Connect a primary audio source and a reference n
 
 ## How it works
 
-Spectral Subtract converts both incoming audio inputs into the frequency domain using a Fast Fourier Transform (FFT). It calculates the magnitude spectrum for each input, subtracts the reference magnitude from the primary signal (clamping negative values at zero), scales the complex phase spectrum accordingly, and reconstructs the time-domain signal using an inverse FFT. Finally, it blends the processed result with the original dry signal according to the **Mix** parameter.
+Spectral Subtract converts both incoming audio inputs into the frequency domain using a Fast Fourier Transform (FFT). It calculates the magnitude spectrum for each input, subtracts the reference magnitude from the primary signal (clamping negative values at zero), keeps the phase of the primary signal, and reconstructs the time-domain signal using an inverse FFT. With <md-latex>A_k</md-latex> and <md-latex>B_k</md-latex> as the bins of the primary and reference signal:
+
+<md-latex>Y_k = A_k \cdot \frac{\max(\lvert A_k \rvert - \lvert B_k \rvert,\ 0)}{\lvert A_k \rvert}</md-latex>
+
+Finally, it blends the processed result with the original dry signal according to the **Mix** parameter: <md-latex>\text{out} = (1 - \text{mix}) \cdot a + \text{mix} \cdot y</md-latex>. The lowest bin, which holds the DC level, is subtracted directly instead.
 
 ## Tutorial: removing noise or extracting spectral differences
 
@@ -38,3 +42,7 @@ Spectral Subtract converts both incoming audio inputs into the frequency domain 
 ## Good to know
 
 - Because spectral subtraction works directly on frequency bin magnitudes, subtracting a recorded noise profile from a noisy signal can effectively strip away stationary background hiss or hums.
+
+## The code
+
+<md-lookup src="../graph/node/spectral_subtract.rs" />
