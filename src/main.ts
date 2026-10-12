@@ -178,6 +178,7 @@ loadWasm().then((wasm) => {
       view: view.v,
       segs: ropes.segments(),
       scopes: scene.scopes(),
+      images: scene.images(),
       rings: input.lit,
       t: t / 1000,
     });

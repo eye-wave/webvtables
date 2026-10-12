@@ -79,3 +79,15 @@ export const registerData = (
 export const savedAt = (n: number) => {
   for (const e of live) if (e.el() && +e.el()!.dataset.n! === n) return e.get();
 };
+
+// An element the overlay draws a Data image into (see gfx/overlay.ts). The function gets the
+// element's inner size and returns rects relative to its top-left corner: the picture and the crop box.
+export type ImageView = {
+  src: HTMLCanvasElement;
+  img: [x: number, y: number, w: number, h: number];
+  box: [x0: number, y0: number, x1: number, y1: number];
+};
+export const imageViews = new WeakMap<
+  Element,
+  (w: number, h: number) => ImageView
+>();

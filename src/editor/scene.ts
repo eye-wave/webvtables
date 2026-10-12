@@ -7,7 +7,8 @@ import {
   type ParamInfo,
 } from "../components/node/node";
 import { ui } from "../components/node/node_ui";
-import { STRIDE, type Scope } from "../gfx/overlay";
+import { STRIDE, type ImageDraw, type Scope } from "../gfx/overlay";
+import { imageViews } from "../components/node/data_asset";
 import type { ParamEdit } from "../components/param_edit/param_edit";
 import type { Pt } from "../gfx/ropes";
 import type { NodeInfo } from "../components/keyframes/keyframes";
@@ -455,6 +456,30 @@ export function createScene(
               wasm.scope_ptr(),
               len,
             ).slice(),
+          });
+        });
+      }
+      return out;
+    },
+
+    images(): ImageDraw[] {
+      const out: ImageDraw[] = [];
+      const els = visible();
+      for (let order = 0; order < els.length; order++) {
+        const el = els[order];
+        const [x, y] = f32().subarray(at(el), at(el) + 2);
+        el.querySelectorAll<HTMLElement>("[data-img]").forEach((c) => {
+          const [ox, oy] = offsetIn(c, el);
+          const cx = x + ox + c.clientLeft,
+            cy = y + oy + c.clientTop;
+          const v = imageViews.get(c)?.(c.clientWidth, c.clientHeight);
+          if (!v) return;
+          out.push({
+            order,
+            src: v.src,
+            clip: [cx, cy, c.clientWidth, c.clientHeight],
+            img: [cx + v.img[0], cy + v.img[1], v.img[2], v.img[3]],
+            box: [cx + v.box[0], cy + v.box[1], cx + v.box[2], cy + v.box[3]],
           });
         });
       }

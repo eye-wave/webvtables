@@ -301,7 +301,7 @@ export function createProject(
     fileName.value = file.name.replace(/\.(wtp|wtx)$/i, "");
     scene.load();
     scene.restore(groups);
-    pending.clear();
+    // pending.clear();
     texBoot.clear();
     loaded();
     fileDialog.close();

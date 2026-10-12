@@ -14,11 +14,13 @@ import { Flags, Head, Knobs, Scope, useNode } from "./node";
 import {
   decodeAudio,
   decodeImage,
+  imageViews,
   pending,
   registerData,
   TYPES,
   type Asset,
   type Audio,
+  type ImageView,
   type Img,
   type Spec,
 } from "./data_asset";
@@ -484,28 +486,22 @@ function ImageEditor(props: {
     );
   });
 
-  let cv!: HTMLCanvasElement;
-  createEffect(() => {
-    const g = canvas(cv, CH),
-      [x0, y0, x1, y1] = crop(),
-      X0 = ox + x0 * s,
-      Y0 = oy + y0 * s,
-      X1 = ox + x1 * s,
-      Y1 = oy + y1 * s;
-    g.drawImage(props.a.cv, ox, oy, w * s, h * s);
-    g.fillStyle = "rgba(0,0,0,.55)";
-    g.fillRect(ox, oy, w * s, Y0 - oy);
-    g.fillRect(ox, Y1, w * s, oy + h * s - Y1);
-    g.fillRect(ox, Y0, X0 - ox, Y1 - Y0);
-    g.fillRect(X1, Y0, ox + w * s - X1, Y1 - Y0);
-    g.strokeStyle = g.fillStyle = IMAGE;
-    g.lineWidth = 1.5;
-    g.strokeRect(X0, Y0, X1 - X0, Y1 - Y0);
-    for (const px of [X0, (X0 + X1) / 2, X1])
-      for (const py of [Y0, (Y0 + Y1) / 2, Y1])
-        if (px !== (X0 + X1) / 2 || py !== (Y0 + Y1) / 2)
-          g.fillRect(px - 3, py - 3, 6, 6);
-  });
+  // The picture and crop box are drawn by the overlay at full resolution (gfx/overlay.ts), so
+  // this element is only a background and a pointer target. Virtual BW x CH space -> its inner size.
+  const { redraw } = useNode();
+  createEffect(() => (crop(), redraw()));
+  const view = (cw: number, ch: number) => {
+    const [x0, y0, x1, y1] = crop(),
+      kx = cw / BW,
+      ky = ch / CH,
+      X = (v: number) => (ox + v * s) * kx,
+      Y = (v: number) => (oy + v * s) * ky;
+    return {
+      src: props.a.cv,
+      img: [ox * kx, oy * ky, w * s * kx, h * s * ky],
+      box: [X(x0), Y(y0), X(x1), Y(y1)],
+    } as ImageView;
+  };
 
   const at = (e: PointerEvent) => [
     (frac(e, "clientX") * BW - ox) / s,
@@ -576,8 +572,9 @@ function ImageEditor(props: {
 
   return (
     <>
-      <canvas
-        ref={cv}
+      <div
+        ref={(e) => imageViews.set(e, view)}
+        data-img
         class={`${css.wave} ${css.crop}`}
         on:pointerdown={onDown}
         on:pointermove={onMove}
