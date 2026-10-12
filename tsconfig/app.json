@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "es2023",
+    "module": "esnext",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "libReplacement": true,
+    "types": ["vite/client", "vite-plugin-glsl/ext", "@types/audioworklet"],
+    "allowArbitraryExtensions": true,
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
+    "skipLibCheck": true,
+
+    "paths": {
+      "~wasm/*": ["../target/wasm32-unknown-unknown/release/*"]
+    },
+
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": false,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["../src/**/*.ts", "../src/**/*.tsx"]
+}

@@ -79,6 +79,8 @@ export default function md(): Plugin {
           )
           .replaceAll("<a ", '<a target="_blank" ')
           .replace(/@@math(\d+)@@/g, (_, i) => math[+i])
+          // a plain space right after the math is lost on screen (the text sticks to the formula), so keep it as nbsp
+          .replace(/(<\/math><\/span>) (?=[^\s<])/g, "$1&nbsp;")
           .replace(
             /(?:<p>)?@@code(\d+)@@(?:<\/p>)?/g,
             (_, i) => looked[+i].html,
