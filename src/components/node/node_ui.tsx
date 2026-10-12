@@ -12,13 +12,14 @@ const DataView = lazy(() =>
 export type NodeUi = {
   view: Component;
 
-  size?: [w: number, h: number];
+  size?: [w: number, h: number]; // h is only the start value when auto
+  auto?: boolean; // height follows the content (scene.sync measures it)
 };
 
 export const ui: Partial<Record<(typeof nodes)[number]["name"], NodeUi>> = {
-  Data: { size: [320, 360], view: DataView },
+  Data: { size: [320, 360], auto: true, view: DataView },
 
-  Math: { size: [300, 360], view: MathView },
+  Math: { size: [300, 360], auto: true, view: MathView },
 
   "Basic shapes": {
     size: [200, 184],

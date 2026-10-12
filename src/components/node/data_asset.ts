@@ -91,3 +91,16 @@ export const imageViews = new WeakMap<
   Element,
   (w: number, h: number) => ImageView
 >();
+
+// The audio counterpart: peaks are [min, max] pairs, under/over are rects (x y w h r g b a) relative
+// to the element's top-left corner.
+export type PanelView = {
+  peaks: Float32Array;
+  color: [number, number, number];
+  under: number[];
+  over: number[];
+};
+export const panelViews = new WeakMap<
+  Element,
+  (w: number, h: number) => PanelView
+>();

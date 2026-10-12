@@ -4,6 +4,7 @@ import {
   createSignal,
   For,
   onCleanup,
+  onMount,
   Show,
   untrack,
 } from "solid-js";
@@ -15,6 +16,7 @@ import {
   decodeAudio,
   decodeImage,
   imageViews,
+  panelViews,
   pending,
   registerData,
   TYPES,
@@ -33,9 +35,10 @@ type Put = (d: Float32Array) => void;
 
 const AUDIO = "#2fbf8f",
   IMAGE = "#f0629a",
-  BW = 308, // canvas css width: node is 320 wide minus padding and border
-  UH = 52,
-  CH = 92;
+  FRAME = "#5aa9ff", // frame overlays on the audio waveforms
+  START = "#ffb020",
+  COLS = 1232, // waveform columns: 4 per css px, so it stays sharp up to the 4x zoom limit
+  BW = 308; // canvas css width: node is 320 wide minus padding and border
 
 const clamp = (v: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, v));
@@ -49,16 +52,6 @@ const pick = <T extends string>(
   all: readonly T[],
   d: T,
 ) => (all.includes(s as T) ? (s as T) : d);
-
-// 2x backing store for crisp lines; draw in css px
-function canvas(c: HTMLCanvasElement, h: number) {
-  c.width = BW * 2;
-  c.height = h * 2;
-  const g = c.getContext("2d")!;
-  g.setTransform(2, 0, 0, 2, 0, 0);
-  g.clearRect(0, 0, BW, h);
-  return g;
-}
 
 const frac = (e: PointerEvent, axis: "clientX" | "clientY") => {
   const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -157,7 +150,7 @@ function peaks(x: Float32Array, a: number, b: number, cols: number) {
       i1 = Math.max(i0 + 1, Math.floor(a + ((b - a) * (c + 1)) / cols));
     let lo = Infinity,
       hi = -Infinity;
-    for (let i = i0; i < i1; i++) {
+    for (let i = i0 - 1; i < i1; i++) {
       const v = i < 0 || i >= x.length ? 0 : x[i];
       if (v < lo) lo = v;
       if (v > hi) hi = v;
@@ -168,34 +161,20 @@ function peaks(x: Float32Array, a: number, b: number, cols: number) {
   return pk;
 }
 
-function wave(g: CanvasRenderingContext2D, pk: Float32Array, h: number) {
-  const cols = pk.length / 2,
-    w = BW / cols,
-    mid = h / 2;
-  g.fillStyle = "rgba(128,128,128,.4)";
-  g.fillRect(0, mid, BW, 0.5);
-  g.fillStyle = AUDIO;
-  for (let c = 0; c < cols; c++) {
-    const lo = clamp(pk[c * 2], -1, 1),
-      hi = clamp(pk[c * 2 + 1], -1, 1);
-    g.fillRect(c * w, mid - hi * mid, w, Math.max((hi - lo) * mid, 0.5));
-  }
-}
-
-function frameRect(
-  g: CanvasRenderingContext2D,
+const rgb = (hex: string) =>
+  [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [
+    number,
+    number,
+    number,
+  ];
+const R = (
   x: number,
+  y: number,
   w: number,
   h: number,
-  k: number,
-) {
-  g.globalAlpha = k % 2 ? 0.14 : 0.3; // alternate so neighbouring frames stay distinguishable
-  g.fillStyle = AUDIO;
-  g.fillRect(x, 0, Math.max(w, 1), h);
-  g.globalAlpha = 0.8;
-  g.fillRect(x, 0, 1, h);
-  g.globalAlpha = 1;
-}
+  c: string,
+  a: number,
+) => [x, y, w, h, ...rgb(c), a];
 
 function AudioEditor(props: {
   a: Audio;
@@ -261,31 +240,57 @@ function AudioEditor(props: {
     props.put(out);
   });
 
-  let up!: HTMLCanvasElement, dn!: HTMLCanvasElement;
-  const whole = createMemo(() => peaks(x, 0, len, BW * 2));
-  createEffect(() => {
-    const g = canvas(up, UH),
+  // The waveforms and frame overlays are drawn by the overlay (gfx/overlay.ts); the elements below are
+  // backgrounds and pointer targets. Virtual BW x UH space -> the element's inner size.
+  const { redraw } = useNode();
+  createEffect(() => (win(), start(), nf(), vs(), span(), redraw()));
+  const whole = createMemo(() => peaks(x, 0, len, COLS));
+  const zoomed = createMemo(() => peaks(x, vs(), vs() + span(), COLS));
+  const upView = (cw: number, ch: number) => {
+    const kx = cw / BW,
       w = win(),
-      s = start();
-    wave(g, whole(), UH);
-    for (let k = 0; k < nf(); k++)
-      frameRect(g, ((s + k * w) / len) * BW, (w / len) * BW, UH, k);
-  });
-  createEffect(() => {
-    const g = canvas(dn, UH),
+      s = start(),
+      over: number[] = [];
+    for (let k = 0; k < nf(); k++) {
+      const X = ((s + k * w) / len) * BW * kx;
+      over.push(
+        ...R(X, 0, (w / len) * BW * kx, ch, FRAME, k % 2 ? 0.14 : 0.3), // alternate so neighbours differ
+        ...R(X, 0, 0, ch, FRAME, 0.8),
+      );
+    }
+    return {
+      peaks: whole(),
+      color: rgb(AUDIO),
+      under: R(0, ch / 2, cw, 0.5, "#808080", 0.4),
+      over,
+    };
+  };
+  const downView = (cw: number, ch: number) => {
+    const kx = cw / BW,
       w = win(),
       s = start(),
       a = vs(),
-      sp = span();
-    wave(g, peaks(x, a, a + sp, BW * 2), UH);
+      sp = span(),
+      over: number[] = [];
     for (let k = 0; k < nf(); k++) {
       const f = s + k * w;
-      if (f + w >= a && f <= a + sp)
-        frameRect(g, ((f - a) / sp) * BW, (w / sp) * BW, UH, k);
+      if (f + w < a || f > a + sp) continue;
+      const X = ((f - a) / sp) * BW * kx;
+      over.push(
+        ...R(X, 0, (w / sp) * BW * kx, ch, FRAME, k % 2 ? 0.14 : 0.3),
+        ...R(X, 0, 0, ch, FRAME, 0.8),
+      );
     }
-    g.fillStyle = "#ffb020"; // start marker
-    g.fillRect(((s - a) / sp) * BW - 0.75, 0, 1.5, UH);
-  });
+    over.push(
+      ...R((((s - a) / sp) * BW - 0.75) * kx, 0, 1.5 * kx, ch, START, 1),
+    );
+    return {
+      peaks: zoomed(),
+      color: rgb(AUDIO),
+      under: R(0, ch / 2, cw, 0.5, "#808080", 0.4),
+      over,
+    };
+  };
 
   // alt+drag: the window's right edge follows the pointer, start stays put
   const coarse = drag((e) =>
@@ -310,16 +315,18 @@ function AudioEditor(props: {
 
   return (
     <>
-      <canvas
-        ref={up}
+      <div
+        ref={(e) => panelViews.set(e, upView)}
+        data-panel
         title="Alt+drag: resize window"
         class={`${css.wave} ${css.up}`}
         on:pointerdown={coarse.down}
         on:pointermove={coarse.move}
         on:pointerup={done}
       />
-      <canvas
-        ref={dn}
+      <div
+        ref={(e) => panelViews.set(e, downView)}
+        data-panel
         title="Alt+drag: resize window"
         class={`${css.wave} ${css.down}`}
         on:pointerdown={fine.down}
@@ -433,6 +440,8 @@ function ImageEditor(props: {
   }));
   const [rev, setRev] = createSignal(0); // bumped when a crop drag ends: re-rendering mid-drag is wasteful
 
+  // full node width; as tall as the picture needs (capped, then it is letterboxed)
+  const CH = Math.min((BW * h) / w, 2 * BW);
   const s = Math.min(BW / w, CH / h),
     ox = (BW - w * s) / 2,
     oy = (CH - h * s) / 2;
@@ -576,6 +585,7 @@ function ImageEditor(props: {
         ref={(e) => imageViews.set(e, view)}
         data-img
         class={`${css.wave} ${css.crop}`}
+        style={{ height: `${CH}px` }}
         on:pointerdown={onDown}
         on:pointermove={onMove}
         on:pointerup={() => setRev((r) => r + 1)}
@@ -608,6 +618,7 @@ function ImageEditor(props: {
 
 export function DataView() {
   const ctx = useNode();
+  onMount(ctx.redraw);
   const boot = pending.get(ctx.i); // set when a project is loaded
   pending.delete(ctx.i);
   let init: Spec | undefined = boot?.spec; // only the first editor starts from saved settings
@@ -693,7 +704,10 @@ export function DataView() {
       <Knobs />
       <div
         class={css.body}
-        style={{ "--c": asset()?.t === "image" ? IMAGE : AUDIO }}
+        style={{
+          "--c": asset()?.t === "image" ? IMAGE : AUDIO,
+          height: asset()?.t === "image" ? "auto" : undefined, // the picture sets it
+        }}
         on:pointerdown={(e) => e.stopPropagation()}
         on:keydown={(e) => e.stopPropagation()}
       >
@@ -748,7 +762,10 @@ export function DataView() {
         </Show>
       </div>
       <Flags />
-      <Scope w={0} />
+      <Scope
+        w={0}
+        style={{ flex: "none", height: "56px", "box-sizing": "border-box" }}
+      />
     </>
   );
 }

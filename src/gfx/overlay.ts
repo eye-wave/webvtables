@@ -8,12 +8,16 @@ import waveVs from "./shaders/wave.vert.glsl";
 import waveFs from "./shaders/wave.frag.glsl";
 import imageVs from "./shaders/image.vert.glsl";
 import imageFs from "./shaders/image.frag.glsl";
+import peakVs from "./shaders/peak.vert.glsl";
+import peakFs from "./shaders/peak.frag.glsl";
+import rectVs from "./shaders/rect.vert.glsl";
+import rectFs from "./shaders/rect.frag.glsl";
 import type { View } from "./view";
 
 export const GL_OPTS: WebGLContextAttributes = {
   alpha: true,
   premultipliedAlpha: true,
-  antialias: false,
+  antialias: true,
   depth: true,
   stencil: false,
 };
@@ -41,6 +45,17 @@ export type ImageDraw = {
   box: [x0: number, y0: number, x1: number, y1: number];
 };
 
+// A Data node's audio view: min/max columns across `clip`, with filled rects (x y w h r g b a, stride 8)
+// below and above them. Rects are relative to clip's corner, like ImageDraw's.
+export type PanelDraw = {
+  order: number;
+  clip: [x: number, y: number, w: number, h: number];
+  peaks: Float32Array;
+  color: [number, number, number];
+  under: Float32Array;
+  over: Float32Array;
+};
+
 export type Frame = {
   nodes: Float32Array;
   view: View;
@@ -48,6 +63,7 @@ export type Frame = {
   rings: [number, number][];
   scopes: Scope[];
   images: ImageDraw[];
+  panels: PanelDraw[];
   t: number;
 };
 export type Draw = (f: Frame) => void;
@@ -82,6 +98,8 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
   const ring = compile(ringVs, ringFs);
   const wave = compile(waveVs, waveFs);
   const image = compile(imageVs, imageFs);
+  const peak = compile(peakVs, peakFs);
+  const rect = compile(rectVs, rectFs);
   const loc = (p: WebGLProgram, n: string) => gl.getUniformLocation(p, n);
 
   const stream = (
@@ -113,6 +131,11 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
   ]);
   const centres = stream(2, [[0, 2, 0]]);
 
+  const columns = stream(2, [[0, 2, 0]]);
+  const fills = stream(8, [
+    [0, 4, 0],
+    [1, 4, 4],
+  ]);
   const samples = stream(1, [
     [0, 1, 0],
     [1, 1, 1],
@@ -137,7 +160,11 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
       gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
       gl.generateMipmap(gl.TEXTURE_2D);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      gl.texParameteri(
+        gl.TEXTURE_2D,
+        gl.TEXTURE_MIN_FILTER,
+        gl.LINEAR_MIPMAP_LINEAR,
+      );
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -151,7 +178,7 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
-  return ({ nodes: inst, view, segs, rings, scopes, images, t }) => {
+  return ({ nodes: inst, view, segs, rings, scopes, images, panels, t }) => {
     const n = inst.length / STRIDE;
     const dpr = devicePixelRatio;
     const w = canvas.clientWidth,
@@ -168,7 +195,7 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
     gl.enable(gl.DEPTH_TEST);
     gl.depthMask(true);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    for (const p of [decor, rope, ring, wave, image]) {
+    for (const p of [decor, rope, ring, wave, image, peak, rect]) {
       gl.useProgram(p);
       gl.uniform2f(loc(p, "uRes"), w, h);
       gl.uniform3f(loc(p, "uView"), ...view);
@@ -213,6 +240,28 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       }
       gl.activeTexture(gl.TEXTURE0); // the heightmap keeps its texture bound here
+    }
+
+    for (const { order, clip, peaks, color, under, over } of panels) {
+      const z = 1 - (2 * (order + 1.5)) / (n + 1);
+      const fill = (r: Float32Array) => {
+        if (!r.length) return;
+        gl.useProgram(rect);
+        gl.uniform4f(loc(rect, "uClip"), ...clip);
+        gl.uniform1f(loc(rect, "uZ"), z);
+        fills(r);
+        gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, r.length / 8);
+      };
+      fill(under);
+      gl.useProgram(peak);
+      gl.uniform4f(loc(peak, "uClip"), ...clip);
+      gl.uniform4f(loc(peak, "uRect"), ...clip);
+      gl.uniform3f(loc(peak, "uCol"), ...color);
+      gl.uniform1f(loc(peak, "uCount"), peaks.length / 2);
+      gl.uniform1f(loc(peak, "uZ"), z);
+      columns(peaks);
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, peaks.length / 2);
+      fill(over);
     }
 
     gl.useProgram(decor);

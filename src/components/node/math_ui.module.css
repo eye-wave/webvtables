@@ -1,17 +1,14 @@
 .body {
-  flex: 1;
-  min-height: 0;
+  flex: none;
   display: flex;
   flex-direction: column;
   gap: 4px;
   margin-left: 16px; /* room for the p q r socket labels */
 }
 
-/* as tall as its content (shrinks only if it would crowd out the graph); the free room of the
-   fixed-size node ends up below it, between the text and the graph */
+/* as tall as its content: the node grows and shrinks with it */
 .field {
-  flex: 0 1 auto;
-  margin-bottom: auto;
+  flex: none;
   min-height: 34px;
   padding: 4px 8px;
   display: flex;

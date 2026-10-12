@@ -7,8 +7,8 @@ import {
   type ParamInfo,
 } from "../components/node/node";
 import { ui } from "../components/node/node_ui";
-import { STRIDE, type ImageDraw, type Scope } from "../gfx/overlay";
-import { imageViews } from "../components/node/data_asset";
+import { STRIDE, type ImageDraw, type PanelDraw, type Scope } from "../gfx/overlay";
+import { imageViews, panelViews } from "../components/node/data_asset";
 import type { ParamEdit } from "../components/param_edit/param_edit";
 import type { Pt } from "../gfx/ropes";
 import type { NodeInfo } from "../components/keyframes/keyframes";
@@ -408,10 +408,17 @@ export function createScene(
       for (let i = 0; i < els.length; i++) {
         const el = els[i];
         const p = +el.dataset.p!;
+        const auto = ui[nodes[+el.dataset.k!].name]?.auto;
+        if (auto) {
+          // dynamic height: the DOM decides, wasm (sockets, ropes, glow, groups) follows
+          el.style.width = `${f[(p >> 2) + 2]}px`;
+          el.style.height = "";
+          f[(p >> 2) + 3] = el.offsetHeight;
+        }
         const [x, y, w, h] = f.subarray(p >> 2, (p >> 2) + 4);
         el.style.transform = `translate(${x}px, ${y}px)`;
         el.style.width = `${w}px`;
-        el.style.height = `${h}px`;
+        if (!auto) el.style.height = `${h}px`;
         inst.set([x, y, w, h, i, ROLE[u[p + KIND_AT]]], i * STRIDE);
 
         for (let j = 0, a; (a = wasm.get_param(+el.dataset.n!, j)) >= 0; j++)
@@ -480,6 +487,36 @@ export function createScene(
             clip: [cx, cy, c.clientWidth, c.clientHeight],
             img: [cx + v.img[0], cy + v.img[1], v.img[2], v.img[3]],
             box: [cx + v.box[0], cy + v.box[1], cx + v.box[2], cy + v.box[3]],
+          });
+        });
+      }
+      return out;
+    },
+
+    panels(): PanelDraw[] {
+      const out: PanelDraw[] = [];
+      const els = visible();
+      for (let order = 0; order < els.length; order++) {
+        const el = els[order];
+        const [x, y] = f32().subarray(at(el), at(el) + 2);
+        el.querySelectorAll<HTMLElement>("[data-panel]").forEach((c) => {
+          const [ox, oy] = offsetIn(c, el);
+          const cx = x + ox + c.clientLeft,
+            cy = y + oy + c.clientTop;
+          const v = panelViews.get(c)?.(c.clientWidth, c.clientHeight);
+          if (!v) return;
+          const at = (r: number[]) => {
+            const a = Float32Array.from(r);
+            for (let i = 0; i < a.length; i += 8) (a[i] += cx), (a[i + 1] += cy);
+            return a;
+          };
+          out.push({
+            order,
+            clip: [cx, cy, c.clientWidth, c.clientHeight],
+            peaks: v.peaks,
+            color: v.color,
+            under: at(v.under),
+            over: at(v.over),
           });
         });
       }
