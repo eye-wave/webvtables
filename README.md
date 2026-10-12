@@ -1,6 +1,6 @@
 # webvtables
 
-**Design your own wavetables by connecting nodes together, right in your browser.**
+**Online wavetable designer app.**
 
 Try it here: **https://eye-wave.github.io/webvtables/**
 
