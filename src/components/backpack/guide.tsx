@@ -62,7 +62,9 @@ function build() {
   head.append(title, x);
   d.append(head, host);
   x.onclick = () => d.close();
-  d.onclick = (e) => e.target === d && d.close(); // the backdrop
+  d.onclick = (e) => {
+    if (e.target === d) d.close();
+  };
   d.onclose = () => (stop(), (current = -1), host.replaceChildren());
   document.body.append(d);
   return d;
