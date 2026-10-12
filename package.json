@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "codegen": "bun run --sequential 'codegen:*'",
     "codegen:nodes": "cargo test --lib --target \"$(rustc -vV | sed -n 's/host: //p')\" generate_ts",
-    "codegen:exports": "bun run scripts/exports.mjs"
+    "codegen:exports": "bun run scripts/exports.js"
   },
   "devDependencies": {
     "@types/audioworklet": "^0.0.100",
