@@ -37,6 +37,7 @@ pub fn fill(s: &State, node: usize, widget: u8) -> usize {
         1 if kind.as_node().has_widget() => {
             let ins = inputs(s, node, kind, memo);
             let refs: Vec<&Buffer> = ins.as_chunks::<N>().0.iter().collect();
+            unsafe { CURRENT = s.nodes[node] };
             kind.as_node()
                 .fill_widget(&refs, &params(s, node, kind), buf)
         }

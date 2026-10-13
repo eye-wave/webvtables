@@ -1,7 +1,8 @@
 use super::helpers;
-use super::waveshaper::MAX_POINTS;
 use super::{Buffer, MAX_PARAMS, N, NodeCategory, NodeKind, NodeLogic, NodeParamDef, Param, State};
 use super::{Label, label};
+use super::draw_filter::DRAW_POINTS;
+use super::waveshaper::MAX_POINTS;
 use crate::graph::{scope::CURRENT, state};
 use alloc::vec::Vec;
 
@@ -101,12 +102,13 @@ impl State {
     }
 
     /// Allocates zeroed storage for `len` floats and returns its address: whole frames (1..=256)
-    /// for Data, x y pairs for Waveshaper. None for invalid nodes, lengths, or allocation failure.
+    /// for Data, x y pairs for Waveshaper, exactly DRAW_POINTS y values for Draw Filter. None for invalid nodes, lengths, or allocation failure.
     pub fn data_alloc(&mut self, idx: usize, len: usize) -> Option<usize> {
         let off = *self.nodes.get(idx)?;
         let ok = match self.kind(idx)? {
             NodeKind::Data => len.is_multiple_of(N) && (1..=256).contains(&(len / N)),
             NodeKind::Waveshaper => len.is_multiple_of(2) && len <= 2 * MAX_POINTS,
+            NodeKind::DrawFilter => len == DRAW_POINTS,
             _ => false,
         };
         if !ok {

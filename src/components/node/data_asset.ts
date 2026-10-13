@@ -85,6 +85,15 @@ export const decodePoints = (b: Uint8Array): Pt[] => {
   return Array.from({ length: f.length / 2 }, (_, i) => [v(f[2 * i]), v(f[2 * i + 1])]);
 };
 
+// The Draw Filter's asset is its curve: 256 y values (-1..1) as raw float32. Same handling as the points.
+export const DRAW_POINTS = 256;
+export const drawBoot = new Map<number, Float32Array>();
+export const decodeDraw = (b: Uint8Array) => {
+  const f = new Float32Array(DRAW_POINTS);
+  new Uint8Array(f.buffer).set(b.subarray(0, 4 * DRAW_POINTS));
+  return f.map((x) => (Number.isFinite(x) ? Math.min(1, Math.max(-1, x)) : 0));
+};
+
 export type Saved = { bytes: Uint8Array; spec: Spec };
 const live = new Set<{
   el: () => HTMLElement | undefined;

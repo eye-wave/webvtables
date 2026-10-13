@@ -428,7 +428,7 @@ export function format(p: Project): string {
       `[=- ${n.id} -=]`,
       `| ${center(n.kind)} ${n.flags & 7} ${("&" + (n.kind === "math" || !n.asset ? "null" : n.asset.slice(2))).padEnd(6)} |`,
       ...n.params.map((v) => `| ${f15(v)} |`),
-      ...(n.asset && n.kind !== "wavshape"
+      ...(n.asset && n.kind !== "wavshape" && n.kind !== "drawfilt"
         ? [`|< *extern Data    >|${tail && ` &${tail}`}`]
         : []),
       `|=x ${p15(n.x)}=|`,

@@ -4,7 +4,9 @@ import type { Scene } from "../../editor/scene";
 import type { WasmExports } from "../../wasm";
 import {
   decode,
+  decodeDraw,
   decodePoints,
+  drawBoot,
   pending,
   ptsBoot,
   savedAt,
@@ -162,6 +164,7 @@ export function createProject(
     pending.clear();
     texBoot.clear();
     ptsBoot.clear();
+    drawBoot.clear();
     const at = new Map<string, number>();
     for (const n of p.nodes) {
       const kind = kinds.findIndex((k) => k.id === n.kind);
@@ -187,6 +190,8 @@ export function createProject(
       const pts =
         n.kind === "wavshape" && p.assets.find((x) => x.id === n.asset);
       if (pts) ptsBoot.set(i, decodePoints(pts.data));
+      const dr = n.kind === "drawfilt" && p.assets.find((x) => x.id === n.asset);
+      if (dr) drawBoot.set(i, decodeDraw(dr.data));
       const d = n.asset ? decoded.get(n.asset) : undefined;
       if (d)
         pending.set(i, {
@@ -295,7 +300,7 @@ export function createProject(
     try {
       for (const a of p.assets) {
         const n = p.nodes.find((x) => x.asset === a.id)!;
-        if (n.kind === "math" || n.kind === "wavshape") continue; // read straight from the asset
+        if (n.kind === "math" || n.kind === "wavshape" || n.kind === "drawfilt") continue; // read straight from the asset
         decoded.set(
           a.id,
           await decode(n.spec?.Typ, a.data, n.spec?.Nam ?? a.id),

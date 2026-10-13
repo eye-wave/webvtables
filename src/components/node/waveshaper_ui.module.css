@@ -81,3 +81,48 @@
   position: absolute;
   inset: -5px;
 }
+
+/* the engine's spectra behind a drawn curve: input grey, filtered in the curve's color */
+.specIn,
+.specOut {
+  stroke: none;
+  pointer-events: none;
+}
+
+.specIn {
+  fill: var(--text-200);
+  opacity: 0.15;
+}
+
+.specOut {
+  fill: var(--c);
+  opacity: 0.2;
+}
+
+/* pencil / smooth switch of the Draw Filter */
+.tools {
+  display: flex;
+  gap: 2px;
+}
+
+.tools button {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  color: var(--text-200);
+  background: var(--surface-100);
+  border: 1px solid var(--border-100);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.tools button:last-child {
+  margin-left: auto; /* flatten sits apart from the two tools */
+}
+
+.tools button.on {
+  color: var(--c);
+  border-color: var(--c);
+}

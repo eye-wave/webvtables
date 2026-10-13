@@ -126,6 +126,7 @@ define_nodes!(
     Waveshaper = "wavshape",
     Window = "window",
     XyMerge = "xymerge",
+    DrawFilter = "drawfilt",
 );
 
 #[derive(Clone, Copy)]

@@ -13,6 +13,10 @@ const WaveshaperView = lazy(() =>
   import("./waveshaper_ui").then((m) => ({ default: m.WaveshaperView })),
 );
 
+const DrawFilterView = lazy(() =>
+  import("./draw_filter_ui").then((m) => ({ default: m.DrawFilterView })),
+);
+
 export type NodeUi = {
   view: Component;
 
@@ -24,6 +28,8 @@ export const ui: Partial<Record<(typeof nodes)[number]["name"], NodeUi>> = {
   Data: { size: [320, 360], auto: true, view: DataView },
 
   Waveshaper: { size: [220, 420], auto: true, view: WaveshaperView },
+
+  "Draw Filter": { size: [260, 340], auto: true, view: DrawFilterView },
 
   Math: { size: [300, 360], auto: true, view: MathView },
 
