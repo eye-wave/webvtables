@@ -89,6 +89,7 @@ define_nodes!(
     Convolve = "conv",
     Data = "data",
     Disperser = "disperse",
+    DrawFilter = "drawfilt",
     Epicycle = "epicycle",
     EvenOdd = "spevodd",
     Filter = "filter",
@@ -126,7 +127,6 @@ define_nodes!(
     Waveshaper = "wavshape",
     Window = "window",
     XyMerge = "xymerge",
-    DrawFilter = "drawfilt",
 );
 
 #[derive(Clone, Copy)]
