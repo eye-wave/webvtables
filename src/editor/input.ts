@@ -22,6 +22,7 @@ export function createInput(
 ) {
   let drag: Drag | null = null;
   let lit: Pt[] = [];
+  let warm = false; // Shift is held while a link is dragged: dropping merges (see scene.merge)
 
   let hot: HTMLElement | null = null;
   const hover = (k: HTMLElement | null) => {
@@ -90,18 +91,28 @@ export function createInput(
     };
     pin(e);
     lit = scene.targets(from);
+    warm = e.shiftKey;
     return {
-      move: pin,
+      move: (e) => {
+        warm = e.shiftKey;
+        pin(e);
+      },
       up(e) {
         lit = [];
+        warm = false;
         // Touch pointers stay captured by the origin socket, so e.target is
         // useless here: hit-test at the pointer, accept anywhere on a node.
         const el = document
           .elementFromPoint(e.clientX, e.clientY)
           ?.closest<HTMLElement>(`.${nodeCss.node}`);
         const to = el && scene.nearest(from, +el.dataset.n!, view.world(e));
-        const i = to ? scene.connect(from, to) : -1;
-        if (i < 0) ropes.drop(PENDING);
+        const i = to
+          ? e.shiftKey
+            ? scene.merge(from, to)
+            : scene.connect(from, to)
+          : -1;
+        // a merge rebuilds the links around the new Add node: the loop re-pins them all
+        if (i < 0 || e.shiftKey) ropes.drop(PENDING);
         else ropes.rename(PENDING, i);
       },
     };
@@ -120,11 +131,17 @@ export function createInput(
   // started and takes over; no other handler sees it.
   type Touch = { pt: Pt; target: Element };
   const touches = new Map<number, Touch>();
-  let pinch: { ids: [number, number]; s: [number, number, number]; a: Pt; b: Pt } | null = null;
+  let pinch: {
+    ids: [number, number];
+    s: [number, number, number];
+    a: Pt;
+    b: Pt;
+  } | null = null;
   const cancelDrag = () => {
     if (drag) ropes.drop(PENDING);
     drag = null;
     lit = [];
+    warm = false;
     unlock();
   };
   const pair = (): [Pt, Pt] | null => {
@@ -136,13 +153,17 @@ export function createInput(
     "pointerdown",
     (e) => {
       if (e.pointerType !== "touch") return;
-      touches.set(e.pointerId, { pt: [e.clientX, e.clientY], target: e.target as Element });
+      touches.set(e.pointerId, {
+        pt: [e.clientX, e.clientY],
+        target: e.target as Element,
+      });
       if (touches.size < 2) return;
       e.stopPropagation();
       if (pinch) return;
       const [[i, p], [j, q]] = [...touches];
       cancelDrag();
-      for (const [id, t] of touches) // free the fingers from any widget that captured them
+      for (const [id, t] of touches)
+        // free the fingers from any widget that captured them
         try {
           t.target.releasePointerCapture(id);
         } catch {}
@@ -243,9 +264,21 @@ export function createInput(
     { passive: false },
   );
 
+  // the ring colour follows Shift without the pointer having to move
+  const key = (e: KeyboardEvent) => {
+    if (e.key !== "Shift" || !lit.length) return;
+    warm = e.type === "keydown";
+    schedule();
+  };
+  addEventListener("keydown", key);
+  addEventListener("keyup", key);
+
   return {
     get lit() {
       return lit;
+    },
+    get warm() {
+      return warm;
     },
   };
 }

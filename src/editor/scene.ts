@@ -7,7 +7,12 @@ import {
   type ParamInfo,
 } from "../components/node/node";
 import { ui } from "../components/node/node_ui";
-import { STRIDE, type ImageDraw, type PanelDraw, type Scope } from "../gfx/overlay";
+import {
+  STRIDE,
+  type ImageDraw,
+  type PanelDraw,
+  type Scope,
+} from "../gfx/overlay";
 import { imageViews, panelViews } from "../components/node/data_asset";
 import type { ParamEdit } from "../components/param_edit/param_edit";
 import type { Pt } from "../gfx/ropes";
@@ -507,7 +512,8 @@ export function createScene(
           if (!v) return;
           const at = (r: number[]) => {
             const a = Float32Array.from(r);
-            for (let i = 0; i < a.length; i += 8) (a[i] += cx), (a[i + 1] += cy);
+            for (let i = 0; i < a.length; i += 8)
+              ((a[i] += cx), (a[i + 1] += cy));
             return a;
           };
           out.push({
@@ -547,6 +553,27 @@ export function createScene(
     connect(a: Sock, b: Sock): number {
       const [s, t] = a.out ? [a, b] : [b, a];
       return a.out === b.out ? -1 : wasm.add_link(s.node, s.j, t.node, t.j);
+    },
+
+    // connect(), but a link already into that input is kept: both go through a new Add node
+    // placed left of the input, which then replaces the old link (add_link overwrites in place).
+    merge(a: Sock, b: Sock): number {
+      const [s, t] = a.out ? [a, b] : [b, a];
+      if (a.out === b.out) return -1;
+      let old = -1;
+      for (let i = 0; i < wasm.links_len(); i++)
+        if (ends(i)[2] === t.node && ends(i)[3] === t.j) old = i;
+      const kind = nodes.findIndex((n) => n.name === "Add");
+      const n = wasm.nodes_len();
+      if (old < 0) return this.connect(s, t);
+      const [w, h] = sizeOf(kind);
+      const [tx, ty] = socketPos(t);
+      this.add(kind, tx - w - 48, ty - h / 2);
+      if (wasm.nodes_len() === n) return this.connect(s, t);
+      const [os, oj] = ends(old);
+      wasm.add_link(os, oj, n, 0);
+      wasm.add_link(s.node, s.j, n, 1);
+      return wasm.add_link(n, 0, t.node, t.j);
     },
 
     unlink(i: number): number {

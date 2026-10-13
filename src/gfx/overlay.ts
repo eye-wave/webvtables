@@ -61,6 +61,7 @@ export type Frame = {
   view: View;
   segs: Float32Array;
   rings: [number, number][];
+  warm: boolean; // rings in yellow: the drop will merge into an Add node
   scopes: Scope[];
   images: ImageDraw[];
   panels: PanelDraw[];
@@ -178,7 +179,17 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
-  return ({ nodes: inst, view, segs, rings, scopes, images, panels, t }) => {
+  return ({
+    nodes: inst,
+    view,
+    segs,
+    rings,
+    warm,
+    scopes,
+    images,
+    panels,
+    t,
+  }) => {
     const n = inst.length / STRIDE;
     const dpr = devicePixelRatio;
     const w = canvas.clientWidth,
@@ -271,6 +282,10 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
 
     gl.useProgram(ring);
     gl.uniform1f(loc(ring, "uSpin"), (t * 2) % (2 * Math.PI));
+    gl.uniform3f(
+      loc(ring, "uCol"),
+      ...((warm ? [1, 0.82, 0.2] : [0.4, 0.85, 1]) as [number, number, number]),
+    );
     centres(Float32Array.from(rings.flat()));
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, rings.length);
   };

@@ -181,6 +181,7 @@ loadWasm().then((wasm) => {
       images: scene.images(),
       panels: scene.panels(),
       rings: input.lit,
+      warm: input.warm,
       t: t / 1000,
     });
     drawMap.draw(head(), table);

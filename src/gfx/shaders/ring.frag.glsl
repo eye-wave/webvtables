@@ -1,6 +1,7 @@
 precision highp float;
 
 uniform float uR, uSpin;
+uniform vec3 uCol;
 
 in vec2 vP;
 
@@ -21,5 +22,5 @@ void main() {
   float dots = clamp(0.5 - d / px, 0.0, 1.0);
   float fill = (1.0 - smoothstep(uR - 2.0, uR, r)) * 0.18;
   float a = max(dots, fill);
-  o = vec4(vec3(0.4, 0.85, 1.0) * a, a);
+  o = vec4(uCol * a, a);
 }
