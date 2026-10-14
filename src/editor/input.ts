@@ -101,11 +101,9 @@ export function createInput(
         lit = [];
         warm = false;
         // Touch pointers stay captured by the origin socket, so e.target is
-        // useless here: hit-test at the pointer, accept anywhere on a node.
-        const el = document
-          .elementFromPoint(e.clientX, e.clientY)
-          ?.closest<HTMLElement>(`.${nodeCss.node}`);
-        const to = el && scene.nearest(from, +el.dataset.n!, view.world(e));
+        // useless here: hit-test at the pointer, accept anywhere on a node or collapsed group.
+        const hit = document.elementFromPoint(e.clientX, e.clientY);
+        const to = hit && scene.nearest(from, hit, view.world(e));
         const i = to
           ? e.shiftKey
             ? scene.merge(from, to)

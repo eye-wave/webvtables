@@ -20,13 +20,13 @@
 }
 
 /* Expanded: a dashed frame around the members; only the title bar takes the pointer. */
-.group[data-mode="0"] {
+.group:not([data-shut]) {
   border: 1px dashed var(--border-300);
   border-radius: 10px;
 }
 
 /* Collapsed: a node-like box. */
-.group:not([data-mode="0"]) {
+.group[data-shut] {
   pointer-events: auto;
   display: flex;
   flex-direction: column;
@@ -48,7 +48,7 @@
   cursor: grab;
 }
 
-.group[data-mode="0"] .head {
+.group:not([data-shut]) .head {
   padding: 0 4px;
   background: color-mix(in srgb, var(--accent-200) 12%, var(--surface-400));
   border-radius: 9px 9px 0 0;
@@ -64,8 +64,14 @@
   border: 0;
   border-radius: 4px;
   outline: 0;
-  cursor: text;
   text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.name:not([readonly]) {
+  pointer-events: auto;
+  user-select: text; /* .group is user-select: none, which can make inputs untypable */
+  cursor: text;
 }
 
 .name:focus {
@@ -97,22 +103,6 @@
 }
 
 .body:empty,
-.group[data-mode="0"] .body {
+.group:not([data-shut]) .body {
   display: none;
-}
-
-.member {
-  height: 18px;
-  display: flex;
-  align-items: center;
-  padding: 0 4px;
-  font-size: 11px;
-  color: var(--text-300);
-}
-
-.info {
-  padding: 0 4px 2px;
-  font-size: 11px;
-  color: var(--text-400);
-  white-space: nowrap;
 }

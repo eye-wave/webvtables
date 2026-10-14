@@ -3,7 +3,7 @@ import { render } from "solid-js/web";
 import { nodes } from "../../generated/nodes";
 import { editParam } from "../param_edit/param_edit";
 import type { Kf, LazyKf } from "../../editor/kf";
-import type { Group, Mode, Scene } from "../../editor/scene";
+import type { Group, Scene } from "../../editor/scene";
 import type { ViewCtl } from "../../gfx/view";
 import knobCss from "../node/knob.module.css";
 import nodeCss from "../node/node.module.css";
@@ -150,16 +150,10 @@ export function createContextMenu(
     ];
   };
 
-  const VIEWS = ["Expanded", "Parameters", "Name only"];
   const groupItems = (g: Group): Item[] => [
+    { label: "Rename", run: () => scene.rename(g) },
+    { label: g.shut ? "Expand" : "Collapse", run: () => scene.fold(g) },
     { label: "Duplicate group", run: () => scene.duplicateGroup(g) },
-    {
-      label: "View",
-      sub: VIEWS.map((label, m) => ({
-        label: `${g.mode === m ? "✓ " : ""}${label}`,
-        run: () => scene.setMode(g, m as Mode),
-      })),
-    },
     { label: "Ungroup", run: () => scene.ungroup(g) },
     "-",
     {
@@ -168,6 +162,47 @@ export function createContextMenu(
       danger: true,
     },
   ];
+
+  // Defining a group's node: expose a member's sockets, link its knobs to named group params.
+  const defineItems = (e: MouseEvent, node: HTMLElement): Item[] => {
+    const g = scene.groupOf(node);
+    const t = e.target as HTMLElement;
+    const sock = t.closest<HTMLElement>(`.${nodeCss.socket}`);
+    const knob = t.closest<HTMLElement>(`.${knobCss.knob}`);
+    if (!g || !(sock || knob)) return [];
+    if (sock)
+      return [
+        {
+          label: `${scene.exposed(sock) ? "Remove from" : "Add to"} group ${sock.dataset.o === "1" ? "outputs" : "inputs"}`,
+          run: () => scene.expose(sock),
+        },
+        "-",
+      ];
+    const cur = scene.paramOf(knob!);
+    const first = nodes[+node.dataset.k!].params[+knob!.dataset.j!].n;
+    return [
+      {
+        label: "Group param",
+        sub: [
+          {
+            label: "New…",
+            run() {
+              const n = prompt("Group param name", first)?.trim();
+              if (n) scene.linkParam(knob!, n);
+            },
+          },
+          ...g.params.map((q): Item => ({
+            label: `${q === cur ? "✓ " : ""}${q.name}`,
+            run: () => scene.linkParam(knob!, q.name),
+          })),
+          ...(cur
+            ? [{ label: "Unlink", run: () => scene.unlinkParam(knob!) } as Item]
+            : []),
+        ],
+      },
+      "-",
+    ];
+  };
 
   // Shift+click also selects; this is the discoverable route.
   const pickItems = (node?: HTMLElement): Item[] => {
@@ -223,6 +258,7 @@ export function createContextMenu(
     const own = scene.groupOf(node);
     return [
       ...paramItems(e, node),
+      ...defineItems(e, node),
       ...pickItems(node),
       ...(own ? [{ label: "Ungroup", run: () => scene.ungroup(own) }] : []),
       { label: "Duplicate", run: () => void scene.duplicate(node) },

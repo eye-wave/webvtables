@@ -169,7 +169,28 @@ pub extern "C" fn rope_out() -> i32 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn scope_begin() {
-    graph::scope::begin(state())
+    let s = state();
+    s.propagate();
+    graph::scope::begin(s)
+}
+
+// `on`: param `fp` of node `f` mirrors param `mp` of node `m`; off: it stops (m is ignored).
+// Nodes are absolute addresses as from get_node.
+#[unsafe(no_mangle)]
+pub extern "C" fn param_follow(f: u32, fp: u8, m: u32, mp: u8, on: bool) -> bool {
+    let s = state();
+    let Some(f) = s.node_off(f as usize) else {
+        return false;
+    };
+    let m = if on {
+        s.node_off(m as usize).map(|m| (m, mp))
+    } else {
+        None
+    };
+    if on && m.is_none() {
+        return false;
+    }
+    s.follow((f, fp), m)
 }
 
 #[unsafe(no_mangle)]

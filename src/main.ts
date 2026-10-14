@@ -164,8 +164,9 @@ loadWasm().then((wasm) => {
     if (transport.playing) setHead((h) => (h + dt * transport.speed) % 256);
     view.apply();
     const filling = preview.step();
-    wasm.scope_begin();
+    // keyframes first: scope_begin copies group params onto the params they drive
     const driven = kf.apply(head());
+    wasm.scope_begin();
     const inst = scene.sync(driven);
     for (const [id, a, b] of scene.links())
       a && b ? ropes.pin(id, a, b) : ropes.drop(id);

@@ -297,6 +297,12 @@ impl State {
         Some(self.arena.slice::<Node>(off, 1)[0].kind.sockets())
     }
 
+    // Absolute node address (as handed to JS by get_node) -> arena offset, if it is a live node.
+    pub fn node_off(&self, addr: usize) -> Option<u32> {
+        let off = u32::try_from(addr.checked_sub(self.arena.base())?).ok()?;
+        self.nodes.contains(&off).then_some(off)
+    }
+
     pub fn param_addr(&self, idx: usize, i: usize) -> Option<usize> {
         let p = self.arena.slice::<Node>(*self.nodes.get(idx)?, 1)[0].params;
         (i < p.len as usize).then(|| self.arena.base() + p.start as usize + i * 4)

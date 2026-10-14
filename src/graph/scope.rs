@@ -34,6 +34,11 @@ pub fn fill(s: &State, node: usize, widget: u8) -> usize {
             eval(s, node, 0, memo, buf);
             N
         }
+        // 2 + j: output socket j (a custom node's first output may not be socket 0)
+        w @ 2.. => {
+            eval(s, node, (w - 2) as usize, memo, buf);
+            N
+        }
         1 if kind.as_node().has_widget() => {
             let ins = inputs(s, node, kind, memo);
             let refs: Vec<&Buffer> = ins.as_chunks::<N>().0.iter().collect();
