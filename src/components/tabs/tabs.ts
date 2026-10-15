@@ -89,7 +89,9 @@ export function createTabs(host: HTMLElement, view: ViewCtl, scene: Scene, sched
       btn(
         "Delete node",
         () => {
-          if (confirm(`Delete “${d.name}” and all its copies?`)) (scene.removeDef(d), schedule());
+          if (!confirm(`Delete “${d.name}” and all its copies?`)) return;
+          scene.removeDef(d);
+          schedule();
         },
         css.danger,
       ),

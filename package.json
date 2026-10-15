@@ -7,6 +7,8 @@
     "dev": "vp dev",
     "build": "tsc && vp build",
     "preview": "vp preview",
+    "lint:js": "vp lint",
+    "lint:rs": "cargo clippy --fix --allow-dirty",
     "codegen": "bun run --sequential 'codegen:*'",
     "codegen:nodes": "cargo test --lib --target \"$(rustc -vV | sed -n 's/host: //p')\" generate_ts",
     "codegen:exports": "bun run scripts/exports.js"

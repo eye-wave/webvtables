@@ -32,7 +32,7 @@ const GAP_X = 56,
   RING = 28,
   LINK = "rgb(199, 209, 230)";
 
-const rgb = (c: readonly number[]) => `rgb(${c.map((v) => Math.round(v * 255))})`;
+const rgb = (c: readonly number[]) => `rgb(${c.map((v) => Math.round(v * 255)).join(",")})`;
 
 // Columns by link depth, each centred vertically. Returns the stage size.
 function place(
@@ -205,7 +205,8 @@ function start(host: HTMLElement, props: DemoProps): () => void {
       pts.forEach((v, i) => {
         const px = x + m + ((sw - 2 * m) * i) / (pts.length - 1);
         const py = y + m + (sh - 2 * m) * (0.5 - 0.5 * Math.max(-1, Math.min(1, v)));
-        i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+        if (i) ctx.lineTo(px, py);
+        else ctx.moveTo(px, py);
       });
       ctx.stroke();
 
@@ -264,7 +265,10 @@ function start(host: HTMLElement, props: DemoProps): () => void {
   };
   stage.ondblclick = (e) => {
     const k = knobOf(e);
-    if (k) (scene.resetKnob(k), schedule());
+    if (k) {
+      scene.resetKnob(k);
+      schedule();
+    }
   };
 
   schedule();

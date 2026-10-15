@@ -43,7 +43,7 @@ kfHandle.onpointerdown = (e) => {
   kfHandle.onpointerup = () => (kfHandle.onpointermove = null);
 };
 
-loadWasm().then((wasm) => {
+void loadWasm().then((wasm) => {
   const scene = createScene(wasm, nodeGrid, () => schedule());
   const view = createView(nodeGrid, gridBg);
   const ropes = createRopes(wasm);
@@ -120,13 +120,13 @@ loadWasm().then((wasm) => {
               host: {
                 ...k,
                 bar,
-                nodes: scene.nodes,
-                onChange: scene.onChange,
+                nodes: () => scene.nodes(),
+                onChange: (cb) => scene.onChange(cb),
                 schedule,
                 head,
                 setHead,
-                denorm: wasm.param_denorm,
-                norm: wasm.param_norm,
+                denorm: (n, j, v) => wasm.param_denorm(n, j, v),
+                norm: (n, j, d) => wasm.param_norm(n, j, d),
               },
             }),
           bar.mount,
@@ -159,7 +159,9 @@ loadWasm().then((wasm) => {
     const driven = kf.apply(head());
     wasm.scope_begin();
     const inst = scene.sync(driven);
-    for (const [id, a, b] of scene.links()) a && b ? ropes.pin(id, a, b) : ropes.drop(id);
+    for (const [id, a, b] of scene.links())
+      if (a && b) ropes.pin(id, a, b);
+      else ropes.drop(id);
     const table = scene.outputTable();
     audio.table(table);
     const moving = ropes.step(Math.min(dt, 0.05));

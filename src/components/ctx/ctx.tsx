@@ -134,7 +134,10 @@ export function createContextMenu(
                 off: l.mode === 2 && i !== owner ? off : undefined,
                 run: async () => {
                   const k = await kf.load();
-                  i === owner ? (k.link(i, p, j, false), done()) : take(k, i);
+                  if (i === owner) {
+                    k.link(i, p, j, false);
+                    done();
+                  } else take(k, i);
                 },
               })),
             } satisfies Item,

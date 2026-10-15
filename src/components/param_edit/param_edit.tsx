@@ -27,7 +27,10 @@ const away = (e: Event) => {
 const esc = (e: KeyboardEvent) => e.key === "Escape" && close();
 
 export function editParam(anchor: Element, spec: ParamEdit) {
-  if (!mounted) ((mounted = true), render(Popup, document.body));
+  if (!mounted) {
+    mounted = true;
+    render(Popup, document.body);
+  }
   setOpen({ at: anchor.getBoundingClientRect(), spec });
   addEventListener("pointerdown", away, true);
   addEventListener("keydown", esc, true);

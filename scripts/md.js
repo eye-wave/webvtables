@@ -80,7 +80,9 @@ export default function md() {
           .replace(/<md-demo\b[^>]*>/g, (tag) =>
             tag.replace(
               /(\w+)='([^']*)'/g,
+              // our own markdown, evaluated at build time only
               (_, k, v) =>
+                // oxlint-disable-next-line typescript/no-implied-eval
                 `${k}='${JSON.stringify(new Function(`return (${v})`)()).replaceAll("'", "&#39;")}'`,
             ),
           )

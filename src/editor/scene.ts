@@ -732,7 +732,10 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
           if (!v) return;
           const at = (r: number[]) => {
             const a = Float32Array.from(r);
-            for (let i = 0; i < a.length; i += 8) ((a[i] += cx), (a[i + 1] += cy));
+            for (let i = 0; i < a.length; i += 8) {
+              a[i] += cx;
+              a[i + 1] += cy;
+            }
             return a;
           };
           out.push({
@@ -818,7 +821,10 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
         if (s.node === from.node) continue;
         const [sx, sy] = socketPos(s, els);
         const e = (sx - x) ** 2 + (sy - y) ** 2;
-        if (e < d) ((d = e), (best = s));
+        if (e < d) {
+          d = e;
+          best = s;
+        }
       }
       return best;
     },
@@ -895,7 +901,8 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
     groupAt: groupIn,
     picked: () => [...picked],
     select(el: HTMLElement) {
-      picked.has(el) ? picked.delete(el) : picked.add(el);
+      if (picked.has(el)) picked.delete(el);
+      else picked.add(el);
       el.classList.toggle(nodeCss.sel, picked.has(el));
     },
     deselect,

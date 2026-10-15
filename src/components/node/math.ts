@@ -164,7 +164,10 @@ function quiet<T>(f: () => T): T {
 export function setMath(compile: Libs["compile"], addr: number, tex: string) {
   try {
     const f = quiet(() => compile(tex.replace(/^\s*(y|f\\left\(x\\right\))\s*=/, "")));
-    if (f) (fns.set(addr, f), rev++);
+    if (f) {
+      fns.set(addr, f);
+      rev++;
+    }
     return !!f;
   } catch {
     return false;

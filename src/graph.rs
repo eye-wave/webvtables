@@ -20,10 +20,14 @@ pub mod scope;
 
 pub const MAX_PARAMS: usize = 8;
 
+// A param as (node arena offset, param index)
+pub type Slot = (u32, u8);
+// (follower, master, inverted); see State::follow
+pub type Follow = (Slot, Slot, bool);
+
 pub struct State {
     pub links: Vec<Link>,
-    // (follower, master, inverted) params as (node arena offset, param index); see State::follow
-    pub follows: Vec<((u32, u8), (u32, u8), bool)>,
+    pub follows: Vec<Follow>,
     pub nodes: Vec<u32>,
     pub arena: Arena,
     pub keyframes: Keyframes,

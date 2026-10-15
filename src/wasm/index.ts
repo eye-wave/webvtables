@@ -21,7 +21,7 @@ export async function loadWasm(): Promise<WasmExports> {
       // import had 9 args and returned a value: a wasm built before that change is stale.
       math_eval: (...a: number[]) => {
         if (a.length === 10)
-          return void mathEval(
+          mathEval(
             mem,
             ...(a as Parameters<typeof mathEval> extends [unknown, ...infer T] ? T : never),
           );

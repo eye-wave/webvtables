@@ -62,8 +62,8 @@ impl State {
 
     // Runs once per evaluation, after keyframes (the master wins over a lane on the follower).
     pub fn propagate(&mut self) {
-        for i in 0..self.follows.len() {
-            let ((fo, fp), (mo, mp), inv) = self.follows[i];
+        let follows = core::mem::take(&mut self.follows);
+        for &((fo, fp), (mo, mp), inv) in &follows {
             if let (Some(f), Some(m)) = (
                 self.param_slot(fo, fp as usize),
                 self.param_slot(mo, mp as usize),
@@ -72,6 +72,7 @@ impl State {
                 self.arena.slice_mut::<f32>(f, 1)[0] = if inv { 1.0 - v } else { v };
             }
         }
+        self.follows = follows;
     }
 }
 

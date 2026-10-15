@@ -132,7 +132,7 @@ export type Host = {
   nodes(): NodeInfo[];
   onChange(cb: () => void): void;
   schedule(): void;
-  head(): number;
+  head: () => number;
   setHead(frame: number): void;
   denorm(n: number, j: number, v: number): number;
   norm(n: number, j: number, d: number): number;
