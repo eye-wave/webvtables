@@ -342,7 +342,7 @@ body {
 
 #fps {
   position: absolute;
-  top: 6px;
+  top: 28px; /* below the tab bar */
   left: 8px;
   z-index: 2;
   font:

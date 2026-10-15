@@ -391,14 +391,14 @@ export function createProject(
   fileInput.onchange = () => {
     const f = fileInput.files?.[0];
     fileInput.value = "";
-    void load(f);
+    load(f);
   };
   fileDrop.ondragover = (e) => (e.preventDefault(), fileDrop.classList.add("over"));
   fileDrop.ondragleave = () => fileDrop.classList.remove("over");
   fileDrop.ondrop = (e) => {
     e.preventDefault();
     fileDrop.classList.remove("over");
-    void load(e.dataTransfer?.files[0]);
+    load(e.dataTransfer?.files[0]);
   };
 
   const tools = Object.assign(document.createElement("div"), {

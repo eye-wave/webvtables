@@ -1,52 +1,66 @@
-/* Tab bar over the grid: the main graph, then one tab per custom node definition. */
+/* A thin strip across the whole top of the grid: the main graph, then one tab per custom node. */
 .bar {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: 0;
+  left: 0;
+  right: 0;
   z-index: 5;
   display: flex;
-  gap: 4px;
-  max-width: calc(100% - 232px);
+  height: 22px;
   overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--surface-500);
+  border-bottom: 1px solid var(--border-100);
   font:
-    13px system-ui,
+    12px system-ui,
     sans-serif;
   user-select: none;
+  cursor: default;
 }
 
 .tab {
   flex: none;
-  max-width: 160px;
-  padding: 3px 10px;
+  max-width: 180px;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 0 14px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: var(--text-400);
+  color: var(--text-200);
   font: inherit;
-  background: var(--surface-300);
-  border: 1px solid var(--border-100);
-  border-radius: 6px;
+  background: none;
+  border: 0;
+  border-right: 1px solid var(--border-100);
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
   cursor: pointer;
 }
 
 .tab:hover {
-  border-color: var(--border-400);
+  color: var(--text-500);
+  background: var(--surface-400);
 }
 
 .tab.on {
   color: var(--text-600);
-  background: var(--accent-100);
-  border-color: var(--accent-200);
+  background: var(--surface-300);
+  border-bottom-color: var(--accent-200);
+}
+
+/* the "+" that adds a custom node */
+.add {
+  padding: 0 10px;
 }
 
 /* The open definition: its ports, params and name. */
 .side {
   position: absolute;
-  top: 44px;
+  top: 30px;
   right: 8px;
   z-index: 5;
   width: 208px;
-  max-height: calc(100% - 60px);
+  max-height: calc(100% - 38px);
   overflow-y: auto;
   box-sizing: border-box;
   display: flex;

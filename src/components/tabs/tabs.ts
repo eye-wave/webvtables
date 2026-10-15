@@ -42,7 +42,7 @@ export function createTabs(host: HTMLElement, view: ViewCtl, scene: Scene, sched
     bar.replaceChildren(
       tab("Main", ""),
       ...scene.defs().map((d) => tab(d.name, d.id)),
-      Object.assign(el("button", css.tab, "+"), {
+      Object.assign(el("button", `${css.tab} ${css.add}`, "+"), {
         type: "button",
         title: "New custom node",
         onclick: () => (scene.open(scene.newDef().id), schedule()),

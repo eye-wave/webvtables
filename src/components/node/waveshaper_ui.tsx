@@ -1,7 +1,7 @@
 import { createSignal, Index, onCleanup, onMount } from "solid-js";
 import { clamp, createPoints, plotAt, type Grab } from "../points/points";
 import kfCss from "../keyframes/keyframes.module.css";
-import { encodePoints, ptsBoot, registerData, store, type Pt } from "./data_asset";
+import { decodePoints, encodePoints, ptsBoot, registerData, store, type Pt } from "./data_asset";
 import { Flags, Head, Knobs, Scope, useNode, useParam } from "./node";
 import css from "./waveshaper_ui.module.css";
 
