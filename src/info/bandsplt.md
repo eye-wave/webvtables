@@ -16,11 +16,11 @@ The node's built-in display visually shows only the lowest band, as it specifica
 
 The node takes the FFT of the input and gives each output its own slice of the 1024 frequency bins, then converts each slice back to the time domain. With <md-latex>k</md-latex> as the bin index, <md-latex>L</md-latex> as **Low band** and <md-latex>H</md-latex> as **High band**:
 
-| Socket | Bins kept                                     |
-| ------ | --------------------------------------------- |
-| 0      | <md-latex>0 \le k \lt L</md-latex>              |
-| 1      | <md-latex>L \le k \lt H</md-latex>              |
-| 2      | <md-latex>H \le k \lt 1024</md-latex>           |
+| Socket | Bins kept                             |
+| ------ | ------------------------------------- |
+| 0      | <md-latex>0 \le k \lt L</md-latex>    |
+| 1      | <md-latex>L \le k \lt H</md-latex>    |
+| 2      | <md-latex>H \le k \lt 1024</md-latex> |
 
 ## Tutorial: multi-band processing
 

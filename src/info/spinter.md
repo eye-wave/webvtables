@@ -18,11 +18,11 @@ nodes='[
 
 **Mode** selects the mathematical operation used to combine the frequency magnitudes of the two inputs:
 
-| Mode      | Effect                                                                                       |
-| --------- | -------------------------------------------------------------------------------------------- |
+| Mode      | Effect                                                                                              |
+| --------- | --------------------------------------------------------------------------------------------------- |
 | Geometric | calculates the geometric mean of both input magnitudes (<md-latex>\sqrt{m_a \times m_b}</md-latex>) |
-| Min       | retains the lowest magnitude between the two inputs (<md-latex>\min(m_a, m_b)</md-latex>)    |
-| Multiply  | multiplies both magnitude spectra together (<md-latex>m_a \times m_b</md-latex>)             |
+| Min       | retains the lowest magnitude between the two inputs (<md-latex>\min(m_a, m_b)</md-latex>)           |
+| Multiply  | multiplies both magnitude spectra together (<md-latex>m_a \times m_b</md-latex>)                    |
 
 **Phase** chooses which input's phase spectrum is preserved for the output (`A` or `B`).
 

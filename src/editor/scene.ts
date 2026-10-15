@@ -1,18 +1,8 @@
 import { TABLE } from "../audio/audio";
 import { categories, flagLabels, nodes } from "../generated/nodes";
-import {
-  mountNode,
-  pollNode,
-  unmountNode,
-  type ParamInfo,
-} from "../components/node/node";
+import { mountNode, pollNode, unmountNode, type ParamInfo } from "../components/node/node";
 import { ui } from "../components/node/node_ui";
-import {
-  STRIDE,
-  type ImageDraw,
-  type PanelDraw,
-  type Scope,
-} from "../gfx/overlay";
+import { STRIDE, type ImageDraw, type PanelDraw, type Scope } from "../gfx/overlay";
 import { imageViews, panelViews } from "../components/node/data_asset";
 import type { ParamEdit } from "../components/param_edit/param_edit";
 import type { Pt } from "../gfx/ropes";
@@ -114,11 +104,7 @@ const offsetIn = (s: HTMLElement, node: HTMLElement): Pt => {
   return [x, y];
 };
 
-export function createScene(
-  wasm: WasmExports,
-  root: HTMLElement,
-  redraw: () => void = () => {},
-) {
+export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => void = () => {}) {
   const listeners: (() => void)[] = [];
   const changed = () => {
     retitle();
@@ -131,11 +117,7 @@ export function createScene(
 
   const numText = (node: number, j: number) =>
     utf8.decode(
-      new Uint8Array(
-        wasm.memory.buffer,
-        wasm.param_text_ptr(),
-        wasm.param_text(node, j),
-      ),
+      new Uint8Array(wasm.memory.buffer, wasm.param_text_ptr(), wasm.param_text(node, j)),
     );
 
   const sockets = (node: number) => {
@@ -157,9 +139,11 @@ export function createScene(
 
   const dom = () => [...root.children] as HTMLElement[];
   // the main graph's nodes: definitions' and instances' are not for the keyframe panel
-  const sorted = () => dom().filter((e) => !e.dataset.s).sort(byN);
-  const byIndex = () =>
-    new Map(dom().map((e): [number, HTMLElement] => [+e.dataset.n!, e]));
+  const sorted = () =>
+    dom()
+      .filter((e) => !e.dataset.s)
+      .sort(byN);
+  const byIndex = () => new Map(dom().map((e): [number, HTMLElement] => [+e.dataset.n!, e]));
   // "Gain 2": kind plus its rank among nodes of that kind; shared with the keyframe panel
   const names = () => {
     const seen: Record<string, number> = {};
@@ -208,15 +192,9 @@ export function createScene(
     dom().forEach((e) => (e.style.display = shown(e) ? "" : "none"));
     layer.style.display = tab ? "none" : "";
   };
-  const owner = (k: HTMLElement) =>
-    rowOwner.get(k) ?? k.closest<HTMLElement>(`.${nodeCss.node}`)!;
+  const owner = (k: HTMLElement) => rowOwner.get(k) ?? k.closest<HTMLElement>(`.${nodeCss.node}`)!;
 
-  const paint = (
-    k: HTMLElement,
-    node: HTMLElement,
-    f: Float32Array,
-    driven: Set<number>,
-  ) => {
+  const paint = (k: HTMLElement, node: HTMLElement, f: Float32Array, driven: Set<number>) => {
     const info = nodes[+node.dataset.k!].params as readonly ParamInfo[];
     k.style.setProperty("--v", `${f[+k.dataset.a! >> 2]}`);
     k.classList.toggle(knobCss.driven, driven.has(+k.dataset.a!));
@@ -271,11 +249,9 @@ export function createScene(
     const n = +el.dataset.n!;
     wasm.remove_node(n);
     unmountNode(el);
-    root
-      .querySelectorAll<HTMLElement>(`.${nodeCss.node}, .${nodeCss.socket}`)
-      .forEach((e) => {
-        if (+e.dataset.n! > n) e.dataset.n = `${+e.dataset.n! - 1}`;
-      });
+    root.querySelectorAll<HTMLElement>(`.${nodeCss.node}, .${nodeCss.socket}`).forEach((e) => {
+      if (+e.dataset.n! > n) e.dataset.n = `${+e.dataset.n! - 1}`;
+    });
   };
 
   const follow = (f: Port, m: Port, on: boolean) =>
@@ -508,7 +484,10 @@ export function createScene(
 
   const newDef = (name?: string): Def => {
     let id: string;
-    do id = `0x${Math.floor(Math.random() * 16 ** 5).toString(16).padStart(5, "0")}`;
+    do
+      id = `0x${Math.floor(Math.random() * 16 ** 5)
+        .toString(16)
+        .padStart(5, "0")}`;
     while (defs.some((d) => d.id === id));
     const d = { id, name: (name ?? `Node ${defs.length + 1}`).slice(0, NAME_MAX), params: [] };
     defs.push(d);
@@ -590,15 +569,13 @@ export function createScene(
           p: +el.dataset.p!,
           n: +el.dataset.n!,
           name: label.get(el)!,
-          params: [...el.querySelectorAll<HTMLElement>(`.${knobCss.knob}`)].map(
-            (k) => ({
-              addr: +k.dataset.a!,
-              j: +k.dataset.j!,
-              name: info[+k.dataset.j!].n,
-              o: info[+k.dataset.j!].o,
-              u: info[+k.dataset.j!].u,
-            }),
-          ),
+          params: [...el.querySelectorAll<HTMLElement>(`.${knobCss.knob}`)].map((k) => ({
+            addr: +k.dataset.a!,
+            j: +k.dataset.j!,
+            name: info[+k.dataset.j!].n,
+            o: info[+k.dataset.j!].o,
+            u: info[+k.dataset.j!].u,
+          })),
         };
       });
     },
@@ -637,8 +614,7 @@ export function createScene(
       // params that follow another are driven too
       for (const d of defs)
         for (const q of d.params)
-          for (const t of q.targets.slice(1))
-            driven.add(wasm.get_param(+t.el.dataset.n!, t.j));
+          for (const t of q.targets.slice(1)) driven.add(wasm.get_param(+t.el.dataset.n!, t.j));
       // other tabs' nodes and instances' copies are skipped everywhere, so z-order = index here
       const els = visible();
       const inst = new Float32Array((els.length + insts.length) * STRIDE);
@@ -662,10 +638,7 @@ export function createScene(
           el.style.setProperty(`--p${j}`, `${f[a >> 2]}`);
         pollNode(el);
         el.querySelectorAll<HTMLElement>(`.${nodeCss.flag}`).forEach((b) =>
-          b.classList.toggle(
-            nodeCss.active,
-            !!(u[p + FLAGS_AT] & (1 << +b.dataset.b!)),
-          ),
+          b.classList.toggle(nodeCss.active, !!(u[p + FLAGS_AT] & (1 << +b.dataset.b!))),
         );
         el.querySelectorAll<HTMLElement>(`.${knobCss.knob}`).forEach((k) =>
           paint(k, el, f, driven),
@@ -696,11 +669,7 @@ export function createScene(
             rect: [x + ox, y + oy, s.offsetWidth, s.offsetHeight],
             order,
             color: s.dataset.w === "0" ? GREEN : ORANGE,
-            pts: new Float32Array(
-              wasm.memory.buffer,
-              wasm.scope_ptr(),
-              len,
-            ).slice(),
+            pts: new Float32Array(wasm.memory.buffer, wasm.scope_ptr(), len).slice(),
           });
         });
       }
@@ -763,8 +732,7 @@ export function createScene(
           if (!v) return;
           const at = (r: number[]) => {
             const a = Float32Array.from(r);
-            for (let i = 0; i < a.length; i += 8)
-              ((a[i] += cx), (a[i + 1] += cy));
+            for (let i = 0; i < a.length; i += 8) ((a[i] += cx), (a[i + 1] += cy));
             return a;
           };
           out.push({
@@ -868,21 +836,14 @@ export function createScene(
 
     outputTable(): Float32Array<ArrayBuffer> {
       let first = -1;
-      Array.from(root.children as HTMLCollectionOf<HTMLElement>).forEach(
-        (el) => {
-          const n = +el.dataset.n!;
-          if (!spaceOf(el) && +el.dataset.k! === OUTPUT && (first < 0 || n < first))
-            first = n;
-        },
-      );
+      Array.from(root.children as HTMLCollectionOf<HTMLElement>).forEach((el) => {
+        const n = +el.dataset.n!;
+        if (!spaceOf(el) && +el.dataset.k! === OUTPUT && (first < 0 || n < first)) first = n;
+      });
       if (first < 0) return new Float32Array(TABLE);
       const len = wasm.scope_fill(first, 0);
       if (!len) return new Float32Array(TABLE);
-      return new Float32Array(
-        wasm.memory.buffer,
-        wasm.scope_ptr(),
-        len,
-      ).slice();
+      return new Float32Array(wasm.memory.buffer, wasm.scope_ptr(), len).slice();
     },
 
     remove(el: HTMLElement) {
@@ -1085,32 +1046,28 @@ export function createScene(
       return {
         space: spaces,
         port,
-        defs: defs.map(
-          (d): DefSpec => ({
-            id: d.id,
-            name: d.name,
-            nodes: dom()
-              .filter((e) => spaceOf(e) === d.id)
-              .sort(byN)
-              .map((e) => +e.dataset.n!),
-            params: d.params.map((q) => ({
-              name: q.name,
-              targets: q.targets.map((t) => ({ n: +t.el.dataset.n!, j: t.j, inv: t.inv })),
-            })),
+        defs: defs.map((d): DefSpec => ({
+          id: d.id,
+          name: d.name,
+          nodes: dom()
+            .filter((e) => spaceOf(e) === d.id)
+            .sort(byN)
+            .map((e) => +e.dataset.n!),
+          params: d.params.map((q) => ({
+            name: q.name,
+            targets: q.targets.map((t) => ({ n: +t.el.dataset.n!, j: t.j, inv: t.inv })),
+          })),
+        })),
+        insts: insts.map((g): InstSpec => ({
+          def: g.def.id,
+          x: g.pos[0],
+          y: g.pos[1],
+          flags: flagsOf(g),
+          vals: g.def.params.map((q) => {
+            const m = masterOf(g, q);
+            return m ? f32()[slot(m)] : 0;
           }),
-        ),
-        insts: insts.map(
-          (g): InstSpec => ({
-            def: g.def.id,
-            x: g.pos[0],
-            y: g.pos[1],
-            flags: flagsOf(g),
-            vals: g.def.params.map((q) => {
-              const m = masterOf(g, q);
-              return m ? f32()[slot(m)] : 0;
-            }),
-          }),
-        ),
+        })),
       };
     },
 

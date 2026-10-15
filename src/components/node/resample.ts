@@ -14,19 +14,14 @@ export function resample(
     step = len / n,
     last = src.length - 1;
   const at = (i: number) =>
-    clamp
-      ? src[Math.min(last, Math.max(0, i))]
-      : i < 0 || i > last
-        ? 0
-        : src[i];
+    clamp ? src[Math.min(last, Math.max(0, i))] : i < 0 || i > last ? 0 : src[i];
   for (let j = 0; j < n; j++) {
     const a = start + j * step;
     if (m === "area") {
       // box average with fractional edge weights; a box under one sample is just that sample
       const b = a + step;
       let s = 0;
-      for (let i = Math.floor(a); i < b; i++)
-        s += (Math.min(b, i + 1) - Math.max(a, i)) * at(i);
+      for (let i = Math.floor(a); i < b; i++) s += (Math.min(b, i + 1) - Math.max(a, i)) * at(i);
       out[j] = s / step;
     } else if (m === "nearest") {
       out[j] = at(Math.floor(a + step / 2));

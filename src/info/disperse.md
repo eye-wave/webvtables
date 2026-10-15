@@ -17,11 +17,11 @@ nodes='[
 
 **Exponent** controls the amount and direction of phase dispersion (-10.0 to 10.0):
 
-| Exponent | Effect                                                                   |
-| -------- | ------------------------------------------------------------------------ |
-| 0.0      | practically bypassed (only a tiny constant phase rotation)               |
-| Positive | moves higher frequencies earlier in the frame                            |
-| Negative | moves higher frequencies later in the frame                              |
+| Exponent | Effect                                                     |
+| -------- | ---------------------------------------------------------- |
+| 0.0      | practically bypassed (only a tiny constant phase rotation) |
+| Positive | moves higher frequencies earlier in the frame              |
+| Negative | moves higher frequencies later in the frame                |
 
 The further the exponent is from 0, the faster the effect grows with frequency, so the high end is smeared much more than the low end.
 

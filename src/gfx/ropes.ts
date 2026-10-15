@@ -6,8 +6,7 @@ export function createRopes(w: WasmExports) {
   let hot = -1;
 
   return {
-    pin: (id: number, [ax, ay]: Pt, [bx, by]: Pt) =>
-      w.rope_pin(id, ax, ay, bx, by),
+    pin: (id: number, [ax, ay]: Pt, [bx, by]: Pt) => w.rope_pin(id, ax, ay, bx, by),
     drop: (id: number) => w.rope_drop(id),
     rename: (from: number, to: number) => w.rope_rename(from, to),
     step: (dt: number) => w.rope_step(dt) !== 0,

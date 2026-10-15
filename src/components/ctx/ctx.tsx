@@ -62,9 +62,7 @@ export function createContextMenu(
   const esc = (e: KeyboardEvent) => e.key === "Escape" && close();
 
   const paramItems = (e: MouseEvent, node: HTMLElement): Item[] => {
-    const knob = (e.target as HTMLElement).closest<HTMLElement>(
-      `.${knobCss.knob}`,
-    );
+    const knob = (e.target as HTMLElement).closest<HTMLElement>(`.${knobCss.knob}`);
     if (!knob) return [];
     const [p, j, addr] = [+node.dataset.p!, +knob.dataset.j!, +knob.dataset.a!];
     const lanes = kf.lanes();
@@ -86,13 +84,9 @@ export function createContextMenu(
       };
     // A node may have only one spectral-blended param (mirrors Keyframes::spectral_ok in Rust).
     const mine = new Set(
-      [...node.querySelectorAll<HTMLElement>("[data-a]")].map(
-        (n) => +n.dataset.a!,
-      ),
+      [...node.querySelectorAll<HTMLElement>("[data-a]")].map((n) => +n.dataset.a!),
     );
-    const busy = lanes.some(
-      (l) => l.mode === 2 && l.addrs.some((a) => a !== addr && mine.has(a)),
-    );
+    const busy = lanes.some((l) => l.mode === 2 && l.addrs.some((a) => a !== addr && mine.has(a)));
     const off = busy
       ? "This node already has a spectral lane on another parameter. Only one spectral lane per node is allowed - remove it first."
       : undefined;
@@ -283,10 +277,7 @@ export function createContextMenu(
         it === "-" ? (
           <hr />
         ) : "sub" in it ? (
-          <div
-            class={`${ctxCss.item} ${ctxCss.hasSub}`}
-            style={p.top ? { "--i": i() } : {}}
-          >
+          <div class={`${ctxCss.item} ${ctxCss.hasSub}`} style={p.top ? { "--i": i() } : {}}>
             {it.label}
             <div class={ctxCss.sub}>
               <Items items={it.sub} />
@@ -342,8 +333,7 @@ export function createContextMenu(
 
   grid.addEventListener("contextmenu", (e) => {
     e.preventDefault();
-    if (e.ctrlKey && (e.target as HTMLElement).closest(`.${knobCss.knob}`))
-      return;
+    if (e.ctrlKey && (e.target as HTMLElement).closest(`.${knobCss.knob}`)) return;
     setOpen(false);
     setItems(itemsFor(e));
     const { offsetWidth: w, offsetHeight: h } = root;

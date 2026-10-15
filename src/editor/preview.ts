@@ -9,12 +9,7 @@ const FRAMES = 256;
 // Incrementally renders frame outputs into the heightmap; call once/frame before kf.apply().
 // Change signal: everything that affects the output (kinds, params, links, lanes) with frame-0
 // keyframes applied, compared to the last render. WASM revision counter would be exact.
-export function createPreview(
-  wasm: WasmExports,
-  scene: Scene,
-  kf: LazyKf,
-  map: Heightmap,
-) {
+export function createPreview(wasm: WasmExports, scene: Scene, kf: LazyKf, map: Heightmap) {
   let prev: number[] = [];
   let next = 0;
   let todo = 0;
@@ -46,8 +41,7 @@ export function createPreview(
   const dirty = () => {
     kf.apply(0);
     const now = signature();
-    if (now.length === prev.length && now.every((v, i) => v === prev[i]))
-      return false;
+    if (now.length === prev.length && now.every((v, i) => v === prev[i])) return false;
     prev = now;
     return true;
   };

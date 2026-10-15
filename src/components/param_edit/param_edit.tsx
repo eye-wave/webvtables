@@ -56,57 +56,55 @@ function Popup() {
         };
         createEffect(() => (tab(), queueMicrotask(place)));
         return (
-        <div
-          class={peditCss.pedit}
-          ref={(el) => ((root = el), queueMicrotask(place))}
-          style={{ left: `${at.left}px`, top: `${at.bottom + 4}px` }}
-        >
-          <Show when={tabs}>
-            <div class={peditCss.tabs}>
-              <For each={tabs}>
-                {(a, i) => (
-                  <button
-                    classList={{ [peditCss.on]: tab() === i() }}
-                    onClick={() => setTab(i())}
-                  >
-                    {a.label}
-                  </button>
-                )}
-              </For>
-            </div>
-          </Show>
-          <Show when={cur()} keyed>
-            {(spec) => (<>
-          {spec.options ? (
-            <select
-              size={spec.options.length}
-              ref={(el) => later(() => el.focus())}
-              onClick={(e) => done(spec, e.currentTarget.value)}
-              onKeyDown={(e) =>
-                e.key === "Enter" && done(spec, e.currentTarget.value)
-              }
-            >
-              <For each={spec.options}>
-                {(o, i) => (
-                  <option value={i()} selected={i() === +spec.value}>
-                    {o}
-                  </option>
-                )}
-              </For>
-            </select>
-          ) : (
-            <input
-              value={spec.value}
-              spellcheck={false}
-              ref={(el) => later(() => (el.focus(), el.select()))}
-              onKeyDown={(e) =>
-                e.key === "Enter" && done(spec, e.currentTarget.value)
-              }
-            />
-          )}
-            </>)}
-          </Show>
-        </div>
+          <div
+            class={peditCss.pedit}
+            ref={(el) => ((root = el), queueMicrotask(place))}
+            style={{ left: `${at.left}px`, top: `${at.bottom + 4}px` }}
+          >
+            <Show when={tabs}>
+              <div class={peditCss.tabs}>
+                <For each={tabs}>
+                  {(a, i) => (
+                    <button
+                      classList={{ [peditCss.on]: tab() === i() }}
+                      onClick={() => setTab(i())}
+                    >
+                      {a.label}
+                    </button>
+                  )}
+                </For>
+              </div>
+            </Show>
+            <Show when={cur()} keyed>
+              {(spec) => (
+                <>
+                  {spec.options ? (
+                    <select
+                      size={spec.options.length}
+                      ref={(el) => later(() => el.focus())}
+                      onClick={(e) => done(spec, e.currentTarget.value)}
+                      onKeyDown={(e) => e.key === "Enter" && done(spec, e.currentTarget.value)}
+                    >
+                      <For each={spec.options}>
+                        {(o, i) => (
+                          <option value={i()} selected={i() === +spec.value}>
+                            {o}
+                          </option>
+                        )}
+                      </For>
+                    </select>
+                  ) : (
+                    <input
+                      value={spec.value}
+                      spellcheck={false}
+                      ref={(el) => later(() => (el.focus(), el.select()))}
+                      onKeyDown={(e) => e.key === "Enter" && done(spec, e.currentTarget.value)}
+                    />
+                  )}
+                </>
+              )}
+            </Show>
+          </div>
         );
       }}
     </Show>

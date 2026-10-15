@@ -70,8 +70,7 @@ export function createAudio() {
     },
 
     table(t: Float32Array<ArrayBuffer>) {
-      if (t.length === table.length && t.every((v, i) => v === table[i]))
-        return;
+      if (t.length === table.length && t.every((v, i) => v === table[i])) return;
       send({ table: (table = t) });
     },
   };

@@ -43,12 +43,12 @@ The Mirror node processes the audio buffer by taking either the first or second 
 
 With **Source** set to First, the first 1024 samples stay as they are and the other half is rebuilt from them. With <md-latex>x</md-latex> as the input and <md-latex>y</md-latex> as the wet signal, for <md-latex>n \ge 1024</md-latex>:
 
-| Mode        | Second half                                           |
-| ----------- | ----------------------------------------------------- |
-| Repeat      | <md-latex>y_n = x_{n - 1024}</md-latex>               |
-| Flip        | <md-latex>y_n = -x_{n - 1024}</md-latex>              |
-| Reflect     | <md-latex>y_n = x_{2047 - n}</md-latex>               |
-| Reflect Inv | <md-latex>y_n = -x_{2047 - n}</md-latex>              |
+| Mode        | Second half                              |
+| ----------- | ---------------------------------------- |
+| Repeat      | <md-latex>y_n = x_{n - 1024}</md-latex>  |
+| Flip        | <md-latex>y_n = -x_{n - 1024}</md-latex> |
+| Reflect     | <md-latex>y_n = x_{2047 - n}</md-latex>  |
+| Reflect Inv | <md-latex>y_n = -x_{2047 - n}</md-latex> |
 
 With **Source** set to Second, the same happens the other way round: the second half is kept and the first half is rebuilt from it. The final output is <md-latex>\text{out} = x + \text{mix} \cdot (y - x)</md-latex>.
 

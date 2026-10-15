@@ -17,12 +17,12 @@ nodes='[
 
 **Shape** picks the type of distortion curve:
 
-| Shape     | Effect                                           |
-| --------- | ------------------------------------------------ |
-| Soft clip | smooth, warm saturation using hyperbolic tangent |
-| Hard clip | aggressive clipping that cuts off peaks sharply  |
+| Shape     | Effect                                                                                  |
+| --------- | --------------------------------------------------------------------------------------- |
+| Soft clip | smooth, warm saturation using hyperbolic tangent                                        |
+| Hard clip | aggressive clipping that cuts off peaks sharply                                         |
 | Lin warp  | triangle wavefolder, the wave folds back like a bouncing ball when it passes full scale |
-| Sin warp  | smooth sine wavefolder, the wave curves and folds back when it passes full scale |
+| Sin warp  | smooth sine wavefolder, the wave curves and folds back when it passes full scale        |
 
 **In** boosts the input signal level before clipping (from -40 dB to +60 dB), driving the distortion harder.
 
@@ -39,12 +39,12 @@ nodes='[
 
 Every sample is multiplied by the **In** gain, sent through the curve of the chosen **Shape**, and then multiplied by the **Out** gain. With <md-latex>g_{in} = 10^{\text{In}/20}</md-latex>, <md-latex>g_{out} = 10^{\text{Out}/20}</md-latex> and <md-latex>u = g_{in} \cdot x</md-latex>:
 
-| Shape     | Curve <md-latex>f(u)</md-latex>                                                                       |
-| --------- | ------------------------------------------------------------------------------------------------------ |
-| Soft clip | <md-latex>\tanh(u)</md-latex>                                                                          |
-| Hard clip | <md-latex>\min(\max(u, -1), 1)</md-latex>                                                              |
+| Shape     | Curve <md-latex>f(u)</md-latex>                                                                                                   |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Soft clip | <md-latex>\tanh(u)</md-latex>                                                                                                     |
+| Hard clip | <md-latex>\min(\max(u, -1), 1)</md-latex>                                                                                         |
 | Lin warp  | a triangle wave with period 4 that follows <md-latex>u</md-latex> between -1 and 1 and bounces back at <md-latex>\pm 1</md-latex> |
-| Sin warp  | <md-latex>\sin\left(\frac{\pi}{2} u\right)</md-latex>                                                  |
+| Sin warp  | <md-latex>\sin\left(\frac{\pi}{2} u\right)</md-latex>                                                                             |
 
 The result is blended with the dry signal as <md-latex>\text{out} = x + \text{mix} \cdot (g_{out} \cdot f(u) - x)</md-latex>.
 

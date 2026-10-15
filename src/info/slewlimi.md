@@ -19,12 +19,12 @@ nodes='[
 
 **Amount** (-1.0 to 1.0) sets how strict the limit is and which direction it applies to:
 
-| Amount   | Effect                                                         |
-| -------- | -------------------------------------------------------------- |
-| 0        | the signal passes through unchanged                            |
-| negative | rising edges are slowed down, falling edges stay as they were  |
-| positive | falling edges are slowed down, rising edges stay as they were  |
-| -1 or 1  | the strictest limit                                            |
+| Amount   | Effect                                                        |
+| -------- | ------------------------------------------------------------- |
+| 0        | the signal passes through unchanged                           |
+| negative | rising edges are slowed down, falling edges stay as they were |
+| positive | falling edges are slowed down, rising edges stay as they were |
+| -1 or 1  | the strictest limit                                           |
 
 <md-tip>
   A negative Amount makes the wave lag behind its input, so peaks move later.

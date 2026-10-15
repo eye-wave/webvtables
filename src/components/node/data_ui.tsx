@@ -41,24 +41,18 @@ const AUDIO = "#2fbf8f",
   COLS = 1232, // waveform columns: 4 per css px, so it stays sharp up to the 4x zoom limit
   BW = 308; // canvas css width: node is 320 wide minus padding and border
 
-const clamp = (v: number, lo: number, hi: number) =>
-  Math.min(hi, Math.max(lo, v));
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 // Saved settings come from a file: anything missing or odd falls back to the default
 const int = (s: string | undefined, lo: number, hi: number, d: number) => {
   const v = Math.round(+(s ?? NaN));
   return Number.isFinite(v) ? clamp(v, lo, hi) : d;
 };
-const pick = <T extends string>(
-  s: string | undefined,
-  all: readonly T[],
-  d: T,
-) => (all.includes(s as T) ? (s as T) : d);
+const pick = <T extends string>(s: string | undefined, all: readonly T[], d: T) =>
+  all.includes(s as T) ? (s as T) : d;
 
 const frac = (e: PointerEvent, axis: "clientX" | "clientY") => {
   const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-  return axis === "clientX"
-    ? (e.clientX - r.left) / r.width
-    : (e.clientY - r.top) / r.height;
+  return axis === "clientX" ? (e.clientX - r.left) / r.width : (e.clientY - r.top) / r.height;
 };
 
 // pointer capture drag: f runs on press and on every move while held
@@ -67,8 +61,7 @@ const drag = (f: (e: PointerEvent) => void) => ({
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
     f(e);
   },
-  move: (e: PointerEvent) =>
-    (e.currentTarget as Element).hasPointerCapture(e.pointerId) && f(e),
+  move: (e: PointerEvent) => (e.currentTarget as Element).hasPointerCapture(e.pointerId) && f(e),
 });
 
 const METHODS = [
@@ -106,10 +99,7 @@ function Sel(props: {
   disabled?: boolean;
 }) {
   return (
-    <select
-      disabled={props.disabled}
-      on:change={(e) => props.onChange(e.currentTarget.value)}
-    >
+    <select disabled={props.disabled} on:change={(e) => props.onChange(e.currentTarget.value)}>
       <For each={props.options}>
         {([v, l]) => (
           <option value={v} selected={v === props.value()}>
@@ -163,37 +153,24 @@ function peaks(x: Float32Array, a: number, b: number, cols: number) {
 }
 
 const rgb = (hex: string) =>
-  [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [
-    number,
-    number,
-    number,
-  ];
-const R = (
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  c: string,
-  a: number,
-) => [x, y, w, h, ...rgb(c), a];
+  [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number];
+const R = (x: number, y: number, w: number, h: number, c: string, a: number) => [
+  x,
+  y,
+  w,
+  h,
+  ...rgb(c),
+  a,
+];
 
-function AudioEditor(props: {
-  a: Audio;
-  put: Put;
-  init: Spec;
-  reg: (get: () => Spec) => void;
-}) {
+function AudioEditor(props: { a: Audio; put: Put; init: Spec; reg: (get: () => Spec) => void }) {
   const x = props.a.x,
     len = x.length,
     maxWin = Math.max(2, len),
     i = props.init;
   const [win, setWin] = createSignal(int(i.Win, 2, maxWin, N));
-  const [method, setMethod] = createSignal(
-    pick<Method>(i.Rsm, METHOD_IDS, "linear"),
-  );
-  const [frames, setFrames] = createSignal(
-    int(i.Frm, 1, MAX, clamp(Math.floor(len / N), 1, MAX)),
-  );
+  const [method, setMethod] = createSignal(pick<Method>(i.Rsm, METHOD_IDS, "linear"));
+  const [frames, setFrames] = createSignal(int(i.Frm, 1, MAX, clamp(Math.floor(len / N), 1, MAX)));
   const [start, setStart] = createSignal(int(i.Str, 0, len - 1, 0));
   const [auto, setAuto] = createSignal(i.Frm === "auto"); // as many frames as fit from start (max 256)
   // What the zoomed waveform shows, and its left edge. Both only change in focus(), so
@@ -201,10 +178,7 @@ function AudioEditor(props: {
   const [span, setSpan] = createSignal(Math.max(win() * 2, 512));
   const [vs, setVs] = createSignal(start() - span() / 4);
   const nf = () =>
-    Math.min(
-      auto() ? MAX : frames(),
-      Math.max(1, Math.ceil((len - start()) / win())),
-    );
+    Math.min(auto() ? MAX : frames(), Math.max(1, Math.ceil((len - start()) / win())));
 
   const goto = (s: number) => setStart(clamp(Math.round(s), 0, len - 1));
   const focus = () => {
@@ -282,9 +256,7 @@ function AudioEditor(props: {
         ...R(X, 0, 0, ch, FRAME, 0.8),
       );
     }
-    over.push(
-      ...R((((s - a) / sp) * BW - 0.75) * kx, 0, 1.5 * kx, ch, START, 1),
-    );
+    over.push(...R((((s - a) / sp) * BW - 0.75) * kx, 0, 1.5 * kx, ch, START, 1));
     return {
       peaks: zoomed(),
       color: rgb(AUDIO),
@@ -295,9 +267,7 @@ function AudioEditor(props: {
 
   // alt+drag: the window's right edge follows the pointer, start stays put
   const coarse = drag((e) =>
-    e.altKey
-      ? size(frac(e, "clientX") * len)
-      : (goto(frac(e, "clientX") * len), focus()),
+    e.altKey ? size(frac(e, "clientX") * len) : (goto(frac(e, "clientX") * len), focus()),
   );
   // Press jumps start to the pointer; after that, dragging moves it relatively, so the view can
   // re-centre on start whenever it leaves the zoomed range without the pointer mapping jumping.
@@ -306,12 +276,10 @@ function AudioEditor(props: {
   const fine = drag((e) => {
     const f = frac(e, "clientX");
     if (e.altKey) return size(vs() + f * span());
-    if (e.type === "pointerdown")
-      return (goto(vs() + f * span()), (s0 = start()), (x0 = f));
+    if (e.type === "pointerdown") return (goto(vs() + f * span()), (s0 = start()), (x0 = f));
     goto(s0 + (f - x0) * span());
     // as soon as the first window starts to spill out of the view, centre the view on it
-    if (start() < vs() || start() + win() > vs() + span())
-      setVs(start() + (win() - span()) / 2);
+    if (start() < vs() || start() + win() > vs() + span()) setVs(start() + (win() - span()) / 2);
   });
 
   return (
@@ -336,12 +304,7 @@ function AudioEditor(props: {
       />
       <div class={css.opts}>
         <Opt label="Window">
-          <Num
-            value={win}
-            min={2}
-            max={maxWin}
-            onChange={(v) => (setWin(v), focus())}
-          />
+          <Num value={win} min={2} max={maxWin} onChange={(v) => (setWin(v), focus())} />
         </Opt>
         <Opt label="Resample">
           <Sel
@@ -352,12 +315,7 @@ function AudioEditor(props: {
           />
         </Opt>
         <Opt label="Frames">
-          <Num
-            value={nf}
-            min={1}
-            max={MAX}
-            onChange={(v) => (setAuto(false), setFrames(v))}
-          />
+          <Num value={nf} min={1} max={MAX} onChange={(v) => (setAuto(false), setFrames(v))} />
           <button
             class={css.tog}
             classList={{ [css.on]: auto() }}
@@ -368,12 +326,7 @@ function AudioEditor(props: {
           </button>
         </Opt>
         <Opt label="Start">
-          <Num
-            value={start}
-            min={0}
-            max={len - 1}
-            onChange={(v) => (goto(v), focus())}
-          />
+          <Num value={start} min={0} max={len - 1} onChange={(v) => (goto(v), focus())} />
         </Opt>
       </div>
     </>
@@ -383,14 +336,7 @@ function AudioEditor(props: {
 type Crop = [x0: number, y0: number, x1: number, y1: number];
 
 // any two opposite corners -> a whole-pixel rectangle at least 1x1, inside the w x h image
-const fitCrop = (
-  w: number,
-  h: number,
-  a: number,
-  b: number,
-  c: number,
-  d: number,
-): Crop => {
+const fitCrop = (w: number, h: number, a: number, b: number, c: number, d: number): Crop => {
   const x0 = clamp(Math.round(Math.min(a, c)), 0, w - 1),
     y0 = clamp(Math.round(Math.min(b, d)), 0, h - 1);
   return [
@@ -401,12 +347,7 @@ const fitCrop = (
   ];
 };
 
-function ImageEditor(props: {
-  a: Img;
-  put: Put;
-  init: Spec;
-  reg: (get: () => Spec) => void;
-}) {
+function ImageEditor(props: { a: Img; put: Put; init: Spec; reg: (get: () => Spec) => void }) {
   const { w, h, rgba } = props.a,
     i = props.init;
   const cr = (i.Crp ?? "").split(/[\s,]+/).map(Number);
@@ -415,9 +356,7 @@ function ImageEditor(props: {
       ? fitCrop(w, h, cr[0], cr[1], cr[2], cr[3])
       : [0, 0, w, h],
   );
-  const [mode, setMode] = createSignal(
-    pick(i.Mod, ["time", "spectral"], "time"),
-  ); // rows are waveforms, or magnitude spectra (left = low)
+  const [mode, setMode] = createSignal(pick(i.Mod, ["time", "spectral"], "time")); // rows are waveforms, or magnitude spectra (left = low)
   const [chan, setChan] = createSignal(
     pick(
       i.Chn,
@@ -425,12 +364,8 @@ function ImageEditor(props: {
       "avg",
     ),
   );
-  const [method, setMethod] = createSignal(
-    pick<Method>(i.Rsm, METHOD_IDS, "linear"),
-  );
-  const [frames, setFrames] = createSignal(
-    int(i.Frm, 1, MAX, Math.min(MAX, h)),
-  );
+  const [method, setMethod] = createSignal(pick<Method>(i.Rsm, METHOD_IDS, "linear"));
+  const [frames, setFrames] = createSignal(int(i.Frm, 1, MAX, Math.min(MAX, h)));
   props.reg(() => ({
     Typ: TYPES.image,
     Mod: mode(),
@@ -454,8 +389,7 @@ function ImageEditor(props: {
       const r = rgba[i * 4],
         g = rgba[i * 4 + 1],
         b = rgba[i * 4 + 2];
-      p[i] =
-        (c === "r" ? r : c === "g" ? g : c === "b" ? b : (r + g + b) / 3) / 255;
+      p[i] = (c === "r" ? r : c === "g" ? g : c === "b" ? b : (r + g + b) / 3) / 255;
     }
     return p;
   });
@@ -489,11 +423,7 @@ function ImageEditor(props: {
       resample(col, 0, ch, res, m, true);
       for (let k = 0; k < nf; k++) grid[k * W + i] = res[k];
     }
-    props.put(
-      mode() === "spectral"
-        ? spectral(grid, nf, N)
-        : grid.map((v) => v * 2 - 1),
-    );
+    props.put(mode() === "spectral" ? spectral(grid, nf, N) : grid.map((v) => v * 2 - 1));
   });
 
   // The picture and crop box are drawn by the overlay at full resolution (gfx/overlay.ts), so
@@ -517,8 +447,7 @@ function ImageEditor(props: {
     (frac(e, "clientX") * BW - ox) / s,
     (frac(e, "clientY") * CH - oy) / s,
   ];
-  const fit = (a: number, b: number, c: number, d: number) =>
-    fitCrop(w, h, a, b, c, d);
+  const fit = (a: number, b: number, c: number, d: number) => fitCrop(w, h, a, b, c, d);
   const hit = ([px, py]: number[]) => {
     const [x0, y0, x1, y1] = crop(),
       t = 7 / s, // 7 screen px
@@ -560,19 +489,11 @@ function ImageEditor(props: {
   const onMove = (e: PointerEvent) => {
     const el = e.currentTarget as HTMLElement,
       [px, py] = at(e);
-    if (!el.hasPointerCapture(e.pointerId))
-      return void (el.style.cursor = cur(hit([px, py])));
+    if (!el.hasPointerCapture(e.pointerId)) return void (el.style.cursor = cur(hit([px, py])));
     const [x0, y0, x1, y1] = c0;
     if (creating) setCrop(fit(p0[0], p0[1], px, py));
     else if (grab.l || grab.r || grab.t || grab.b)
-      setCrop(
-        fit(
-          grab.l ? px : x0,
-          grab.t ? py : y0,
-          grab.r ? px : x1,
-          grab.b ? py : y1,
-        ),
-      );
+      setCrop(fit(grab.l ? px : x0, grab.t ? py : y0, grab.r ? px : x1, grab.b ? py : y1));
     else {
       const dx = clamp(Math.round(px - p0[0]), -x0, w - x1),
         dy = clamp(Math.round(py - p0[1]), -y0, h - y1);
@@ -599,11 +520,7 @@ function ImageEditor(props: {
           <Sel value={chan} options={CHANNELS} onChange={setChan} />
         </Opt>
         <Opt label="Resample">
-          <Sel
-            value={method}
-            options={METHODS}
-            onChange={(v) => setMethod(v as Method)}
-          />
+          <Sel value={method} options={METHODS} onChange={(v) => setMethod(v as Method)} />
         </Opt>
         <Opt label="Frames">
           <Num value={frames} min={1} max={MAX} onChange={setFrames} />
@@ -676,19 +593,13 @@ export function DataView() {
             file.value = "";
             if (!f) return;
             try {
-              setAsset(
-                await dec(new Uint8Array(await f.arrayBuffer()), f.name),
-              );
+              setAsset(await dec(new Uint8Array(await f.arrayBuffer()), f.name));
             } catch (e) {
               alert(`Could not read ${f.name}: ${(e as Error).message}`);
             }
           }}
         />
-        <button
-          class={css.ghost}
-          style={{ "--c": color }}
-          onClick={() => file.click()}
-        >
+        <button class={css.ghost} style={{ "--c": color }} onClick={() => file.click()}>
           <Icon size={28} stroke-width={1.75} />
           {label}
         </button>
@@ -731,28 +642,14 @@ export function DataView() {
                   <Show when={err()}>
                     <span class={css.err}>{err()}</span>
                   </Show>
-                  <button
-                    class={css.x}
-                    title="Choose another source"
-                    onClick={clear}
-                  >
+                  <button class={css.x} title="Choose another source" onClick={clear}>
                     ×
                   </button>
                 </div>
                 {a.t === "audio" ? (
-                  <AudioEditor
-                    a={a}
-                    put={put}
-                    init={saved}
-                    reg={(g) => (spec = g)}
-                  />
+                  <AudioEditor a={a} put={put} init={saved} reg={(g) => (spec = g)} />
                 ) : (
-                  <ImageEditor
-                    a={a}
-                    put={put}
-                    init={saved}
-                    reg={(g) => (spec = g)}
-                  />
+                  <ImageEditor a={a} put={put} init={saved} reg={(g) => (spec = g)} />
                 )}
               </>
             );
@@ -760,10 +657,7 @@ export function DataView() {
         </Show>
       </div>
       <Flags />
-      <Scope
-        w={0}
-        style={{ flex: "none", height: "56px", "box-sizing": "border-box" }}
-      />
+      <Scope w={0} style={{ flex: "none", height: "56px", "box-sizing": "border-box" }} />
     </>
   );
 }

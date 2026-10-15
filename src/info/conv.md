@@ -40,9 +40,9 @@ Convolve transforms both input signals into the frequency domain using the Fast 
 
 With <md-latex>A</md-latex> and <md-latex>B</md-latex> as the spectra of the first and second input, <md-latex>g</md-latex> as **Gain** and <md-latex>\varepsilon</md-latex> as **Reg**, each frequency bin is computed as:
 
-| Mode       | Output spectrum                                                                  |
-| ---------- | -------------------------------------------------------------------------------- |
-| Convolve   | <md-latex>Y = g \cdot A \cdot B</md-latex>                                       |
+| Mode       | Output spectrum                                                                          |
+| ---------- | ---------------------------------------------------------------------------------------- |
+| Convolve   | <md-latex>Y = g \cdot A \cdot B</md-latex>                                               |
 | Deconvolve | <md-latex>Y = \dfrac{A \cdot \overline{B}}{\lvert B \rvert^{2} + \varepsilon}</md-latex> |
 
 The frame is treated as circular, so the result wraps around instead of tailing off past the end.

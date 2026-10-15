@@ -9,8 +9,7 @@ export const fineScale = (e: { altKey: boolean; shiftKey: boolean }) =>
   held || e.altKey || e.shiftKey ? 0.05 : 1;
 
 // Shared knob drag: right/up raise, left/down lower; pointer is locked while dragging.
-export const knobDelta = (e: PointerEvent) =>
-  ((e.movementX - e.movementY) / 150) * fineScale(e);
+export const knobDelta = (e: PointerEvent) => ((e.movementX - e.movementY) / 150) * fineScale(e);
 
 // Per-drag delta fn; locks the pointer only after ~4px of travel so double-click still works.
 // Chrome fires a bogus big movement when the lock engages, so drop the first locked move and any spike.
@@ -28,8 +27,7 @@ export const knobDrag = (e: Event) => {
         el.requestPointerLock?.()?.catch?.(() => {});
       } catch {}
     }
-    if (document.pointerLockElement && (!settled || spike > 150))
-      return ((settled = true), 0);
+    if (document.pointerLockElement && (!settled || spike > 150)) return ((settled = true), 0);
     return knobDelta(m);
   };
 };

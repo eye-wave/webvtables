@@ -16,8 +16,7 @@ const utf8 = new TextDecoder();
 const enc = new TextEncoder();
 
 export function createKf(w: WasmExports) {
-  const f32 = (ptr: number, n: number) =>
-    new Float32Array(w.memory.buffer, ptr, n).slice();
+  const f32 = (ptr: number, n: number) => new Float32Array(w.memory.buffer, ptr, n).slice();
   const name = (l: number) => {
     const n = w.lane_name(l);
     return utf8.decode(new Uint8Array(w.memory.buffer, w.lane_name_ptr(), n));
@@ -40,13 +39,9 @@ export function createKf(w: WasmExports) {
         if (kind === 1 || kind === 4) {
           v.lfo = [...d.subarray(i, (i += count))];
           v.rand = kind === 4;
-        } else
-          for (let k = 0; k < count; k++)
-            v.keys.push({ t: d[i++], v: d[i++], c: d[i++] });
+        } else for (let k = 0; k < count; k++) v.keys.push({ t: d[i++], v: d[i++], c: d[i++] });
         const t = w.lane_targets(l);
-        v.addrs = [
-          ...new Uint32Array(w.memory.buffer, w.lane_targets_ptr(), t),
-        ];
+        v.addrs = [...new Uint32Array(w.memory.buffer, w.lane_targets_ptr(), t)];
         const n = w.lane_curve(l);
         if (n) v.curve = f32(w.lane_curve_ptr(), n);
         return v;
@@ -65,8 +60,7 @@ export function createKf(w: WasmExports) {
     link: (l: number, nodeAddr: number, param: number, on: boolean) =>
       w.lane_link(l, nodeAddr, param, +on as bool),
     addKey: (l: number, t: number, v: number) => w.key_add(l, t, v),
-    setKey: (l: number, k: number, t: number, v: number) =>
-      w.key_set(l, k, t, v),
+    setKey: (l: number, k: number, t: number, v: number) => w.key_set(l, k, t, v),
     setCurve: (l: number, k: number, c: number) => w.key_curve(l, k, c),
     removeKey: (l: number, k: number) => w.key_remove(l, k),
     setLfo: (l: number, j: number, v: number) => w.lfo_set(l, j, v),

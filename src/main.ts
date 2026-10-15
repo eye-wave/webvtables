@@ -63,14 +63,11 @@ loadWasm().then((wasm) => {
     },
   );
 
-  const away = () =>
-    audio.hold(Held.Away, document.hidden || !document.hasFocus());
+  const away = () => audio.hold(Held.Away, document.hidden || !document.hasFocus());
   addEventListener("blur", away);
   addEventListener("focus", away);
   document.addEventListener("visibilitychange", away);
-  new ResizeObserver(() =>
-    audio.hold(Held.Narrow, narrow.clientWidth > 0),
-  ).observe(narrow);
+  new ResizeObserver(() => audio.hold(Held.Narrow, narrow.clientWidth > 0)).observe(narrow);
 
   const [head, setHead] = createSignal(0);
 
@@ -84,23 +81,15 @@ loadWasm().then((wasm) => {
     return px >= 0 && py >= 0 && px < w && py < h;
   };
   for (const ev of ["pointerdown", "dblclick", "contextmenu"])
-    box.addEventListener(
-      ev,
-      (e) => onMap(e as MouseEvent) && e.stopPropagation(),
-      true,
-    );
-  box.addEventListener(
-    "click",
-    (e) => onMap(e) && (drawMap.toggle(), schedule()),
-  );
+    box.addEventListener(ev, (e) => onMap(e as MouseEvent) && e.stopPropagation(), true);
+  box.addEventListener("click", (e) => onMap(e) && (drawMap.toggle(), schedule()));
 
   scene.add(0, 40, 40);
   scene.add(1, 540, 100);
 
   let queued = false;
   let last = 0;
-  const schedule = () =>
-    queued || ((queued = true), requestAnimationFrame(frame));
+  const schedule = () => queued || ((queued = true), requestAnimationFrame(frame));
   createTabs(canvas.parentElement!, view, scene, schedule);
 
   // The ruler/+New shell is plain DOM; the lane editor behind it loads on the first lane.
@@ -170,8 +159,7 @@ loadWasm().then((wasm) => {
     const driven = kf.apply(head());
     wasm.scope_begin();
     const inst = scene.sync(driven);
-    for (const [id, a, b] of scene.links())
-      a && b ? ropes.pin(id, a, b) : ropes.drop(id);
+    for (const [id, a, b] of scene.links()) a && b ? ropes.pin(id, a, b) : ropes.drop(id);
     const table = scene.outputTable();
     audio.table(table);
     const moving = ropes.step(Math.min(dt, 0.05));

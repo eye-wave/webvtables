@@ -81,8 +81,7 @@ export const createShaderCompiler =
       const sh = gl.createShader(type)!;
       gl.shaderSource(sh, src);
       gl.compileShader(sh);
-      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS))
-        throw new Error(gl.getShaderInfoLog(sh)!);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh)!);
       gl.attachShader(prog, sh);
     }
     gl.linkProgram(prog);
@@ -103,10 +102,7 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
   const rect = compile(rectVs, rectFs);
   const loc = (p: WebGLProgram, n: string) => gl.getUniformLocation(p, n);
 
-  const stream = (
-    stride: number,
-    attrs: [loc: number, size: number, off: number][],
-  ) => {
+  const stream = (stride: number, attrs: [loc: number, size: number, off: number][]) => {
     const vao = gl.createVertexArray();
     const buf = gl.createBuffer();
     gl.bindVertexArray(vao);
@@ -161,11 +157,7 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
       gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
       gl.generateMipmap(gl.TEXTURE_2D);
-      gl.texParameteri(
-        gl.TEXTURE_2D,
-        gl.TEXTURE_MIN_FILTER,
-        gl.LINEAR_MIPMAP_LINEAR,
-      );
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -179,25 +171,12 @@ export function createOverlay(canvas: HTMLCanvasElement): Draw {
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
-  return ({
-    nodes: inst,
-    view,
-    segs,
-    rings,
-    warm,
-    scopes,
-    images,
-    panels,
-    t,
-  }) => {
+  return ({ nodes: inst, view, segs, rings, warm, scopes, images, panels, t }) => {
     const n = inst.length / STRIDE;
     const dpr = devicePixelRatio;
     const w = canvas.clientWidth,
       h = canvas.clientHeight;
-    if (
-      canvas.width !== Math.round(w * dpr) ||
-      canvas.height !== Math.round(h * dpr)
-    ) {
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
       canvas.width = Math.round(w * dpr);
       canvas.height = Math.round(h * dpr);
     }

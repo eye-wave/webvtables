@@ -12,8 +12,7 @@ import { editParam, type ParamEdit } from "../param_edit/param_edit";
 /** A point is addressed as [curve, index]; an editor with a single curve uses 0 for the curve. */
 export type PointId = readonly [curve: number, point: number];
 
-export const clamp = (v: number, lo: number, hi: number) =>
-  Math.min(hi, Math.max(lo, v));
+export const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 /** Pointer capture drag: `move` runs on press and on every move while held. */
 export const drag = (e: PointerEvent, move: (e: PointerEvent) => void) => {
@@ -87,10 +86,7 @@ export function createPoints(o: {
     if (!k) return;
     const key = (e: KeyboardEvent) => {
       if (e.key !== "Delete" && e.key !== "Backspace") return;
-      if (
-        (e.target as Element).closest("input,textarea,select,[contenteditable]")
-      )
-        return;
+      if ((e.target as Element).closest("input,textarea,select,[contenteditable]")) return;
       e.preventDefault();
       remove(k);
     };
@@ -119,8 +115,7 @@ export function createPoints(o: {
   });
 
   return {
-    isSel: (curve: number, point: number) =>
-      sel()?.[0] === curve && sel()?.[1] === point,
+    isSel: (curve: number, point: number) => sel()?.[0] === curve && sel()?.[1] === point,
     clear: () => setSel(),
 
     /** Spread on a point's element; `id` and `g` are read when the pointer goes down. */
@@ -131,8 +126,7 @@ export function createPoints(o: {
         if (e.button) return;
         setSel(id());
         const a = g();
-        if (e.ctrlKey)
-          return a.edit && editParam(e.currentTarget as Element, a.edit());
+        if (e.ctrlKey) return a.edit && editParam(e.currentTarget as Element, a.edit());
         let [x, y] = a.at;
         let [cx, cy] = [e.clientX, e.clientY];
         drag(e, (m) => {

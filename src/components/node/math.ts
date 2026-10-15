@@ -116,10 +116,7 @@ export const loadMath = () =>
       try {
         for (let i = sheet.cssRules.length; i--;) {
           const rule = sheet.cssRules[i];
-          if (
-            rule instanceof CSSFontFaceRule &&
-            rule.style.fontFamily.includes("Symbola")
-          )
+          if (rule instanceof CSSFontFaceRule && rule.style.fontFamily.includes("Symbola"))
             sheet.deleteRule(i);
         }
       } catch {} // cross-origin sheets can't be read
@@ -166,9 +163,7 @@ function quiet<T>(f: () => T): T {
 /** Compiles `tex` for the node at `addr`. Returns false (keeping the old function) if it can't. */
 export function setMath(compile: Libs["compile"], addr: number, tex: string) {
   try {
-    const f = quiet(() =>
-      compile(tex.replace(/^\s*(y|f\\left\(x\\right\))\s*=/, "")),
-    );
+    const f = quiet(() => compile(tex.replace(/^\s*(y|f\\left\(x\\right\))\s*=/, "")));
     if (f) (fns.set(addr, f), rev++);
     return !!f;
   } catch {
@@ -176,7 +171,4 @@ export function setMath(compile: Libs["compile"], addr: number, tex: string) {
   }
 }
 
-export const dropMath = (addr: number) => (
-  texs.delete(addr),
-  fns.delete(addr) && rev++
-);
+export const dropMath = (addr: number) => (texs.delete(addr), fns.delete(addr) && rev++);

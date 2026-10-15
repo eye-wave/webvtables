@@ -30,10 +30,7 @@ export function DrawFilterView() {
   const poll = () => {
     const { wasm } = ctx;
     const len = wasm.scope_fill(+ctx.el!.dataset.n!, 1);
-    if (len === 2 * P)
-      setSpec(
-        new Float32Array(wasm.memory.buffer, wasm.scope_ptr(), len).slice(),
-      );
+    if (len === 2 * P) setSpec(new Float32Array(wasm.memory.buffer, wasm.scope_ptr(), len).slice());
   };
   ctx.polls.add(poll);
   onCleanup(() => ctx.polls.delete(poll));
@@ -79,18 +76,13 @@ export function DrawFilterView() {
         }
       } else
         for (let k = 0; k <= n; k++)
-          next[n ? j + ((i - j) * k) / n : i] = clamp(
-            z + ((y - z) * k) / (n || 1),
-            -1,
-            1,
-          );
+          next[n ? j + ((i - j) * k) / n : i] = clamp(z + ((y - z) * k) / (n || 1), -1, 1);
       last = [i, y];
       put(next);
     });
   };
 
-  const curve = () =>
-    Array.from(data(), (y, i) => `${(i / (P - 1)) * 2 - 1},${-y}`).join(" ");
+  const curve = () => Array.from(data(), (y, i) => `${(i / (P - 1)) * 2 - 1},${-y}`).join(" ");
 
   return (
     <>
@@ -104,11 +96,7 @@ export function DrawFilterView() {
         >
           <Pencil size={12} />
         </button>
-        <button
-          title="Smooth"
-          classList={{ [css.on]: smooth() }}
-          on:click={() => setSmooth(true)}
-        >
+        <button title="Smooth" classList={{ [css.on]: smooth() }} on:click={() => setSmooth(true)}>
           <Spline size={12} />
         </button>
         <button title="Flatten" on:click={() => put(new Float32Array(P))}>
@@ -144,10 +132,7 @@ export function DrawFilterView() {
             </svg>
           </div>
           {X().map((b) => (
-            <span
-              class={`${css.tick} ${css.tx}`}
-              style={{ left: `${at(b, lin()) * 100}%` }}
-            >
+            <span class={`${css.tick} ${css.tx}`} style={{ left: `${at(b, lin()) * 100}%` }}>
               {b}
             </span>
           ))}
@@ -166,10 +151,7 @@ export function DrawFilterView() {
         </div>
       </div>
       <Flags />
-      <Scope
-        w={0}
-        style={{ flex: "none", height: "56px", "box-sizing": "border-box" }}
-      />
+      <Scope w={0} style={{ flex: "none", height: "56px", "box-sizing": "border-box" }} />
     </>
   );
 }

@@ -116,16 +116,8 @@ export const Flag = (props: { b: number; class?: string }) => (
   </div>
 );
 
-export const Scope = (props: {
-  w?: number;
-  class?: string;
-  style?: JSX.CSSProperties;
-}) => (
-  <div
-    class={`${nodeCss.scope} ${props.class ?? ""}`}
-    style={props.style}
-    data-w={props.w ?? 0}
-  />
+export const Scope = (props: { w?: number; class?: string; style?: JSX.CSSProperties }) => (
+  <div class={`${nodeCss.scope} ${props.class ?? ""}`} style={props.style} data-w={props.w ?? 0} />
 );
 
 export const Head = () => (
@@ -191,16 +183,9 @@ function Sockets(props: { out: boolean }) {
   });
 }
 
-const mounted = new WeakMap<
-  Element,
-  { dispose: () => void; polls: Set<() => void> }
->();
+const mounted = new WeakMap<Element, { dispose: () => void; polls: Set<() => void> }>();
 
-export function mountNode(
-  root: HTMLElement,
-  init: NodeInit,
-  View: Component = DefaultView,
-) {
+export function mountNode(root: HTMLElement, init: NodeInit, View: Component = DefaultView) {
   const ctx: Ctx = { ...init, polls: new Set() };
   const frag = document.createDocumentFragment();
   const dispose = render(
@@ -226,8 +211,7 @@ export function mountNode(
   root.append(frag);
 }
 
-export const pollNode = (el: Element) =>
-  mounted.get(el)?.polls.forEach((poll) => poll());
+export const pollNode = (el: Element) => mounted.get(el)?.polls.forEach((poll) => poll());
 
 export const unmountNode = (el: Element) => {
   mounted.get(el)?.dispose();

@@ -52,18 +52,29 @@ export function createTabs(host: HTMLElement, view: ViewCtl, scene: Scene, sched
     if (!d) return;
 
     const field = (value: string, title = "") =>
-      Object.assign(el<HTMLInputElement>("input"), { value, title, maxLength: 22, spellcheck: false });
+      Object.assign(el<HTMLInputElement>("input"), {
+        value,
+        title,
+        maxLength: 22,
+        spellcheck: false,
+      });
     const name = field(d.name);
     name.onchange = () => (scene.renameDef(d, name.value), schedule());
     const params = d.params.map((q) => {
       const input = field(q.name, `${q.targets.length} linked`);
       input.onchange = () => scene.renameParam(q, input.value);
       const row = el("div", css.row);
-      row.append(input, btn("✕", () => scene.removeParam(d, q), css.x));
+      row.append(
+        input,
+        btn("✕", () => scene.removeParam(d, q), css.x),
+      );
       return row;
     });
     const ports = el("div", css.row);
-    ports.append(btn("+ Input", () => addPort("grpin")), btn("+ Output", () => addPort("grpout")));
+    ports.append(
+      btn("+ Input", () => addPort("grpin")),
+      btn("+ Output", () => addPort("grpout")),
+    );
     const rename = el("div", css.row);
     rename.append(name);
     side.replaceChildren(

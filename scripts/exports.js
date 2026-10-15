@@ -102,16 +102,12 @@ function parseExport(match) {
 function renderExport(fn) {
   const docs = [
     "  /**",
-    ...fn.args.map(
-      ({ name, rustType }) => `   * @param ${name}: \`${rustType}\`.`,
-    ),
+    ...fn.args.map(({ name, rustType }) => `   * @param ${name}: \`${rustType}\`.`),
     `   * @returns \`${fn.rustReturn}\`.`,
     "   */",
   ];
 
-  const args = fn.args
-    .map(({ name, tsType }) => `${name}: ${tsType}`)
-    .join(", ");
+  const args = fn.args.map(({ name, tsType }) => `${name}: ${tsType}`).join(", ");
 
   return `${docs.join("\n")}\n  ${fn.name}(${args}): ${fn.tsReturn};`;
 }

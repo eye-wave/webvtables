@@ -16,10 +16,7 @@ const W = 280,
   FULL_AT = 900,
   MARGIN = 8,
   BORDER = 1;
-export const mapRect = (
-  bw: number,
-  bh: number,
-): [number, number, number, number] => {
+export const mapRect = (bw: number, bh: number): [number, number, number, number] => {
   const s = Math.min(1, innerWidth / FULL_AT);
   const h = Math.min(H * s, bh - 2 * MARGIN);
   return [bw - MARGIN - W * s, bh - MARGIN - h, W * s, h];
@@ -66,8 +63,7 @@ export function createHeightmap(canvas: HTMLCanvasElement) {
 
   const buf = new Float32Array(COLS);
   const put = (y: number, t: Float32Array) => {
-    for (let i = 0; i < COLS; i++)
-      buf[i] = t[Math.round((i * (t.length - 1)) / (COLS - 1))];
+    for (let i = 0; i < COLS; i++) buf[i] = t[Math.round((i * (t.length - 1)) / (COLS - 1))];
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, y, COLS, 1, gl.RED, gl.FLOAT, buf);
   };
 
@@ -90,9 +86,7 @@ export function createHeightmap(canvas: HTMLCanvasElement) {
         Math.round(w * dpr),
         Math.round(h * dpr),
       );
-      gl.scissor(
-        ...(gl.getParameter(gl.VIEWPORT) as [number, number, number, number]),
-      );
+      gl.scissor(...(gl.getParameter(gl.VIEWPORT) as [number, number, number, number]));
       gl.disable(gl.BLEND); // overwrite whatever the overlay drew underneath
       gl.depthMask(true);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);

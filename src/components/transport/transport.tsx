@@ -53,10 +53,7 @@ function BarKnob(props: {
       onPointerUp={() => ((drag = undefined), unlock())}
       onPointerCancel={() => ((drag = undefined), unlock())}
       onDblClick={() => set(props.v0)}
-      onWheel={(e) => (
-        e.preventDefault(),
-        set(v() - Math.sign(e.deltaY) * 0.02)
-      )}
+      onWheel={(e) => (e.preventDefault(), set(v() - Math.sign(e.deltaY) * 0.02))}
       onContextMenu={(e) => (e.preventDefault(), edit(e.currentTarget))}
     >
       <div class={knobCss.dial} />
@@ -82,10 +79,8 @@ export function createTransport(
 
   const fps = (v: number) => SPEED_MAX ** v;
   const hz = (v: number) => FREQ_MIN * (FREQ_MAX / FREQ_MIN) ** v;
-  const log = (x: number, lo: number, hi: number) =>
-    Math.log(x / lo) / Math.log(hi / lo);
-  const dec = (x: number, at: number) =>
-    x < at ? x.toFixed(1) : `${Math.round(x)}`;
+  const log = (x: number, lo: number, hi: number) => Math.log(x / lo) / Math.log(hi / lo);
+  const dec = (x: number, at: number) => (x < at ? x.toFixed(1) : `${Math.round(x)}`);
 
   render(
     () => (

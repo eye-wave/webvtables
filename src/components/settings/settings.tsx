@@ -64,8 +64,7 @@ const load = () => {
 
 export const [settings, set] = createStore(load());
 
-const applyTheme = () =>
-  (document.documentElement.dataset.theme = String(settings.theme));
+const applyTheme = () => (document.documentElement.dataset.theme = String(settings.theme));
 applyTheme();
 
 const rnd = (n: number) => {
@@ -129,8 +128,7 @@ declare const settingsDialog: HTMLDialogElement;
 declare const settingsRoot: HTMLElement;
 
 export function createSettings(bar: HTMLElement, wasm: WasmExports) {
-  const pushRope = () =>
-    ROPE.forEach(([i]) => wasm.rope_cfg(i, +settings[`r${i}`]));
+  const pushRope = () => ROPE.forEach(([i]) => wasm.rope_cfg(i, +settings[`r${i}`]));
   pushRope();
 
   const change = (k: string, v: string | number, then?: () => void) => {
@@ -220,10 +218,7 @@ export function createSettings(bar: HTMLElement, wasm: WasmExports) {
                         onChange={(e) => {
                           const v = num(e);
                           if (v !== undefined)
-                            change(
-                              `${settings.theme}.${a}${k}`,
-                              Math.min(max, Math.max(0, v)),
-                            );
+                            change(`${settings.theme}.${a}${k}`, Math.min(max, Math.max(0, v)));
                         }}
                       />
                     )}
@@ -248,9 +243,7 @@ export function createSettings(bar: HTMLElement, wasm: WasmExports) {
                   onChange={(e) => {
                     const v = num(e);
                     if (v !== undefined)
-                      change(`r${i}`, Math.min(max, Math.max(min, v)), () =>
-                        wasm.rope_cfg(i, v),
-                      );
+                      change(`r${i}`, Math.min(max, Math.max(min, v)), () => wasm.rope_cfg(i, v));
                   }}
                 />
               </>
@@ -294,12 +287,7 @@ export function createSettings(bar: HTMLElement, wasm: WasmExports) {
         >
           {full() ? <Minimize size={14} /> : <Maximize size={14} />}
         </button>
-        <button
-          class={projectCss.tool}
-          title="Settings"
-          aria-label="Settings"
-          onClick={open}
-        >
+        <button class={projectCss.tool} title="Settings" aria-label="Settings" onClick={open}>
           <Cog size={14} />
         </button>
       </>

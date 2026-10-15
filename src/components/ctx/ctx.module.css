@@ -49,8 +49,7 @@
 .ctx.open .item {
   opacity: 1;
   transform: none;
-  transition-delay:
-    calc(var(--i) * 25ms + 40ms), calc(var(--i) * 25ms + 40ms), 0s;
+  transition-delay: calc(var(--i) * 25ms + 40ms), calc(var(--i) * 25ms + 40ms), 0s;
 }
 
 .ctx .item:hover {

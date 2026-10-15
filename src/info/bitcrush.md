@@ -27,8 +27,8 @@ nodes='[
 
 **Strength** controls how intensely the signal is degraded (0.0 to 1.0). With <md-latex>s</md-latex> as the Strength value:
 
-| Type       | What Strength does                                                                                      |
-| ---------- | ------------------------------------------------------------------------------------------------------- |
+| Type       | What Strength does                                                                                       |
+| ---------- | -------------------------------------------------------------------------------------------------------- |
 | Bit crush  | sets the bit depth <md-latex>b = 16 - 20s</md-latex>, quantizing to steps of <md-latex>2^{-b}</md-latex> |
 | Downsample | holds each value for <md-latex>2^{10s}</md-latex> samples (1 to 1024)                                    |
 

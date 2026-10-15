@@ -74,8 +74,7 @@ export function createProject(
     fileMsg.textContent = "";
     fileDialog.style.display = "";
     if (!fileDialog.open) fileDialog.showModal();
-    for (const k in rows)
-      rows[k as Pick].toggleAttribute("data-pick", k === pick);
+    for (const k in rows) rows[k as Pick].toggleAttribute("data-pick", k === pick);
     focus[pick].focus();
   };
   fileDialog.onclose = () => (fileDialog.style.display = "none");
@@ -102,18 +101,13 @@ export function createProject(
     };
     // Node i as the file has it. Only main nodes can be keyframed or hold data (a definition's can't).
     const nodeOf = (i: number, id: string, main: boolean): PNode => {
-      const [x, y] = f32().subarray(
-        wasm.get_node(i) >> 2,
-        (wasm.get_node(i) >> 2) + 2,
-      );
+      const [x, y] = f32().subarray(wasm.get_node(i) >> 2, (wasm.get_node(i) >> 2) + 2);
       const params: number[] = [];
       for (let j = 0, a; (a = wasm.get_param(i, j)) >= 0; j++) {
         params.push(f32()[a >> 2]);
         if (main) at.set(a, { id, j });
       }
-      const flags = new Uint8Array(wasm.memory.buffer)[
-        wasm.get_node(i) + FLAGS_AT
-      ];
+      const flags = new Uint8Array(wasm.memory.buffer)[wasm.get_node(i) + FLAGS_AT];
       const d = main ? savedAt(i) : undefined; // the original import and its settings, not the rendered frames
       // Math nodes: the LaTeX is the asset, a plain text file
       const tex = main ? texOf(wasm.get_node(i)) : undefined;
@@ -131,8 +125,7 @@ export function createProject(
         spec: d?.spec,
       };
     };
-    for (let i = 0; i < n; i++)
-      if (info.space.get(i) === "") p.nodes.push(nodeOf(i, ids[i], true));
+    for (let i = 0; i < n; i++) if (info.space.get(i) === "") p.nodes.push(nodeOf(i, ids[i], true));
     info.insts.forEach((g, k) =>
       p.nodes.push({
         id: instId(k),
@@ -185,11 +178,7 @@ export function createProject(
     }));
     p.lanes = kf.lanes().map((l) => ({
       name: l.name,
-      type: l.rand
-        ? "R"
-        : l.lfo
-          ? "L"
-          : (["P", "C", "S"] as const)[l.mode ?? 0],
+      type: l.rand ? "R" : l.lfo ? "L" : (["P", "C", "S"] as const)[l.mode ?? 0],
       targets: l.addrs.flatMap((a) => at.get(a) ?? []),
       lfo: l.lfo ?? [],
       keys: l.keys,
@@ -245,8 +234,7 @@ export function createProject(
         if (a) texBoot.set(i, new TextDecoder().decode(a.data));
       }
       // Waveshaper: the asset is its points as raw float32
-      const pts =
-        n.kind === "wavshape" && p.assets.find((x) => x.id === n.asset);
+      const pts = n.kind === "wavshape" && p.assets.find((x) => x.id === n.asset);
       if (pts) ptsBoot.set(i, decodePoints(pts.data));
       const dr = n.kind === "drawfilt" && p.assets.find((x) => x.id === n.asset);
       if (dr) drawBoot.set(i, decodeDraw(dr.data));
@@ -267,8 +255,7 @@ export function createProject(
         if (i >= 0) local.set(n.id, i);
       }
       for (const [a, sa, b, sb] of d.links)
-        if (local.has(a) && local.has(b))
-          wasm.add_link(local.get(a)!, sa, local.get(b)!, sb);
+        if (local.has(a) && local.has(b)) wasm.add_link(local.get(a)!, sa, local.get(b)!, sb);
       return {
         id: d.id,
         name: d.name,
@@ -300,13 +287,9 @@ export function createProject(
       real!.rename(lane, l.name);
       l.lfo.forEach((v, j) => real!.setLfo(lane, j, v));
       if (l.type !== "L" && l.type !== "R") {
-        l.keys.forEach((key) =>
-          real!.addKey(lane, Math.min(key.t, 255), key.v),
-        );
+        l.keys.forEach((key) => real!.addKey(lane, Math.min(key.t, 255), key.v));
         // keys end up sorted by frame, so look each one up by it
-        const live = l.keys.some((k) => k.c !== undefined)
-          ? real!.lanes()[lane].keys
-          : [];
+        const live = l.keys.some((k) => k.c !== undefined) ? real!.lanes()[lane].keys : [];
         for (const k of l.keys)
           if (k.c !== undefined)
             real!.setCurve(
@@ -316,15 +299,13 @@ export function createProject(
             );
       }
       for (const t of l.targets)
-        if (at.has(t.id))
-          real!.link(lane, wasm.get_node(at.get(t.id)!), t.j, true);
+        if (at.has(t.id)) real!.link(lane, wasm.get_node(at.get(t.id)!), t.j, true);
     }
     return { defs, insts, links };
   };
 
   // Strip characters filesystems reject; fall back to "project".
-  const base = () =>
-    fileName.value.replace(/[\\/:*?"<>|]+/g, "").trim() || "project";
+  const base = () => fileName.value.replace(/[\\/:*?"<>|]+/g, "").trim() || "project";
 
   fileSave.onclick = async () => {
     const lib = await fileLib();
@@ -332,8 +313,7 @@ export function createProject(
     const p = snapshot(lib);
     // identical Data nodes share one asset; without crypto.subtle (insecure page) they just aren't merged
     await dedupe(p).catch(() => {});
-    if (needsZip(p))
-      download(`${base()}${EXT_ZIP}`, await pack(p), "application/zip");
+    if (needsZip(p)) download(`${base()}${EXT_ZIP}`, await pack(p), "application/zip");
     else download(`${base()}${EXT}`, format(p), "text/plain");
     fileDialog.close();
   };
@@ -388,20 +368,13 @@ export function createProject(
       for (const a of p.assets) {
         const n = p.nodes.find((x) => x.asset === a.id)!;
         if (n.kind === "math" || n.kind === "wavshape" || n.kind === "drawfilt") continue; // read straight from the asset
-        decoded.set(
-          a.id,
-          await decode(n.spec?.Typ, a.data, n.spec?.Nam ?? a.id),
-        );
+        decoded.set(a.id, await decode(n.spec?.Typ, a.data, n.spec?.Nam ?? a.id));
       }
     } catch (e) {
       fileMsg.textContent = `Could not decode an asset (${(e as Error).message}).`;
       return;
     }
-    const restored = apply(
-      p,
-      decoded,
-      p.lanes.length ? await kf.load() : undefined,
-    );
+    const restored = apply(p, decoded, p.lanes.length ? await kf.load() : undefined);
     fileName.value = file.name.replace(/\.(wtp|wtx)$/i, "");
     scene.load();
     scene.restore(restored);
@@ -420,10 +393,7 @@ export function createProject(
     fileInput.value = "";
     load(f);
   };
-  fileDrop.ondragover = (e) => (
-    e.preventDefault(),
-    fileDrop.classList.add("over")
-  );
+  fileDrop.ondragover = (e) => (e.preventDefault(), fileDrop.classList.add("over"));
   fileDrop.ondragleave = () => fileDrop.classList.remove("over");
   fileDrop.ondrop = (e) => {
     e.preventDefault();

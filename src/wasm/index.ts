@@ -23,9 +23,7 @@ export async function loadWasm(): Promise<WasmExports> {
         if (a.length === 10)
           return void mathEval(
             mem,
-            ...(a as Parameters<typeof mathEval> extends [unknown, ...infer T]
-              ? T
-              : never),
+            ...(a as Parameters<typeof mathEval> extends [unknown, ...infer T] ? T : never),
           );
         return 0;
       },

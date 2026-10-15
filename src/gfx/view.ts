@@ -32,10 +32,13 @@ export function createView(nodes: HTMLElement, bg: HTMLElement) {
         mid = (p: Pt, q: Pt, i: 0 | 1) => (p[i] + q[i]) / 2 - (i ? r.top : r.left),
         k = Math.min(
           4,
-          Math.max(0.2, (s[2] * Math.hypot(a[0] - b[0], a[1] - b[1])) / (Math.hypot(a0[0] - b0[0], a0[1] - b0[1]) || 1)),
+          Math.max(
+            0.2,
+            (s[2] * Math.hypot(a[0] - b[0], a[1] - b[1])) /
+              (Math.hypot(a0[0] - b0[0], a0[1] - b0[1]) || 1),
+          ),
         );
-      for (const i of [0, 1] as const)
-        v[i] = mid(a, b, i) - ((mid(a0, b0, i) - s[i]) * k) / s[2];
+      for (const i of [0, 1] as const) v[i] = mid(a, b, i) - ((mid(a0, b0, i) - s[i]) * k) / s[2];
       v[2] = k;
     },
 

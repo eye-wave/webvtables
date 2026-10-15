@@ -19,11 +19,7 @@ import css from "./demo.module.css";
 export type DemoProps = {
   /** [node name or id, { parameter name: option name, or a value in the units the knob shows }, hidden = false].
    *  A hidden node is a small dotted circle with its sockets, to keep the demo small. */
-  nodes: [
-    name: string,
-    params?: Record<string, number | string>,
-    hidden?: boolean,
-  ][];
+  nodes: [name: string, params?: Record<string, number | string>, hidden?: boolean][];
   /** [from, to, from's output socket = 0, to's input socket = 0], by index into `nodes`.
    *  Default: each node takes the latest unused outputs, one per input socket, in order. */
   links?: [from: number, to: number, out?: number, into?: number][];
@@ -36,8 +32,7 @@ const GAP_X = 56,
   RING = 28,
   LINK = "rgb(199, 209, 230)";
 
-const rgb = (c: readonly number[]) =>
-  `rgb(${c.map((v) => Math.round(v * 255))})`;
+const rgb = (c: readonly number[]) => `rgb(${c.map((v) => Math.round(v * 255))})`;
 
 // Columns by link depth, each centred vertically. Returns the stage size.
 function place(
@@ -59,9 +54,7 @@ function place(
   const cols = [...new Set(depth)]
     .sort((a, b) => a - b)
     .map((d) => els.map((_, i) => i).filter((i) => depth[i] === d));
-  const heights = cols.map(
-    (c) => c.reduce((s, i) => s + size[i][1], 0) + (c.length - 1) * GAP_Y,
-  );
+  const heights = cols.map((c) => c.reduce((s, i) => s + size[i][1], 0) + (c.length - 1) * GAP_Y);
   const tall = Math.max(...heights);
   let x = PAD;
   cols.forEach((c, k) => {
@@ -97,8 +90,7 @@ function start(host: HTMLElement, props: DemoProps): () => void {
   if (!live++) origin = wasm.nodes_len();
   const base = wasm.nodes_len();
   const release = () => {
-    if (!--live)
-      while (wasm.nodes_len() > origin) wasm.remove_node(wasm.nodes_len() - 1);
+    if (!--live) while (wasm.nodes_len() > origin) wasm.remove_node(wasm.nodes_len() - 1);
   };
   const stage = host.appendChild(
     Object.assign(document.createElement("div"), { className: css.stage }),
@@ -126,25 +118,20 @@ function start(host: HTMLElement, props: DemoProps): () => void {
     const info = nodes[kinds[i]].params as readonly ParamInfo[];
     for (const [name, v] of Object.entries(params ?? {})) {
       const j = info.findIndex((p) => p.n === name);
-      if (j < 0)
-        throw new Error(`${nodes[kinds[i]].name} has no parameter "${name}"`);
+      if (j < 0) throw new Error(`${nodes[kinds[i]].name} has no parameter "${name}"`);
       const d = typeof v === "string" ? (info[j].o?.indexOf(v) ?? -1) : v;
       wasm.param_set_denorm(base + i, j, d);
     }
     return world.lastElementChild as HTMLElement;
   });
 
-  const wires = (props.links ?? autoLinks(kinds)).map(
-    ([a, b, so = 0, si = 0]) => {
-      const from = { node: base + a, out: true, j: so },
-        to = { node: base + b, out: false, j: si };
-      if (scene.connect(from, to) < 0)
-        throw new Error(
-          `can't link ${props.nodes[a]?.[0]} to ${props.nodes[b]?.[0]}`,
-        );
-      return [from, to] as const;
-    },
-  );
+  const wires = (props.links ?? autoLinks(kinds)).map(([a, b, so = 0, si = 0]) => {
+    const from = { node: base + a, out: true, j: so },
+      to = { node: base + b, out: false, j: si };
+    if (scene.connect(from, to) < 0)
+      throw new Error(`can't link ${props.nodes[a]?.[0]} to ${props.nodes[b]?.[0]}`);
+    return [from, to] as const;
+  });
 
   // hidden nodes shrink to a small circle (wasm owns the size, the editor's sync applies it); css hides the rest
   props.nodes.forEach(([, , hide], i) => {
@@ -176,10 +163,7 @@ function start(host: HTMLElement, props: DemoProps): () => void {
     raf = 0;
     if (dead) return;
     const dpr = devicePixelRatio;
-    if (
-      canvas.width !== Math.round(w * dpr) ||
-      canvas.height !== Math.round(h * dpr)
-    ) {
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
       canvas.width = Math.round(w * dpr);
       canvas.height = Math.round(h * dpr);
       canvas.style.width = `${w}px`;
@@ -220,8 +204,7 @@ function start(host: HTMLElement, props: DemoProps): () => void {
       ctx.beginPath();
       pts.forEach((v, i) => {
         const px = x + m + ((sw - 2 * m) * i) / (pts.length - 1);
-        const py =
-          y + m + (sh - 2 * m) * (0.5 - 0.5 * Math.max(-1, Math.min(1, v)));
+        const py = y + m + (sh - 2 * m) * (0.5 - 0.5 * Math.max(-1, Math.min(1, v)));
         i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
       });
       ctx.stroke();
@@ -232,11 +215,9 @@ function start(host: HTMLElement, props: DemoProps): () => void {
         const v1 = pts[i];
         if ((v0 > 1 && v1 > 1) || (v0 < -1 && v1 < -1)) {
           const px0 = x + m + ((sw - 2 * m) * (i - 1)) / (pts.length - 1);
-          const py0 =
-            y + m + (sh - 2 * m) * (0.5 - 0.5 * Math.max(-1, Math.min(1, v0)));
+          const py0 = y + m + (sh - 2 * m) * (0.5 - 0.5 * Math.max(-1, Math.min(1, v0)));
           const px1 = x + m + ((sw - 2 * m) * i) / (pts.length - 1);
-          const py1 =
-            y + m + (sh - 2 * m) * (0.5 - 0.5 * Math.max(-1, Math.min(1, v1)));
+          const py1 = y + m + (sh - 2 * m) * (0.5 - 0.5 * Math.max(-1, Math.min(1, v1)));
           ctx.beginPath();
           ctx.moveTo(px0, py0);
           ctx.lineTo(px1, py1);
@@ -250,8 +231,7 @@ function start(host: HTMLElement, props: DemoProps): () => void {
 
   // knobs and flags, the way the grid handles them
   let hot: HTMLElement | null = null;
-  const knobOf = (e: Event) =>
-    (e.target as Element).closest<HTMLElement>(`.${knobCss.knob}`);
+  const knobOf = (e: Event) => (e.target as Element).closest<HTMLElement>(`.${knobCss.knob}`);
   stage.onpointerover = (e) => {
     const k = knobOf(e);
     if (k === hot) return;

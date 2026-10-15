@@ -19,10 +19,10 @@ This is the real node, running. Connect an audio source to rotate or reverse its
 
 **Mode** selects the spectral manipulation type:
 
-| Mode    | Effect                                               |
-| ------- | ---------------------------------------------------- |
+| Mode    | Effect                                                                                                                  |
+| ------- | ----------------------------------------------------------------------------------------------------------------------- |
 | Rotate  | shifts frequency bins upward by the specified amount, with the bins that fall off the top wrapping around to the bottom |
-| Reverse | mirrors the spectrum before shifting frequency bins  |
+| Reverse | mirrors the spectrum before shifting frequency bins                                                                     |
 
 **Amount** sets the number of bins to shift the spectrum by (0 to 1023). The rotation covers 1023 bins (harmonics 1 to 1023), so an Amount of 1023 is the same as 0.
 

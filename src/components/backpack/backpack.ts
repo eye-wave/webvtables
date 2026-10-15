@@ -18,11 +18,7 @@ const docs = import.meta.glob<string>("../../info/*.md", {
 });
 const guide = (id: string) => docs[`../../info/${id}.md`];
 
-const el = <K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  cls = "",
-  text = "",
-) =>
+const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = "") =>
   Object.assign(document.createElement(tag), {
     className: cls,
     textContent: text,
@@ -56,22 +52,13 @@ export function createBackpack(
         const it = el("div", css.item);
         it.dataset.kind = `${kind}`;
         it.dataset.name = n.name.toLowerCase();
-        const info = el(
-          "button",
-          guide(n.id) ? `${css.info} ${css.guided}` : css.info,
-        );
+        const info = el("button", guide(n.id) ? `${css.info} ${css.guided}` : css.info);
         info.type = "button";
-        info.title = guide(n.id)
-          ? `Guide: ${n.name}`
-          : `${n.name}: no guide yet, shows a summary`;
+        info.title = guide(n.id) ? `Guide: ${n.name}` : `${n.name}: no guide yet, shows a summary`;
         info.setAttribute("aria-label", info.title);
         info.dataset.info = "";
         info.innerHTML = INFO;
-        it.append(
-          el("span", "", n.name),
-          el("small", "", `${n.inputs} → ${n.outputs}`),
-          info,
-        );
+        it.append(el("span", "", n.name), el("small", "", `${n.inputs} → ${n.outputs}`), info);
         list.append(it);
         return it;
       });
@@ -84,8 +71,7 @@ export function createBackpack(
     const q = search.value.trim().toLowerCase();
     for (const g of groups) {
       let n = 0;
-      for (const it of g.items)
-        n += +!(it.hidden = !it.dataset.name!.includes(q));
+      for (const it of g.items) n += +!(it.hidden = !it.dataset.name!.includes(q));
       g.d.hidden = !n;
       if (q) g.d.open = true;
     }
@@ -101,9 +87,7 @@ export function createBackpack(
     const b = (e.target as Element).closest("[data-info]");
     if (!b) return;
     const kind = +b.parentElement!.dataset.kind!;
-    void import("./guide").then((m) =>
-      m.openGuide(kind, guide(nodes[kind].id)),
-    );
+    void import("./guide").then((m) => m.openGuide(kind, guide(nodes[kind].id)));
   };
 
   body.onpointerdown = (e) => {

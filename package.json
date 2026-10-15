@@ -1,28 +1,15 @@
 {
   "name": "webvtabes",
-  "private": true,
   "version": "0.0.0",
+  "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
+    "dev": "vp dev",
+    "build": "tsc && vp build",
+    "preview": "vp preview",
     "codegen": "bun run --sequential 'codegen:*'",
     "codegen:nodes": "cargo test --lib --target \"$(rustc -vV | sed -n 's/host: //p')\" generate_ts",
     "codegen:exports": "bun run scripts/exports.js"
-  },
-  "devDependencies": {
-    "@types/audioworklet": "^0.0.100",
-    "@types/node": "^26.6.5",
-    "katex": "^0.19.0",
-    "marked": "^18.1.0",
-    "shiki": "^4.5.0",
-    "typescript": "~7.0.2",
-    "vite": "^8.3.4",
-    "vite-plugin-better-enums": "git+https://github.com/eye-wave/better-enums.git",
-    "vite-plugin-glsl": "^1.6.2",
-    "vite-plugin-html": "^3.2.2",
-    "vite-plugin-solid": "^2.11.14"
   },
   "dependencies": {
     "@cortex-js/compute-engine": "^0.152.0",
@@ -32,5 +19,29 @@
     "lucide-solid": "^1.55.0",
     "mathquill": "^0.10.1-a",
     "solid-js": "^1.9.17"
+  },
+  "devDependencies": {
+    "@types/audioworklet": "^0.0.100",
+    "@types/node": "^26.6.5",
+    "katex": "^0.19.0",
+    "marked": "^18.1.0",
+    "shiki": "^4.5.0",
+    "typescript": "~7.0.2",
+    "vite": "npm:@voidzero-dev/vite-plus-core@1.2.0",
+    "vite-plugin-better-enums": "git+https://github.com/eye-wave/better-enums.git",
+    "vite-plugin-glsl": "^1.6.2",
+    "vite-plugin-html": "^3.2.2",
+    "vite-plugin-solid": "^2.11.14",
+    "vite-plus": "1.2.0"
+  },
+  "overrides": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@1.2.0"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "bun",
+      "version": "1.4.3",
+      "onFail": "download"
+    }
   }
 }

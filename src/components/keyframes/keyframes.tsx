@@ -1,10 +1,4 @@
-import {
-  createEffect,
-  createSignal,
-  For,
-  onCleanup,
-  Show,
-} from "solid-js";
+import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
 import { Portal } from "solid-js/web";
 import AudioLines from "lucide-solid/icons/audio-lines";
 import Blend from "lucide-solid/icons/blend";
@@ -14,13 +8,7 @@ import { createStore, reconcile } from "solid-js/store";
 import { knobDrag, unlock } from "../../editor/fine";
 import type { Kf, LaneView } from "../../editor/kf";
 import { editParam } from "../param_edit/param_edit";
-import {
-  clamp,
-  createPoints,
-  drag,
-  placeTip,
-  plotAt,
-} from "../points/points";
+import { clamp, createPoints, drag, placeTip, plotAt } from "../points/points";
 import { laneColors } from "../settings/settings";
 import knobCss from "../node/knob.module.css";
 import kfCss from "./keyframes.module.css";
@@ -190,20 +178,16 @@ export function Keyframes(props: { host: Host }) {
     ]);
   };
 
-  const line = (l: LaneView) =>
-    Array.from(l.curve, (v, i) => `${X(i / 2)},${Y(v)}`).join(" ");
+  const line = (l: LaneView) => Array.from(l.curve, (v, i) => `${X(i / 2)},${Y(v)}`).join(" ");
   // Adjacent key pairs by time: [index of the earlier key, earlier, later].
   const segments = (l: LaneView) => {
-    const o = l.keys
-      .map((k, i) => [i, k] as const)
-      .sort((x, y) => x[1].t - y[1].t);
+    const o = l.keys.map((k, i) => [i, k] as const).sort((x, y) => x[1].t - y[1].t);
     return o
       .slice(1)
       .map(([, b], n) => [o[n][0], o[n][1], b] as const)
       .filter(([, a, b]) => b.t > a.t);
   };
-  const area = (l: LaneView) =>
-    l.curve.length ? `${X(0)},${H} ${line(l)} ${X(FRAMES)},${H}` : "";
+  const area = (l: LaneView) => (l.curve.length ? `${X(0)},${H} ${line(l)} ${X(FRAMES)},${H}` : "");
 
   function Picker(props: { lane: number }) {
     const [open, setOpen] = createSignal(false);
@@ -212,19 +196,14 @@ export function Keyframes(props: { host: Host }) {
     let btn!: HTMLButtonElement;
     let pop: HTMLDivElement | undefined;
     const lane = () => s.lanes[props.lane];
-    const owner = (addr: number) =>
-      s.lanes.findIndex((x) => x.addrs.includes(addr));
+    const owner = (addr: number) => s.lanes.findIndex((x) => x.addrs.includes(addr));
 
     const label = () => {
       const a = lane()?.addrs ?? [];
       const hit = nodes().flatMap((n) =>
-        n.params
-          .filter((p) => p.addr === a[0])
-          .map((p) => `${n.name} · ${p.name}`),
+        n.params.filter((p) => p.addr === a[0]).map((p) => `${n.name} · ${p.name}`),
       )[0];
-      return a.length
-        ? (hit ?? "…") + (a.length > 1 ? ` +${a.length - 1}` : "")
-        : "no target";
+      return a.length ? (hit ?? "…") + (a.length > 1 ? ` +${a.length - 1}` : "") : "no target";
     };
 
     const groups = () => {
@@ -232,9 +211,7 @@ export function Keyframes(props: { host: Host }) {
       return nodes()
         .map((n) => ({
           n,
-          ps: n.params.filter((p) =>
-            `${n.name} ${p.name}`.toLowerCase().includes(needle),
-          ),
+          ps: n.params.filter((p) => `${n.name} ${p.name}`.toLowerCase().includes(needle)),
         }))
         .filter((g) => g.ps.length);
     };
@@ -275,8 +252,7 @@ export function Keyframes(props: { host: Host }) {
     createEffect(() => {
       if (!open()) return;
       const away = (e: Event) => {
-        if (!pop?.contains(e.target as Node) && !btn.contains(e.target as Node))
-          setOpen(false);
+        if (!pop?.contains(e.target as Node) && !btn.contains(e.target as Node)) setOpen(false);
       };
       const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
       addEventListener("pointerdown", away, true);
@@ -308,10 +284,7 @@ export function Keyframes(props: { host: Host }) {
                 onInput={(e) => setQ(e.currentTarget.value)}
               />
               <div class={kfCss.kfPopList}>
-                <For
-                  each={groups()}
-                  fallback={<p class={kfCss.kfPopEmpty}>No params</p>}
-                >
+                <For each={groups()} fallback={<p class={kfCss.kfPopEmpty}>No params</p>}>
                   {(g) => (
                     <>
                       <div class={kfCss.kfPopNode}>{g.n.name}</div>
@@ -330,12 +303,7 @@ export function Keyframes(props: { host: Host }) {
                               </Show>
                             </span>
                             {p.name}
-                            <Show
-                              when={
-                                owner(p.addr) >= 0 &&
-                                owner(p.addr) !== props.lane
-                              }
-                            >
+                            <Show when={owner(p.addr) >= 0 && owner(p.addr) !== props.lane}>
                               <em>{s.lanes[owner(p.addr)].name}</em>
                             </Show>
                           </div>
@@ -356,248 +324,222 @@ export function Keyframes(props: { host: Host }) {
 
   return (
     <>
-          <For each={s.lanes}>
-            {(l, i) => {
-              const col = () => laneColors(i(), !!l.mode);
-              return (
-                <div
-                  class={`kf-row ${kfCss.kfLane}`}
-                  classList={{
-                    [kfCss.kfFadeLane]: l.mode === 1,
-                    [kfCss.kfSpecLane]: l.mode === 2,
-                  }}
-                  style={{
-                    "--c": col().c,
-                    "--c2": col().c2,
-                    "--sc": l.mode ? `url(#kfg${i()})` : undefined,
+      <For each={s.lanes}>
+        {(l, i) => {
+          const col = () => laneColors(i(), !!l.mode);
+          return (
+            <div
+              class={`kf-row ${kfCss.kfLane}`}
+              classList={{
+                [kfCss.kfFadeLane]: l.mode === 1,
+                [kfCss.kfSpecLane]: l.mode === 2,
+              }}
+              style={{
+                "--c": col().c,
+                "--c2": col().c2,
+                "--sc": l.mode ? `url(#kfg${i()})` : undefined,
+              }}
+            >
+              <div class={"kf-label"}>
+                {ICONS[l.mode ?? 0]()}
+                <input
+                  value={l.name}
+                  onInput={(e) => (host.rename(i(), e.currentTarget.value), refresh())}
+                />
+                <Picker lane={i()} />
+                <button
+                  title="Remove lane"
+                  onClick={() => {
+                    host.removeLane(i());
+                    pts.clear();
+                    refresh();
                   }}
                 >
-                  <div class={"kf-label"}>
-                    {ICONS[l.mode ?? 0]()}
-                    <input
-                      value={l.name}
-                      onInput={(e) => (
-                        host.rename(i(), e.currentTarget.value),
-                        refresh()
-                      )}
-                    />
-                    <Picker lane={i()} />
-                    <button
-                      title="Remove lane"
-                      onClick={() => {
-                        host.removeLane(i());
-                        pts.clear();
-                        refresh();
-                      }}
-                    >
-                      <Close size={14} />
-                    </button>
-                  </div>
-                  <div
-                    class={"kf-track"}
-                    onDblClick={(e) => {
-                      if (l.lfo) return;
-                      const [fx, fy] = plotAt(
-                        e,
-                        e.currentTarget,
-                        [PADX, PADY],
-                        [FRAMES * z(), INNER],
-                      );
-                      pts.add(e, () => {
-                        const k = host.addKey(i(), Math.round(fx * FRAMES), fy);
-                        refresh();
-                        return k >= 0 ? [i(), k] : undefined;
-                      });
-                    }}
-                  >
-                    <Show when={l.lfo}>
-                      <div class={kfCss.kfLfo}>
-                        <div class={kfCss.kfKnobs}>
-                          {(l.rand ? RAND : LFO).map((P, j) => (
-                            <div
-                              class={kfCss.kfKnob}
-                              style={{ "--v": l.lfo![j] }}
-                              title={`${P.name} (double-click to reset)`}
-                              onPointerDown={(e) => {
-                                let v = l.lfo![j];
-                                if (e.ctrlKey)
-                                  return editParam(e.currentTarget, {
-                                    options: P.o,
-                                    value: P.o ? `${P.to(v)}` : fmt(P.to(v)),
-                                    commit(s) {
-                                      const n = parseFloat(s);
-                                      if (isNaN(n)) return;
-                                      host.setLfo(i(), j, clamp(P.from(n), 0, 1));
-                                      refresh();
-                                    },
-                                  });
-                                const d = knobDrag(e);
-                                addEventListener("pointerup", unlock, {
-                                  once: true,
-                                });
-                                drag(e, (m) => {
-                                  v = clamp(v + d(m), 0, 1);
-                                  host.setLfo(i(), j, v);
-                                  refresh();
-                                });
-                              }}
-                              onDblClick={() => (
-                                host.setLfo(i(), j, P.def),
-                                refresh()
-                              )}
-                            >
-                              <div class={`${knobCss.dial} ${kfCss.kfDial}`} />
-                              <span class={kfCss.n}>{P.name}</span>
-                              <span class={kfCss.v}>{P.text(l.lfo![j])}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </Show>
-                    <svg
-                      class={kfCss.kfLine}
-                      width={X(FRAMES) + PADX}
-                      height={H}
-                    >
-                      <Show when={l.mode}>
-                        <linearGradient
-                          id={`kfg${i()}`}
-                          gradientUnits="userSpaceOnUse"
-                          x1="0"
-                          x2={X(FRAMES) + PADX}
-                        >
-                          <stop offset="0" stop-color={col().c} />
-                          <stop offset="1" stop-color={col().c2} />
-                        </linearGradient>
-                      </Show>
-                      <polygon points={area(l)} />
-                      <polyline points={line(l)} />
-                    </svg>
-                    <For each={segments(l)}>
-                      {([ki, a, b]) => (
-                        <i
-                          class={kfCss.kfMid}
-                          classList={{
-                            [kfCss.kfFade]: l.mode === 1,
-                            [kfCss.kfSpec]: l.mode === 2,
-                          }}
-                          title="Curve (double-click to reset)"
-                          style={{
-                            left: `${X((a.t + b.t) / 2)}px`,
-                            top: `${Y(a.v + (b.v - a.v) * a.c)}px`,
-                          }}
+                  <Close size={14} />
+                </button>
+              </div>
+              <div
+                class={"kf-track"}
+                onDblClick={(e) => {
+                  if (l.lfo) return;
+                  const [fx, fy] = plotAt(e, e.currentTarget, [PADX, PADY], [FRAMES * z(), INNER]);
+                  pts.add(e, () => {
+                    const k = host.addKey(i(), Math.round(fx * FRAMES), fy);
+                    refresh();
+                    return k >= 0 ? [i(), k] : undefined;
+                  });
+                }}
+              >
+                <Show when={l.lfo}>
+                  <div class={kfCss.kfLfo}>
+                    <div class={kfCss.kfKnobs}>
+                      {(l.rand ? RAND : LFO).map((P, j) => (
+                        <div
+                          class={kfCss.kfKnob}
+                          style={{ "--v": l.lfo![j] }}
+                          title={`${P.name} (double-click to reset)`}
                           onPointerDown={(e) => {
-                            e.stopPropagation();
-                            if (e.button || a.v === b.v) return;
-                            const top =
-                              e.currentTarget.parentElement!.getBoundingClientRect()
-                                .top;
+                            let v = l.lfo![j];
+                            if (e.ctrlKey)
+                              return editParam(e.currentTarget, {
+                                options: P.o,
+                                value: P.o ? `${P.to(v)}` : fmt(P.to(v)),
+                                commit(s) {
+                                  const n = parseFloat(s);
+                                  if (isNaN(n)) return;
+                                  host.setLfo(i(), j, clamp(P.from(n), 0, 1));
+                                  refresh();
+                                },
+                              });
+                            const d = knobDrag(e);
+                            addEventListener("pointerup", unlock, {
+                              once: true,
+                            });
                             drag(e, (m) => {
-                              const v = clamp(
-                                1 - (m.clientY - top - PADY) / INNER,
-                                0,
-                                1,
-                              );
-                              host.setCurve(
-                                i(),
-                                ki,
-                                clamp((v - a.v) / (b.v - a.v), 0.02, 0.98),
-                              );
+                              v = clamp(v + d(m), 0, 1);
+                              host.setLfo(i(), j, v);
                               refresh();
                             });
                           }}
-                          onDblClick={(e) => (
-                            e.stopPropagation(),
-                            host.setCurve(i(), ki, 0.5),
-                            refresh()
-                          )}
-                        />
-                      )}
-                    </For>
-                    <For each={l.keys}>
-                      {(k, ki) => (
-                        <b
-                          class={kfCss.kfKey}
-                          classList={{ [kfCss.on]: pts.isSel(i(), ki()) }}
-                          style={{ left: `${X(k.t)}px`, top: `${Y(k.v)}px` }}
-                          ref={(el) => {
-                            createEffect(
-                              () => (
-                                k.t,
-                                k.v,
-                                z(),
-                                width(),
-                                pts.isSel(i(), ki()),
-                                queueMicrotask(() => place(el))
-                              ),
-                            );
-                          }}
-                          onPointerEnter={(e) => place(e.currentTarget)}
-                          {...pts.point(
-                            () => [i(), ki()],
-                            () => ({
-                              at: [k.t, k.v],
-                              per: [1 / z(), -1 / INNER],
-                              min: [0, 0],
-                              max: [FRAMES, 1],
-                              move: (t, v) => {
-                                host.setKey(i(), ki(), Math.round(t), v);
-                                refresh();
-                              },
-                              edit: () => {
-                                const t = k.t;
-                                const set = (v: number) => {
-                                  host.setKey(i(), ki(), t, clamp(v, 0, 1));
-                                  refresh();
-                                };
-                                // one entry per target that resolves to a param
-                                const ts = nodes().flatMap((n) =>
-                                  n.params
-                                    .filter((p) => l.addrs.includes(p.addr))
-                                    .map((p) => ({ n, p })),
-                                );
-                                const views = ts.map(({ n, p }) => {
-                                  const d = host.denorm(n.n, p.j, k.v);
-                                  return {
-                                    label: `${n.name} · ${p.name}`,
-                                    options: p.o,
-                                    value: p.o ? `${Math.round(d)}` : fmt(d),
-                                    commit(s: string) {
-                                      const x = parseFloat(s);
-                                      if (!isNaN(x)) set(host.norm(n.n, p.j, x));
-                                    },
-                                  };
-                                });
-                                const normed = {
-                                  label: "norm",
-                                  value: k.v.toFixed(4),
-                                  commit(s: string) {
-                                    const x = parseFloat(s);
-                                    if (!isNaN(x)) set(x);
-                                  },
-                                };
-                                return views.length === 1
-                                  ? views[0]
-                                  : views.length
-                                    ? { ...views[0], alts: [...views, normed] }
-                                    : normed;
-                              },
-                            }),
-                          )}
+                          onDblClick={() => (host.setLfo(i(), j, P.def), refresh())}
                         >
-                          <span>
-                            {k.t} · {k.v.toFixed(4)}
-                          </span>
-                        </b>
-                      )}
-                    </For>
+                          <div class={`${knobCss.dial} ${kfCss.kfDial}`} />
+                          <span class={kfCss.n}>{P.name}</span>
+                          <span class={kfCss.v}>{P.text(l.lfo![j])}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              );
-            }}
-          </For>
-          <pts.Menu />
-
+                </Show>
+                <svg class={kfCss.kfLine} width={X(FRAMES) + PADX} height={H}>
+                  <Show when={l.mode}>
+                    <linearGradient
+                      id={`kfg${i()}`}
+                      gradientUnits="userSpaceOnUse"
+                      x1="0"
+                      x2={X(FRAMES) + PADX}
+                    >
+                      <stop offset="0" stop-color={col().c} />
+                      <stop offset="1" stop-color={col().c2} />
+                    </linearGradient>
+                  </Show>
+                  <polygon points={area(l)} />
+                  <polyline points={line(l)} />
+                </svg>
+                <For each={segments(l)}>
+                  {([ki, a, b]) => (
+                    <i
+                      class={kfCss.kfMid}
+                      classList={{
+                        [kfCss.kfFade]: l.mode === 1,
+                        [kfCss.kfSpec]: l.mode === 2,
+                      }}
+                      title="Curve (double-click to reset)"
+                      style={{
+                        left: `${X((a.t + b.t) / 2)}px`,
+                        top: `${Y(a.v + (b.v - a.v) * a.c)}px`,
+                      }}
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        if (e.button || a.v === b.v) return;
+                        const top = e.currentTarget.parentElement!.getBoundingClientRect().top;
+                        drag(e, (m) => {
+                          const v = clamp(1 - (m.clientY - top - PADY) / INNER, 0, 1);
+                          host.setCurve(i(), ki, clamp((v - a.v) / (b.v - a.v), 0.02, 0.98));
+                          refresh();
+                        });
+                      }}
+                      onDblClick={(e) => (
+                        e.stopPropagation(),
+                        host.setCurve(i(), ki, 0.5),
+                        refresh()
+                      )}
+                    />
+                  )}
+                </For>
+                <For each={l.keys}>
+                  {(k, ki) => (
+                    <b
+                      class={kfCss.kfKey}
+                      classList={{ [kfCss.on]: pts.isSel(i(), ki()) }}
+                      style={{ left: `${X(k.t)}px`, top: `${Y(k.v)}px` }}
+                      ref={(el) => {
+                        createEffect(
+                          () => (
+                            k.t,
+                            k.v,
+                            z(),
+                            width(),
+                            pts.isSel(i(), ki()),
+                            queueMicrotask(() => place(el))
+                          ),
+                        );
+                      }}
+                      onPointerEnter={(e) => place(e.currentTarget)}
+                      {...pts.point(
+                        () => [i(), ki()],
+                        () => ({
+                          at: [k.t, k.v],
+                          per: [1 / z(), -1 / INNER],
+                          min: [0, 0],
+                          max: [FRAMES, 1],
+                          move: (t, v) => {
+                            host.setKey(i(), ki(), Math.round(t), v);
+                            refresh();
+                          },
+                          edit: () => {
+                            const t = k.t;
+                            const set = (v: number) => {
+                              host.setKey(i(), ki(), t, clamp(v, 0, 1));
+                              refresh();
+                            };
+                            // one entry per target that resolves to a param
+                            const ts = nodes().flatMap((n) =>
+                              n.params
+                                .filter((p) => l.addrs.includes(p.addr))
+                                .map((p) => ({ n, p })),
+                            );
+                            const views = ts.map(({ n, p }) => {
+                              const d = host.denorm(n.n, p.j, k.v);
+                              return {
+                                label: `${n.name} · ${p.name}`,
+                                options: p.o,
+                                value: p.o ? `${Math.round(d)}` : fmt(d),
+                                commit(s: string) {
+                                  const x = parseFloat(s);
+                                  if (!isNaN(x)) set(host.norm(n.n, p.j, x));
+                                },
+                              };
+                            });
+                            const normed = {
+                              label: "norm",
+                              value: k.v.toFixed(4),
+                              commit(s: string) {
+                                const x = parseFloat(s);
+                                if (!isNaN(x)) set(x);
+                              },
+                            };
+                            return views.length === 1
+                              ? views[0]
+                              : views.length
+                                ? { ...views[0], alts: [...views, normed] }
+                                : normed;
+                          },
+                        }),
+                      )}
+                    >
+                      <span>
+                        {k.t} · {k.v.toFixed(4)}
+                      </span>
+                    </b>
+                  )}
+                </For>
+              </div>
+            </div>
+          );
+        }}
+      </For>
+      <pts.Menu />
     </>
   );
 }

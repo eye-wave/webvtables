@@ -5,9 +5,7 @@ import { Flags, Head, Knob, Scope } from "./node";
 import knobCss from "./knob.module.css";
 import nodeUiCss from "./node_ui.module.css";
 
-const DataView = lazy(() =>
-  import("./data_ui").then((m) => ({ default: m.DataView })),
-);
+const DataView = lazy(() => import("./data_ui").then((m) => ({ default: m.DataView })));
 
 const WaveshaperView = lazy(() =>
   import("./waveshaper_ui").then((m) => ({ default: m.WaveshaperView })),

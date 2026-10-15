@@ -26,8 +26,7 @@ export function parseWav(buf: ArrayBuffer): Float32Array {
     }
     p += 8 + n + (n & 1);
   }
-  if (!float)
-    throw new Error("Need a mono 32-bit float WAV (a webvtables export).");
+  if (!float) throw new Error("Need a mono 32-bit float WAV (a webvtables export).");
   if (size < 0) throw new Error("WAV has no data chunk.");
 
   const frames = Math.min(MAX_FRAMES, Math.floor(size / 4 / FRAME));

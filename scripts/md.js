@@ -68,10 +68,7 @@ export default function md() {
         );
 
         // a line holding only an <md-*> tag gets blank lines around it, or markdown stops at the html block
-        const src = tex.replace(
-          /^[ \t]*(<\/?md-[\w-]+[^>]*>)[ \t]*\r?$/gm,
-          "\n$1\n",
-        );
+        const src = tex.replace(/^[ \t]*(<\/?md-[\w-]+[^>]*>)[ \t]*\r?$/gm, "\n$1\n");
 
         const html = (await marked.parse(src))
           // html has no self-closing custom elements: <md-x /> would swallow what follows
@@ -91,10 +88,7 @@ export default function md() {
           .replace(/@@math(\d+)@@/g, (_, i) => math[+i])
           // a plain space right after the math is lost on screen (the text sticks to the formula), so keep it as nbsp
           .replace(/(<\/math><\/span>) (?=[^\s<])/g, "$1&nbsp;")
-          .replace(
-            /(?:<p>)?@@code(\d+)@@(?:<\/p>)?/g,
-            (_, i) => looked[+i].html,
-          );
+          .replace(/(?:<p>)?@@code(\d+)@@(?:<\/p>)?/g, (_, i) => looked[+i].html);
         if (dev)
           return `export default ${JSON.stringify("data:text/html;charset=utf-8," + encodeURIComponent(html))}`;
         const ref = this.emitFile({

@@ -13,8 +13,8 @@ type Param = { n: string; o?: readonly string[]; u?: string };
 const Params = (p: { node: Node }) => (
   <>
     <p class={css.ports}>
-      <b>{p.node.inputs}</b> {p.node.inputs === 1 ? "input" : "inputs"} ·{" "}
-      <b>{p.node.outputs}</b> {p.node.outputs === 1 ? "output" : "outputs"}
+      <b>{p.node.inputs}</b> {p.node.inputs === 1 ? "input" : "inputs"} · <b>{p.node.outputs}</b>{" "}
+      {p.node.outputs === 1 ? "output" : "outputs"}
     </p>
     <Show when={p.node.params.length}>
       <table>
@@ -29,9 +29,7 @@ const Params = (p: { node: Node }) => (
             {(q) => (
               <tr>
                 <td>{q.n}</td>
-                <td>
-                  {q.o ? q.o.join(" · ") : q.u ? `number (${q.u})` : "number"}
-                </td>
+                <td>{q.o ? q.o.join(" · ") : q.u ? `number (${q.u})` : "number"}</td>
               </tr>
             )}
           </For>
@@ -93,8 +91,7 @@ export async function openGuide(kind: number, url?: string) {
         () => (
           <>
             <p class={css.empty}>
-              No written guide for this node yet. Here is what it takes and
-              gives:
+              No written guide for this node yet. Here is what it takes and gives:
             </p>
             <Params node={node} />
           </>

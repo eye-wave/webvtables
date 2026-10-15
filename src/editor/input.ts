@@ -101,11 +101,7 @@ export function createInput(
         // useless here: hit-test at the pointer, accept anywhere on a node or collapsed group.
         const hit = document.elementFromPoint(e.clientX, e.clientY);
         const to = hit && scene.nearest(from, hit, view.world(e));
-        const i = to
-          ? e.shiftKey
-            ? scene.merge(from, to)
-            : scene.connect(from, to)
-          : -1;
+        const i = to ? (e.shiftKey ? scene.merge(from, to) : scene.connect(from, to)) : -1;
         // a merge rebuilds the links around the new Add node: the loop re-pins them all
         if (i < 0 || e.shiftKey) ropes.drop(PENDING);
         else ropes.rename(PENDING, i);
@@ -182,12 +178,8 @@ export function createInput(
     if (knob && e.ctrlKey) return editParam(knob, scene.param(knob, schedule));
     const sock = t.closest<HTMLElement>(`.${nodeCss.socket}`);
     const node = t.closest<HTMLElement>(`.${nodeCss.node}`);
-    if (e.shiftKey && node && !knob && !sock)
-      return (scene.select(node), schedule());
-    const link =
-      knob || sock || node || grp
-        ? -1
-        : ropes.hit(view.world(e), HIT / view.v[2]);
+    if (e.shiftKey && node && !knob && !sock) return (scene.select(node), schedule());
+    const link = knob || sock || node || grp ? -1 : ropes.hit(view.world(e), HIT / view.v[2]);
     hover(knob);
     if (link >= 0) unlink(link);
     else {
@@ -230,19 +222,13 @@ export function createInput(
     drag.up?.(e);
     drag = null;
     const target = e.target;
-    hover(
-      target instanceof Element
-        ? target.closest<HTMLElement>(`.${knobCss.knob}`)
-        : null,
-    );
+    hover(target instanceof Element ? target.closest<HTMLElement>(`.${knobCss.knob}`) : null);
 
     schedule();
   });
 
   grid.addEventListener("dblclick", (e) => {
-    const k = (e.target as HTMLElement).closest<HTMLElement>(
-      `.${knobCss.knob}`,
-    );
+    const k = (e.target as HTMLElement).closest<HTMLElement>(`.${knobCss.knob}`);
     if (!k || e.ctrlKey) return;
     scene.resetKnob(k);
     schedule();

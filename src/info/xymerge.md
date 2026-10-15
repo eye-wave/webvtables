@@ -35,12 +35,12 @@ This is the real node, running. Connect multiple audio sources to crossfade and 
 
 The XY Merge node takes up to four input buffers and applies bilinear interpolation weights based on the **x** and **y** parameters. It computes independent amplitude gains for each of the four corners of the plane, summing the scaled input samples into a single output buffer. The inputs sit in the corners like this: input 0 at the top left (x = 0, y = 1), input 1 at the top right (x = 1, y = 1), input 2 at the bottom left (x = 0, y = 0) and input 3 at the bottom right (x = 1, y = 0). With <md-latex>x</md-latex> and <md-latex>y</md-latex> as the parameters:
 
-| Input | Gain                                       |
-| ----- | ------------------------------------------ |
-| 0     | <md-latex>(1 - x) \cdot y</md-latex>       |
-| 1     | <md-latex>x \cdot y</md-latex>             |
-| 2     | <md-latex>(1 - x)(1 - y)</md-latex>        |
-| 3     | <md-latex>x \cdot (1 - y)</md-latex>       |
+| Input | Gain                                 |
+| ----- | ------------------------------------ |
+| 0     | <md-latex>(1 - x) \cdot y</md-latex> |
+| 1     | <md-latex>x \cdot y</md-latex>       |
+| 2     | <md-latex>(1 - x)(1 - y)</md-latex>  |
+| 3     | <md-latex>x \cdot (1 - y)</md-latex> |
 
 The four gains always add up to 1. An input that is not connected counts as silence.
 

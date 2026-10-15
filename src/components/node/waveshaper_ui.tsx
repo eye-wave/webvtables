@@ -1,14 +1,7 @@
 import { createSignal, Index, onCleanup, onMount } from "solid-js";
 import { clamp, createPoints, plotAt, type Grab } from "../points/points";
 import kfCss from "../keyframes/keyframes.module.css";
-import {
-  decodePoints,
-  encodePoints,
-  ptsBoot,
-  registerData,
-  store,
-  type Pt,
-} from "./data_asset";
+import { decodePoints, encodePoints, ptsBoot, registerData, store, type Pt } from "./data_asset";
 import { Flags, Head, Knobs, Scope, useNode, useParam } from "./node";
 import css from "./waveshaper_ui.module.css";
 
@@ -138,10 +131,16 @@ export function WaveshaperView() {
           </div>
           {ticks().map((v) => (
             <>
-              <span class={`${css.tick} ${css.tx}`} style={{ left: `${(v - lo()) / (1 - lo()) * 100}%` }}>
+              <span
+                class={`${css.tick} ${css.tx}`}
+                style={{ left: `${((v - lo()) / (1 - lo())) * 100}%` }}
+              >
                 {v}
               </span>
-              <span class={`${css.tick} ${css.ty}`} style={{ top: `${(1 - (v - lo()) / (1 - lo())) * 100}%` }}>
+              <span
+                class={`${css.tick} ${css.ty}`}
+                style={{ top: `${(1 - (v - lo()) / (1 - lo())) * 100}%` }}
+              >
                 {v}
               </span>
             </>
@@ -155,7 +154,10 @@ export function WaveshaperView() {
                   left: `${at(p()[0]) * 100}%`,
                   top: `${(1 - at(p()[1])) * 100}%`,
                 }}
-                {...ed.point(() => [0, i], () => grab(i))}
+                {...ed.point(
+                  () => [0, i],
+                  () => grab(i),
+                )}
               />
             )}
           </Index>
@@ -163,10 +165,7 @@ export function WaveshaperView() {
       </div>
       <ed.Menu />
       <Flags />
-      <Scope
-        w={0}
-        style={{ flex: "none", height: "56px", "box-sizing": "border-box" }}
-      />
+      <Scope w={0} style={{ flex: "none", height: "56px", "box-sizing": "border-box" }} />
     </>
   );
 }

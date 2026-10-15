@@ -42,11 +42,11 @@ LPC analyzes the incoming audio waveform by computing its circular autocorrelati
 
 The all-pole model gives an envelope <md-latex>E_k = G / \lvert A(\omega_k) \rvert</md-latex> at every harmonic <md-latex>k</md-latex>, where <md-latex>A</md-latex> is the prediction filter built from the coefficients <md-latex>a_1 \ldots a_p</md-latex> (<md-latex>p</md-latex> is the **Order**) and <md-latex>G</md-latex> is the gain left over from the prediction error. With <md-latex>X_k</md-latex> as the spectrum of input A, each mode changes the bins as follows (the lowest bin, which holds DC, is left alone):
 
-| Mode   | Result per bin                                                                         |
-| ------ | -------------------------------------------------------------------------------------- |
+| Mode   | Result per bin                                                                                                           |
+| ------ | ------------------------------------------------------------------------------------------------------------------------ |
 | Smooth | <md-latex>Y_k = X_k \cdot E^A_k / \lvert X_k \rvert</md-latex>, the magnitude becomes the envelope and the phase is kept |
-| Whiten | <md-latex>Y_k = X_k / E^A_k</md-latex>                                                  |
-| Cross  | <md-latex>Y_k = X_k \cdot E^B_k / E^A_k</md-latex>, where <md-latex>E^B</md-latex> is the envelope of input B |
+| Whiten | <md-latex>Y_k = X_k / E^A_k</md-latex>                                                                                   |
+| Cross  | <md-latex>Y_k = X_k \cdot E^B_k / E^A_k</md-latex>, where <md-latex>E^B</md-latex> is the envelope of input B            |
 
 **Mix** blends the correction per bin, and the result is scaled to a peak level of 1.0 at the end.
 

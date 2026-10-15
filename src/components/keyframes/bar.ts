@@ -15,8 +15,7 @@ export const FRAMES = 255,
   LABEL = 148,
   PADX = 10,
   H = 72;
-const clamp = (v: number, lo: number, hi: number) =>
-  Math.min(hi, Math.max(lo, v));
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 export type Bar = ReturnType<typeof createBar>;
 
@@ -28,8 +27,7 @@ export function createBar(o: {
   let mult = 1,
     frame = 0;
   const subs: (() => void)[] = [];
-  const z = () =>
-    (Math.max(kfScroll.clientWidth - LABEL - 2 * PADX - 1, FRAMES) / FRAMES) * mult;
+  const z = () => (Math.max(kfScroll.clientWidth - LABEL - 2 * PADX - 1, FRAMES) / FRAMES) * mult;
   const headAt = () => (kfHead.style.left = `${LABEL + PADX + frame * z()}px`);
 
   const layout = () => {

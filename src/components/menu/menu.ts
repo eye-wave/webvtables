@@ -5,12 +5,7 @@ import type { ViewCtl } from "../../gfx/view";
 import nodeCss from "../node/node.module.css";
 import menuCss from "./menu.module.css";
 
-export function createMenu(
-  grid: HTMLElement,
-  view: ViewCtl,
-  scene: Scene,
-  schedule: () => void,
-) {
+export function createMenu(grid: HTMLElement, view: ViewCtl, scene: Scene, schedule: () => void) {
   const root = document.createElement("div");
   root.className = menuCss.menu;
   root.hidden = true;
@@ -113,9 +108,7 @@ export function createMenu(
     else return;
     e.preventDefault();
   });
-  list.addEventListener("click", (e) =>
-    pick((e.target as HTMLElement).closest("li")),
-  );
+  list.addEventListener("click", (e) => pick((e.target as HTMLElement).closest("li")));
 
   const open = (e: MouseEvent) => {
     e.preventDefault();

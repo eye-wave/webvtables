@@ -22,13 +22,8 @@ export type Asset = Audio | Img;
 
 export const TYPES = { audio: "sampl_pts", image: "pixels" } as const;
 
-export async function decodeAudio(
-  bytes: Uint8Array,
-  name: string,
-): Promise<Audio> {
-  const b = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(
-    bytes.slice().buffer,
-  );
+export async function decodeAudio(bytes: Uint8Array, name: string): Promise<Audio> {
+  const b = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(bytes.slice().buffer);
   const x = new Float32Array(b.length);
   for (let c = 0; c < b.numberOfChannels; c++) {
     const d = b.getChannelData(c);
@@ -37,13 +32,8 @@ export async function decodeAudio(
   return { t: "audio", name, bytes, x };
 }
 
-export async function decodeImage(
-  bytes: Uint8Array,
-  name: string,
-): Promise<Img> {
-  const bmp = await createImageBitmap(
-      new Blob([bytes as Uint8Array<ArrayBuffer>]),
-    ),
+export async function decodeImage(bytes: Uint8Array, name: string): Promise<Img> {
+  const bmp = await createImageBitmap(new Blob([bytes as Uint8Array<ArrayBuffer>])),
     cv = document.createElement("canvas");
   cv.width = bmp.width;
   cv.height = bmp.height;
@@ -53,11 +43,7 @@ export async function decodeImage(
   return { t: "image", name, bytes, w: cv.width, h: cv.height, rgba: data, cv };
 }
 
-export function decode(
-  typ: string | undefined,
-  bytes: Uint8Array,
-  name: string,
-): Promise<Asset> {
+export function decode(typ: string | undefined, bytes: Uint8Array, name: string): Promise<Asset> {
   if (typ === TYPES.audio) return decodeAudio(bytes, name);
   if (typ === TYPES.image) return decodeImage(bytes, name);
   throw new Error(`unknown asset type ${typ}`);
@@ -99,10 +85,7 @@ const live = new Set<{
   el: () => HTMLElement | undefined;
   get: () => Saved | undefined;
 }>();
-export const registerData = (
-  el: () => HTMLElement | undefined,
-  get: () => Saved | undefined,
-) => {
+export const registerData = (el: () => HTMLElement | undefined, get: () => Saved | undefined) => {
   const e = { el, get };
   live.add(e);
   return () => live.delete(e);
@@ -118,10 +101,7 @@ export type ImageView = {
   img: [x: number, y: number, w: number, h: number];
   box: [x0: number, y0: number, x1: number, y1: number];
 };
-export const imageViews = new WeakMap<
-  Element,
-  (w: number, h: number) => ImageView
->();
+export const imageViews = new WeakMap<Element, (w: number, h: number) => ImageView>();
 
 // The audio counterpart: peaks are [min, max] pairs, under/over are rects (x y w h r g b a) relative
 // to the element's top-left corner.
@@ -131,7 +111,4 @@ export type PanelView = {
   under: number[];
   over: number[];
 };
-export const panelViews = new WeakMap<
-  Element,
-  (w: number, h: number) => PanelView
->();
+export const panelViews = new WeakMap<Element, (w: number, h: number) => PanelView>();

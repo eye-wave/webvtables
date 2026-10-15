@@ -73,12 +73,7 @@ const hex = (b: ArrayBuffer) =>
 export async function dedupe(p: Project) {
   const sums = await Promise.all(
     p.assets.map(async (a) =>
-      hex(
-        await crypto.subtle.digest(
-          "SHA-256",
-          a.data as Uint8Array<ArrayBuffer>,
-        ),
-      ),
+      hex(await crypto.subtle.digest("SHA-256", a.data as Uint8Array<ArrayBuffer>)),
     ),
   );
   const first = new Map<string, string>();
@@ -94,9 +89,7 @@ export async function dedupe(p: Project) {
 
 // Math LaTeX is written inline in the .wtp, so only the other assets need a zip.
 const zipped = (p: Project) =>
-  p.assets.filter(
-    (a) => !p.nodes.some((n) => n.asset === a.id && n.kind === "math"),
-  );
+  p.assets.filter((a) => !p.nodes.some((n) => n.asset === a.id && n.kind === "math"));
 export const needsZip = (p: Project) => zipped(p).length > 0;
 
 export async function pack(p: Project) {
@@ -185,10 +178,7 @@ const specFromJson = (json: string): Record<string, string> => {
   const o = JSON.parse(json);
   if (!o || typeof o !== "object" || Array.isArray(o)) throw new Error();
   return Object.fromEntries(
-    Object.entries(o).map(([k, v]) => [
-      SHORT[k] ?? k,
-      Array.isArray(v) ? v.join(" ") : String(v),
-    ]),
+    Object.entries(o).map(([k, v]) => [SHORT[k] ?? k, Array.isArray(v) ? v.join(" ") : String(v)]),
   );
 };
 
@@ -264,10 +254,7 @@ const names = (want: Tok[]) => want.map((t) => Tok[t]).join(" or ");
 const bad = (t: Token, why: string) => new Error(`line ${t.line}: ${why}`);
 
 // `load` supplies asset data (from a .wtx); without it any Data node reference is an error.
-export function parse(
-  text: string,
-  load?: (id: string) => Uint8Array | undefined,
-): Project {
+export function parse(text: string, load?: (id: string) => Uint8Array | undefined): Project {
   const toks = lex(text);
   const p: Project = {
     nodes: [],
@@ -283,8 +270,7 @@ export function parse(
   const next = (...want: Tok[]) => {
     const t = toks[at++];
     if (!t) throw new Error(`unexpected end of file, expected ${names(want)}`);
-    if (!want.includes(t.tok))
-      throw bad(t, `expected ${names(want)}, got ${Tok[t.tok]}`);
+    if (!want.includes(t.tok)) throw bad(t, `expected ${names(want)}, got ${Tok[t.tok]}`);
     return t;
   };
 
@@ -327,25 +313,14 @@ export function parse(
     const head = next(Tok.LaneName);
     const l: Lane = {
       name: head.m[1].replace(/-+$/, ""),
-      type:
-        head.m[2] === "f"
-          ? "L"
-          : head.m[2] === "r"
-            ? "R"
-            : (head.m[2] as Lane["type"]),
+      type: head.m[2] === "f" ? "L" : head.m[2] === "r" ? "R" : (head.m[2] as Lane["type"]),
       targets: [],
       lfo: [],
       keys: [],
     };
     const lfo = l.type === "L" || l.type === "R"; // lanes with values instead of keys
     for (;;) {
-      const t = next(
-        Tok.LaneTarget,
-        Tok.LaneValue,
-        Tok.LaneKey,
-        Tok.LaneCurve,
-        Tok.LaneEnd,
-      );
+      const t = next(Tok.LaneTarget, Tok.LaneValue, Tok.LaneKey, Tok.LaneCurve, Tok.LaneEnd);
       switch (t.tok) {
         case Tok.LaneTarget:
           l.targets.push({ id: t.m[1].toLowerCase(), j: +t.m[2] });
@@ -385,8 +360,7 @@ export function parse(
         d.nodes.push(node());
       } else if (t.tok === Tok.Link)
         d.links.push([t.m[1].toLowerCase(), +t.m[2], t.m[3].toLowerCase(), +t.m[4]]);
-      else if (t.tok === Tok.DefParam)
-        d.params.push({ name: JSON.parse(t.m[1]), targets: [] });
+      else if (t.tok === Tok.DefParam) d.params.push({ name: JSON.parse(t.m[1]), targets: [] });
       else if (!d.params.length) throw bad(t, "param target before any param");
       else
         d.params[d.params.length - 1].targets.push({
@@ -420,10 +394,7 @@ export function parse(
 
   for (const id of new Set(p.nodes.flatMap((x) => x.asset ?? []))) {
     const x = p.nodes.find((x) => x.asset === id)!;
-    const data =
-      x.kind === "math"
-        ? new TextEncoder().encode(tex.get(id) ?? "")
-        : load?.(id);
+    const data = x.kind === "math" ? new TextEncoder().encode(tex.get(id) ?? "") : load?.(id);
     if (!data)
       throw new Error(
         `node ${x.id} uses a missing asset${load ? "" : ` (needs a ${EXT_ZIP} file)`}`,
@@ -506,11 +477,7 @@ export function format(p: Project): string {
       .join("\n");
 
   return (
-    [
-      ...graph(p.nodes, p.links),
-      ...p.lanes.map(lane),
-      ...p.defs.map(def),
-    ]
+    [...graph(p.nodes, p.links), ...p.lanes.map(lane), ...p.defs.map(def)]
       .filter(Boolean)
       .join("\n\n") + "\n"
   );

@@ -42,13 +42,13 @@ Values in between blend the formant frequencies of the two neighboring vowels.
 
 Each vowel is described by three formants (the resonant peaks of the vocal tract):
 
-| Vowel | F1 (Hz) | F2 (Hz) | F3 (Hz) |
-| ----- | ------- | ------- | ------- |
-| 0.0 (ah) | 730  | 1090    | 2440    |
-| 1.0 (eh) | 530  | 1840    | 2480    |
-| 2.0 (ee) | 270  | 2290    | 3010    |
-| 3.0 (aw) | 570  | 840     | 2410    |
-| 4.0 (oo) | 300  | 870     | 2240    |
+| Vowel    | F1 (Hz) | F2 (Hz) | F3 (Hz) |
+| -------- | ------- | ------- | ------- |
+| 0.0 (ah) | 730     | 1090    | 2440    |
+| 1.0 (eh) | 530     | 1840    | 2480    |
+| 2.0 (ee) | 270     | 2290    | 3010    |
+| 3.0 (aw) | 570     | 840     | 2410    |
+| 4.0 (oo) | 300     | 870     | 2240    |
 
 The node takes the FFT of the input and multiplies every bin <md-latex>k</md-latex> by the sum of three resonance curves, one per formant. With <md-latex>f_c = F \cdot \text{Freq} / 1000</md-latex> as the center bin of a formant (<md-latex>F</md-latex> in Hz), <md-latex>x = k / f_c</md-latex> and <md-latex>Q</md-latex> as the **Q** value:
 
