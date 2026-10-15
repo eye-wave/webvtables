@@ -43,7 +43,7 @@ kfHandle.onpointerdown = (e) => {
   kfHandle.onpointerup = () => (kfHandle.onpointermove = null);
 };
 
-loadWasm().then((wasm) => {
+void loadWasm().then((wasm) => {
   const scene = createScene(wasm, nodeGrid, () => schedule());
   const view = createView(nodeGrid, gridBg);
   const ropes = createRopes(wasm);
