@@ -18,6 +18,7 @@ import type { Kf, LazyKf } from "./editor/kf";
 import { createBar } from "./components/keyframes/bar";
 import { createSettings, fpsTick } from "./components/settings/settings";
 import { createProject } from "./components/project/project";
+import { createTabs } from "./components/tabs/tabs";
 
 declare const nodeGrid: HTMLDivElement;
 declare const gridBg: HTMLDivElement;
@@ -100,6 +101,7 @@ loadWasm().then((wasm) => {
   let last = 0;
   const schedule = () =>
     queued || ((queued = true), requestAnimationFrame(frame));
+  createTabs(canvas.parentElement!, view, scene, schedule);
 
   // The ruler/+New shell is plain DOM; the lane editor behind it loads on the first lane.
   const bar = createBar({

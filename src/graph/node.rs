@@ -127,6 +127,8 @@ define_nodes!(
     Waveshaper = "wavshape",
     Window = "window",
     XyMerge = "xymerge",
+    GroupIn = "grpin",
+    GroupOut = "grpout",
 );
 
 #[derive(Clone, Copy)]

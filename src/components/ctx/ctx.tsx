@@ -3,7 +3,7 @@ import { render } from "solid-js/web";
 import { nodes } from "../../generated/nodes";
 import { editParam } from "../param_edit/param_edit";
 import type { Kf, LazyKf } from "../../editor/kf";
-import type { Group, Scene } from "../../editor/scene";
+import type { Inst, Scene } from "../../editor/scene";
 import type { ViewCtl } from "../../gfx/view";
 import knobCss from "../node/knob.module.css";
 import nodeCss from "../node/node.module.css";
@@ -150,54 +150,48 @@ export function createContextMenu(
     ];
   };
 
-  const groupItems = (g: Group): Item[] => [
-    { label: "Rename", run: () => scene.rename(g) },
-    { label: g.shut ? "Expand" : "Collapse", run: () => scene.fold(g) },
-    { label: "Duplicate group", run: () => scene.duplicateGroup(g) },
-    { label: "Ungroup", run: () => scene.ungroup(g) },
+  const instItems = (g: Inst): Item[] => [
+    { label: "Edit definition", run: () => scene.open(g.def.id) },
+    { label: "Duplicate", run: () => void scene.duplicateInst(g) },
     "-",
-    {
-      label: "Delete group and its nodes",
-      run: () => [...g.members].forEach((m) => scene.remove(m)),
-      danger: true,
-    },
+    { label: "Delete", run: () => scene.removeInst(g), danger: true },
   ];
 
-  // Defining a group's node: expose a member's sockets, link its knobs to named group params.
+  // In a definition: link a node's knob to one of the custom node's params (see its sidebar).
   const defineItems = (e: MouseEvent, node: HTMLElement): Item[] => {
-    const g = scene.groupOf(node);
-    const t = e.target as HTMLElement;
-    const sock = t.closest<HTMLElement>(`.${nodeCss.socket}`);
-    const knob = t.closest<HTMLElement>(`.${knobCss.knob}`);
-    if (!g || !(sock || knob)) return [];
-    if (sock)
-      return [
-        {
-          label: `${scene.exposed(sock) ? "Remove from" : "Add to"} group ${sock.dataset.o === "1" ? "outputs" : "inputs"}`,
-          run: () => scene.expose(sock),
-        },
-        "-",
-      ];
-    const cur = scene.paramOf(knob!);
-    const first = nodes[+node.dataset.k!].params[+knob!.dataset.j!].n;
+    const d = scene.defOf(node);
+    const knob = (e.target as HTMLElement).closest<HTMLElement>(`.${knobCss.knob}`);
+    if (!d || !knob) return [];
+    const cur = scene.paramOf(knob);
+    const mine = cur?.targets.find((t) => t.el === node && t.j === +knob.dataset.j!);
+    const first = nodes[+node.dataset.k!].params[+knob.dataset.j!].n;
     return [
       {
-        label: "Group param",
+        label: "Node param",
         sub: [
           {
             label: "New…",
             run() {
-              const n = prompt("Group param name", first)?.trim();
-              if (n) scene.linkParam(knob!, n);
+              const n = prompt("Param name", first)?.trim();
+              if (n) scene.linkParam(knob, n);
             },
           },
-          ...g.params.map((q): Item => ({
-            label: `${q === cur ? "✓ " : ""}${q.name}`,
-            run: () => scene.linkParam(knob!, q.name),
+          ...d.params.map((q): Item => ({
+            label: `${q === cur && !mine?.inv ? "✓ " : ""}${q.name}`,
+            run: () => scene.linkParam(knob, q.name),
           })),
-          ...(cur
-            ? [{ label: "Unlink", run: () => scene.unlinkParam(knob!) } as Item]
+          ...(d.params.length
+            ? [
+                {
+                  label: "Inverted",
+                  sub: d.params.map((q): Item => ({
+                    label: `${q === cur && mine?.inv ? "✓ " : ""}${q.name}`,
+                    run: () => scene.linkParam(knob, q.name, true),
+                  })),
+                } as Item,
+              ]
             : []),
+          ...(cur ? [{ label: "Unlink", run: () => scene.unlinkParam(knob) } as Item] : []),
         ],
       },
       "-",
@@ -219,11 +213,9 @@ export function createContextMenu(
       ...(sel.length
         ? [
             {
-              label: `Group selected (${sel.length})`,
-              run: () => void scene.group(),
-              off: sel.some((n) => scene.groupOf(n))
-                ? "Some selected nodes are already in a group."
-                : undefined,
+              label: `Make custom node from selection (${sel.length})`,
+              run: () => void scene.define(),
+              off: scene.defineBlocked(),
             },
             { label: "Clear selection", run: () => scene.deselect() },
           ]
@@ -235,17 +227,36 @@ export function createContextMenu(
     const t = e.target as HTMLElement;
     const g = scene.groupAt(t);
     if (g) {
-      // a param-list knob belongs to a node hidden inside the group
+      // an instance's knob edits a hidden copy: its value only (keyframes can't follow a rebuild)
       const knob = t.closest<HTMLElement>(`.${knobCss.knob}`);
       return [
-        ...(knob ? paramItems(e, scene.owner(knob)) : []),
-        ...groupItems(g),
+        ...(knob
+          ? [
+              {
+                label: "Enter value…",
+                run: () => editParam(knob, scene.param(knob, schedule)),
+              } satisfies Item,
+              "-" as const,
+            ]
+          : []),
+        ...instItems(g),
       ];
     }
     const node = t.closest<HTMLElement>(`.${nodeCss.node}`);
     if (!node)
       return [
         { label: "Add node…", run: () => openAdd(e) },
+        ...(!scene.tab() && scene.defs().length
+          ? [
+              {
+                label: "Add custom node",
+                sub: scene.defs().map((d): Item => ({
+                  label: d.name,
+                  run: () => void scene.addInst(d, ...view.world(e)),
+                })),
+              } satisfies Item,
+            ]
+          : []),
         ...pickItems(),
         {
           label: "Reset view",
@@ -255,12 +266,10 @@ export function createContextMenu(
           },
         },
       ];
-    const own = scene.groupOf(node);
     return [
       ...paramItems(e, node),
       ...defineItems(e, node),
       ...pickItems(node),
-      ...(own ? [{ label: "Ungroup", run: () => scene.ungroup(own) }] : []),
       { label: "Duplicate", run: () => void scene.duplicate(node) },
       { label: "Reset parameters", run: () => scene.reset(node) },
       "-",

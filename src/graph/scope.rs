@@ -34,11 +34,6 @@ pub fn fill(s: &State, node: usize, widget: u8) -> usize {
             eval(s, node, 0, memo, buf);
             N
         }
-        // 2 + j: output socket j (a custom node's first output may not be socket 0)
-        w @ 2.. => {
-            eval(s, node, (w - 2) as usize, memo, buf);
-            N
-        }
         1 if kind.as_node().has_widget() => {
             let ins = inputs(s, node, kind, memo);
             let refs: Vec<&Buffer> = ins.as_chunks::<N>().0.iter().collect();
@@ -174,6 +169,10 @@ fn post(b: &mut Buffer, f: NodeFlags) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    // BUF and MEMO are globals, so tests that evaluate must not run at the same time.
+    static SERIAL: Mutex<()> = Mutex::new(());
 
     fn add(s: &mut State) -> u16 {
         s.add_node(NodeKind::Add, [0.0; 2], [0.0; 2]).unwrap();
@@ -182,6 +181,7 @@ mod tests {
 
     #[test]
     fn shared_inputs_and_cycles_terminate() {
+        let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
         let mut s = State::new();
         let mut prev = add(&mut s);
         for _ in 0..40 {
@@ -202,6 +202,7 @@ mod tests {
 
     #[test]
     fn long_chain_all_scopes_share_one_memo() {
+        let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
         let mut s = State::new();
         let mut prev = add(&mut s);
         for _ in 0..600 {
@@ -218,6 +219,7 @@ mod tests {
 
     #[test]
     fn random_graphs_never_panic() {
+        let _g = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
         let mut seed = 0x9E37_79B9_7F4A_7C15u64;
         let mut rnd = move || {
             seed ^= seed << 13;

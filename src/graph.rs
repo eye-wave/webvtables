@@ -22,8 +22,8 @@ pub const MAX_PARAMS: usize = 8;
 
 pub struct State {
     pub links: Vec<Link>,
-    // (follower, master) params as (node arena offset, param index); see State::follow
-    pub follows: Vec<((u32, u8), (u32, u8))>,
+    // (follower, master, inverted) params as (node arena offset, param index); see State::follow
+    pub follows: Vec<((u32, u8), (u32, u8), bool)>,
     pub nodes: Vec<u32>,
     pub arena: Arena,
     pub keyframes: Keyframes,

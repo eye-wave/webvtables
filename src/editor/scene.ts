@@ -25,28 +25,41 @@ import groupCss from "../components/group/group.module.css";
 
 export type Sock = { node: number; out: boolean; j: number };
 
-// A group is a custom node built over real nodes. Wasm never hears about the group itself, only
-// about params that mirror each other (param_follow). Expanded it is an outline round the members;
-// collapsed (`shut`) it is one box with the sockets and params it exposes.
-// Members are tracked by element (stable across removals, unlike node indices).
-type Port = { el: HTMLElement; j: number }; // a socket or param of a member node
-type GParam = { name: string; targets: Port[] }; // targets[0] is the knob shown, the rest follow it
-export type Group = {
-  name: string;
-  shut: boolean;
-  members: HTMLElement[];
-  ins: Port[]; // inner input sockets, in order
-  outs: Port[];
-  params: GParam[];
+// A custom node is a definition (see scene) plus instances; ports and params are by element.
+type Port = { el: HTMLElement; j: number; inv?: boolean }; // a param of a definition's node; inv: follows its master as 1 - value
+export type GParam = { name: string; targets: Port[] }; // targets[0] is the knob shown on instances, the rest follow it
+export type Def = { id: string; name: string; params: GParam[] };
+export type Inst = {
+  def: Def;
+  pos: [number, number];
+  members: HTMLElement[]; // the hidden copies of the definition's nodes
+  ins: HTMLElement[]; // copies of its Input nodes, in order: the box's input sockets
+  outs: HTMLElement[];
+  copy: Map<HTMLElement, HTMLElement>; // definition node -> its copy
+  vals: Map<GParam, number>; // param values to apply when (re)expanding
   el: HTMLElement;
+  head: HTMLElement;
   body: HTMLElement;
   rect: [number, number, number, number];
 };
 export const NAME_MAX = 22;
+// What the file stores, by node index (project.ts turns indices into ids).
+export type DefSpec = {
+  id: string;
+  name: string;
+  nodes: number[];
+  params: { name: string; targets: { n: number; j: number; inv?: boolean }[] }[];
+};
+export type InstSpec = { def: string; x: number; y: number; flags: number; vals: number[] };
+export type EndSpec = number | { i: number }; // a node index, or an instance (its port = the socket)
+export type Restore = {
+  defs: DefSpec[];
+  insts: InstSpec[];
+  links: [EndSpec, number, EndSpec, number][]; // links that touch an instance
+};
 
 const GW = 180,
-  GHEAD = 20,
-  GPAD = 16;
+  GHEAD = 20;
 
 const KIND_AT = 16,
   FLAGS_AT = KIND_AT + 1;
@@ -74,6 +87,12 @@ const sizeOf = (kind: number): [number, number] => {
   return [WIDTH, parts.reduce((a, b) => a + b + GAP, PAD - GAP)];
 };
 const OUTPUT = nodes.findIndex((n) => n.name === "Output");
+const GIN = nodes.findIndex((n) => n.id === "grpin");
+const GOUT = nodes.findIndex((n) => n.id === "grpout");
+// state that lives outside the params, so it can't be copied into an instance
+const STATEFUL = new Set(
+  nodes.flatMap((n, k) => (["data", "math", "wavshape", "drawfilt"].includes(n.id) ? [k] : [])),
+);
 
 const INPUTS = categories.indexOf("Inputs");
 const OUTPUTS = categories.indexOf("Outputs");
@@ -102,6 +121,7 @@ export function createScene(
 ) {
   const listeners: (() => void)[] = [];
   const changed = () => {
+    retitle();
     listeners.forEach((f) => f());
   };
   const f32 = () => new Float32Array(wasm.memory.buffer);
@@ -136,7 +156,8 @@ export function createScene(
     mountNode(root, { wasm, i, kind, p, redraw }, ui[nodes[kind].name]?.view);
 
   const dom = () => [...root.children] as HTMLElement[];
-  const sorted = () => dom().sort((a, b) => +a.dataset.n! - +b.dataset.n!);
+  // the main graph's nodes: definitions' and instances' are not for the keyframe panel
+  const sorted = () => dom().filter((e) => !e.dataset.s).sort(byN);
   const byIndex = () =>
     new Map(dom().map((e): [number, HTMLElement] => [+e.dataset.n!, e]));
   // "Gain 2": kind plus its rank among nodes of that kind; shared with the keyframe panel
@@ -156,25 +177,37 @@ export function createScene(
     return [w[p >> 1], u[p + 2], w[(p >> 1) + 2], u[p + 6]] as const;
   };
 
-  // ---- groups -------------------------------------------------------------------------------
-  const groups: Group[] = [];
-  const membership = new Map<HTMLElement, Group>();
-  const groupEl = new WeakMap<HTMLElement, Group>();
-  const rowOwner = new WeakMap<HTMLElement, HTMLElement>(); // param-list knob -> its real node
-  const portSock = new WeakMap<HTMLElement, () => Sock>(); // collapsed group's socket -> inner socket
+  // ---- custom nodes -------------------------------------------------------------------------
+  // A custom node is a definition (a tab: its own graph of real nodes, tagged `data-s` = its id) plus
+  // instances in the main graph. An instance is hidden copies of the definition's nodes (`data-s` =
+  // "i"), shown as one box; it is rebuilt from the definition when that tab is left. What belongs to
+  // the instance itself: position, flags (on its Output copies) and its group params (param_follow).
+  // Elements are tracked, not indices: they stay valid when nodes are removed.
+  const defs: Def[] = [];
+  const insts: Inst[] = [];
+  const membership = new Map<HTMLElement, Inst>(); // hidden copy -> its instance
+  const groupEl = new WeakMap<HTMLElement, Inst>();
+  const rowOwner = new WeakMap<HTMLElement, HTMLElement>(); // instance knob -> the copy it edits
+  const portSock = new WeakMap<HTMLElement, () => Sock>(); // instance socket -> the copy's socket
   const picked = new Set<HTMLElement>();
+  let tab = ""; // "" = main, else the id of the definition being edited
   // Same transform as the grid (copied in sync). It has to sit after the grid, which covers the
-  // whole area and would otherwise swallow every click meant for a group.
+  // whole area and would otherwise swallow every click meant for an instance.
   const layer = Object.assign(document.createElement("div"), {
     className: groupCss.layer,
   });
   root.after(layer);
 
-  const shut = (el?: HTMLElement) => {
-    const g = el && membership.get(el);
-    return g?.shut ? g : undefined;
+  const spaceOf = (el: HTMLElement) => el.dataset.s ?? "";
+  const byN = (a: HTMLElement, b: HTMLElement) => +a.dataset.n! - +b.dataset.n!;
+  const shut = (el?: HTMLElement) => (el ? membership.get(el) : undefined);
+  const shown = (el: HTMLElement) => !membership.has(el) && spaceOf(el) === tab;
+  const visible = () => dom().filter(shown);
+  const defOf = (el: HTMLElement) => defs.find((d) => d.id === spaceOf(el));
+  const applyTab = () => {
+    dom().forEach((e) => (e.style.display = shown(e) ? "" : "none"));
+    layer.style.display = tab ? "none" : "";
   };
-  const visible = () => dom().filter((e) => !shut(e));
   const owner = (k: HTMLElement) =>
     rowOwner.get(k) ?? k.closest<HTMLElement>(`.${nodeCss.node}`)!;
 
@@ -201,176 +234,260 @@ export function createScene(
       textContent: text,
     });
 
+  // Input/Output nodes of a definition are numbered by their order in it: "Input #2".
+  const retitle = () => {
+    const seen = new Map<string, number>();
+    for (const e of dom().sort(byN)) {
+      const k = +e.dataset.k!;
+      if (k !== GIN && k !== GOUT) continue;
+      const key = `${spaceOf(e)}/${k}`;
+      const n = (seen.get(key) ?? 0) + 1;
+      seen.set(key, n);
+      const t = e.querySelector(`.${nodeCss.title}`);
+      if (t) t.textContent = `${k === GIN ? "Input" : "Output"} #${n}`;
+    }
+  };
+
+  const hideSocks = (el: HTMLElement) => {
+    const k = +el.dataset.k!;
+    if (k === GIN || k === GOUT)
+      el.querySelector(`.${nodeCss.socket}[data-o="${+(k === GOUT)}"]`)?.remove();
+  };
+
+  // A real node in space `sp` ("" main, a definition id, or "i" for an instance's copy).
+  const spawn = (kind: number, x: number, y: number, sp: string) => {
+    const p = wasm.add_node(kind, x, y, ...sizeOf(kind));
+    if (p < 0) return;
+    mount(wasm.nodes_len() - 1, p, kind);
+    const el = root.lastElementChild as HTMLElement;
+    if (sp) el.dataset.s = sp;
+    hideSocks(el);
+    el.style.display = sp === tab ? "" : "none";
+    return el;
+  };
+
+  // Removes a node without any bookkeeping about what it belonged to.
+  const drop = (el: HTMLElement) => {
+    const n = +el.dataset.n!;
+    wasm.remove_node(n);
+    unmountNode(el);
+    root
+      .querySelectorAll<HTMLElement>(`.${nodeCss.node}, .${nodeCss.socket}`)
+      .forEach((e) => {
+        if (+e.dataset.n! > n) e.dataset.n = `${+e.dataset.n! - 1}`;
+      });
+  };
+
   const follow = (f: Port, m: Port, on: boolean) =>
-    wasm.param_follow(+f.el.dataset.p!, f.j, +m.el.dataset.p!, m.j, +on as bool);
+    wasm.param_follow(+f.el.dataset.p!, f.j, +m.el.dataset.p!, m.j, +on as bool, +!!f.inv as bool);
   const sameKnob = (a: Port, b: Port) => a.el === b.el && a.j === b.j;
 
   // Drops the params' targets matching `gone`; when the master goes, the next one takes over.
-  const unbind = (g: Group, gone: (p: Port) => boolean) => {
-    for (const q of g.params) {
+  const unbind = (d: Def, gone: (p: Port) => boolean) => {
+    for (const q of d.params) {
       const rest = q.targets.filter((t) => !gone(t));
       if (rest.length === q.targets.length) continue;
       const masterGone = gone(q.targets[0]);
       q.targets.filter(gone).forEach((t) => follow(t, t, false));
       q.targets = rest;
       if (masterGone && rest.length) {
+        // the new master is shown as is; the others keep their relation to it
+        const flip = !!rest[0].inv;
+        rest.forEach((t, i) => (t.inv = i ? !!t.inv !== flip : false));
         follow(rest[0], rest[0], false);
         rest.slice(1).forEach((f) => follow(f, rest[0], true));
       }
     }
-    g.params = g.params.filter((q) => q.targets.length);
   };
 
-  // Every link crossing the group's border gets a port, so a collapsed group never hides a link.
-  const adopt = (g: Group) => {
-    const els = byIndex();
-    const inside = new Set(g.members);
-    const add = (list: Port[], p: Port) =>
-      list.some((x) => sameKnob(x, p)) || list.push(p);
-    for (let i = 0; i < wasm.links_len(); i++) {
-      const [s, ss, t, ts] = ends(i);
-      const [a, b] = [els.get(s), els.get(t)];
-      if (!a || !b || inside.has(a) === inside.has(b)) continue;
-      inside.has(a) ? add(g.outs, { el: a, j: ss }) : add(g.ins, { el: b, j: ts });
-    }
+  const masterOf = (g: Inst, q: GParam): Port | undefined => {
+    const t = q.targets[0];
+    const el = t && g.copy.get(t.el);
+    return el && { el, j: t.j };
   };
+  const slot = (p: Port) => wasm.get_param(+p.el.dataset.n!, p.j) >> 2;
+  const flagsOf = (g: Inst) =>
+    g.outs.reduce((m, e) => m & u8()[+e.dataset.p! + FLAGS_AT], 7) * +!!g.outs.length;
+  const setFlags = (g: Inst, bits: number) =>
+    g.outs.forEach((e) => (u8()[+e.dataset.p! + FLAGS_AT] = bits));
 
-  const render = (g: Group) => {
-    g.el.toggleAttribute("data-shut", g.shut);
-    g.members.forEach((m) => (m.style.display = g.shut ? "none" : ""));
-    const btn = g.el.querySelector<HTMLElement>(`.${groupCss.mode}`)!;
-    btn.textContent = g.shut ? "▸" : "▾";
-    btn.title = g.shut ? "Expand" : "Collapse";
+  const render = (g: Inst) => {
+    g.head.textContent = g.def.name;
     g.el.querySelectorAll(`.${nodeCss.socket}`).forEach((e) => e.remove());
     g.body.replaceChildren();
-    if (g.shut) {
-      for (const out of [false, true]) {
-        const list = out ? g.outs : g.ins;
-        list.forEach((p, j) => {
-          const t = (j + 1) / (list.length + 1);
-          const s = div(nodeCss.socket);
-          s.style.left = out ? "calc(100% + 2px)" : "-2px";
-          s.style.top = `calc(${100 * t}% + ${4 * t - 2}px)`;
-          portSock.set(s, () => ({ node: +p.el.dataset.n!, out, j: p.j }));
-          g.el.append(s);
-        });
-      }
-      for (const q of g.params) {
-        const m = q.targets[0];
-        const k = div(knobCss.knob);
-        k.dataset.a = `${wasm.get_param(+m.el.dataset.n!, m.j)}`;
-        k.dataset.j = `${m.j}`;
-        k.append(div(knobCss.dial), div(knobCss.pname, q.name), div(knobCss.pval));
-        rowOwner.set(k, m.el);
-        g.body.append(k);
-      }
-      const flags = div(nodeCss.flags);
-      flagLabels.forEach((l, b) => {
-        const f = div(nodeCss.flag, l);
-        f.dataset.b = `${b}`;
-        flags.append(f);
+    for (const out of [false, true]) {
+      const list = out ? g.outs : g.ins;
+      list.forEach((el, j) => {
+        const t = (j + 1) / (list.length + 1);
+        const s = div(nodeCss.socket);
+        s.style.left = out ? "calc(100% + 2px)" : "-2px";
+        s.style.top = `calc(${100 * t}% + ${4 * t - 2}px)`;
+        portSock.set(s, () => ({ node: +el.dataset.n!, out, j: 0 }));
+        g.el.append(s);
       });
-      g.body.append(flags);
-      if (g.outs.length) {
-        const sc = div(nodeCss.scope);
-        sc.style.flex = "none";
-        sc.style.height = `${SCOPE}px`;
-        g.body.append(sc);
-      }
+    }
+    for (const q of g.def.params) {
+      const m = masterOf(g, q);
+      if (!m) continue;
+      const k = div(knobCss.knob);
+      k.dataset.a = `${slot(m) << 2}`;
+      k.dataset.j = `${m.j}`;
+      k.append(div(knobCss.dial), div(knobCss.pname, q.name), div(knobCss.pval));
+      rowOwner.set(k, m.el);
+      g.body.append(k);
+    }
+    const flags = div(nodeCss.flags);
+    flagLabels.forEach((l, b) => {
+      const f = div(nodeCss.flag, l);
+      f.dataset.b = `${b}`;
+      flags.append(f);
+    });
+    g.body.append(flags);
+    if (g.outs.length) {
+      const sc = div(nodeCss.scope);
+      sc.style.flex = "none";
+      sc.style.height = `${SCOPE}px`;
+      g.body.append(sc);
     }
     redraw();
   };
 
-  const makeGroup = (members: HTMLElement[], name: string, shut: boolean) => {
-    const nameBox = Object.assign(document.createElement("input"), {
-      className: groupCss.name,
-      value: name,
-      maxLength: NAME_MAX,
-      spellcheck: false,
-      autocomplete: "off",
-      readOnly: true, // the title bar drags the group; "Rename" in its menu edits the name
-    });
-    const btn = Object.assign(document.createElement("button"), {
-      className: groupCss.mode,
-      type: "button",
-    });
+  // Fills the instance with copies of its definition's nodes and links, and wires its group params.
+  const expand = (g: Inst) => {
+    const d = g.def;
+    const src = dom()
+      .filter((e) => spaceOf(e) === d.id)
+      .sort(byN);
+    const idx = new Map<number, HTMLElement>(); // definition node index -> copy
+    g.members = [];
+    g.ins = [];
+    g.outs = [];
+    g.copy = new Map();
+    for (const e of src) {
+      const k = +e.dataset.k!;
+      const [x, y] = f32().subarray(at(e), at(e) + 2);
+      const el = spawn(k, x, y, "i");
+      if (!el) continue;
+      membership.set(el, g);
+      g.members.push(el);
+      g.copy.set(e, el);
+      idx.set(+e.dataset.n!, el);
+      for (let j = 0, a; (a = wasm.get_param(+e.dataset.n!, j)) >= 0; j++)
+        f32()[wasm.get_param(+el.dataset.n!, j) >> 2] = f32()[a >> 2];
+      u8()[+el.dataset.p! + FLAGS_AT] = u8()[+e.dataset.p! + FLAGS_AT];
+      if (k === GIN) g.ins.push(el);
+      if (k === GOUT) g.outs.push(el);
+    }
+    for (let i = 0, n = wasm.links_len(); i < n; i++) {
+      const [s, ss, t, ts] = ends(i);
+      const [a, b] = [idx.get(s), idx.get(t)];
+      if (a && b) wasm.add_link(+a.dataset.n!, ss, +b.dataset.n!, ts);
+    }
+    for (const q of d.params) {
+      const t = q.targets.flatMap((p): Port[] => {
+        const el = g.copy.get(p.el);
+        return el ? [{ el, j: p.j, inv: p.inv }] : [];
+      });
+      t.slice(1).forEach((f) => follow(f, t[0], true));
+      const v = g.vals.get(q);
+      if (v !== undefined && t[0]) f32()[slot(t[0])] = v;
+    }
+  };
+
+  const teardown = (g: Inst) => {
+    for (const m of [...g.members].sort(byN).reverse()) {
+      membership.delete(m);
+      drop(m);
+    }
+    g.members = [];
+    g.ins = [];
+    g.outs = [];
+    g.copy = new Map();
+  };
+
+  // Rebuilds every instance of `d`, keeping what is theirs (params, flags) and the links into them.
+  type End = HTMLElement | { g: Inst; out: boolean; i: number };
+  const reexpand = (d: Def) => {
+    const mine = insts.filter((g) => g.def === d);
+    if (!mine.length) return;
+    const els = byIndex();
+    const endOf = (el: HTMLElement): End | undefined => {
+      const g = membership.get(el);
+      if (!g) return el;
+      const [i, o] = [g.ins.indexOf(el), g.outs.indexOf(el)];
+      return i >= 0 ? { g, out: false, i } : o >= 0 ? { g, out: true, i: o } : undefined;
+    };
+    const saved: [End, number, End, number][] = [];
+    for (let l = 0; l < wasm.links_len(); l++) {
+      const [s, ss, t, ts] = ends(l);
+      const [a, b] = [els.get(s), els.get(t)];
+      if (!a || !b) continue;
+      const [ga, gb] = [membership.get(a), membership.get(b)];
+      if ((!ga || !mine.includes(ga)) && (!gb || !mine.includes(gb))) continue;
+      if (ga && ga === gb) continue; // inside one instance: expand() makes it again
+      const [ea, eb] = [endOf(a), endOf(b)];
+      if (ea && eb) saved.push([ea, ss, eb, ts]);
+    }
+    const flags = mine.map(flagsOf);
+    for (const g of mine)
+      for (const q of d.params) {
+        const m = masterOf(g, q);
+        if (m) g.vals.set(q, f32()[slot(m)]);
+      }
+    mine.forEach(teardown);
+    mine.forEach(expand);
+    mine.forEach((g, i) => setFlags(g, flags[i]));
+    const resolve = (e: End, sock: number): [HTMLElement, number] | undefined => {
+      if (e instanceof HTMLElement) return [e, sock];
+      const el = (e.out ? e.g.outs : e.g.ins)[e.i];
+      return el && [el, 0];
+    };
+    for (const [a, ss, b, ts] of saved) {
+      const [x, y] = [resolve(a, ss), resolve(b, ts)];
+      if (x && y) wasm.add_link(+x[0].dataset.n!, x[1], +y[0].dataset.n!, y[1]);
+    }
+    mine.forEach(render);
+  };
+
+  const addInst = (d: Def, x: number, y: number) => {
+    const name = div(groupCss.name);
     const head = div(groupCss.head);
-    head.append(nameBox, btn);
+    head.append(name);
     const body = div(groupCss.body);
     const el = div(groupCss.group);
     el.append(head, body);
-    const g: Group = {
-      name,
-      shut,
-      members,
+    // double-click on the grid opens the add menu, here it opens the definition
+    el.ondblclick = (e) => {
+      if ((e.target as HTMLElement).closest(`.${knobCss.knob}`)) return;
+      e.stopPropagation();
+      open(g.def.id);
+    };
+    const g: Inst = {
+      def: d,
+      pos: [x, y],
+      members: [],
       ins: [],
       outs: [],
-      params: [],
+      copy: new Map(),
+      vals: new Map(),
       el,
+      head: name,
       body,
-      rect: [0, 0, 0, 0],
+      rect: [x, y, GW, GHEAD],
     };
-    nameBox.oninput = () => (g.name = nameBox.value);
-    // double-click on the grid opens the add menu; knobs still need it to reset
-    el.ondblclick = (e) => {
-      if (!(e.target as HTMLElement).closest(`.${knobCss.knob}`)) e.stopPropagation();
-    };
-    nameBox.onblur = () => (nameBox.readOnly = true);
-    nameBox.onkeydown = (e) => {
-      e.stopPropagation(); // no hotkeys while typing
-      if (e.key === "Enter" || e.key === "Escape") nameBox.blur();
-    };
-    btn.onclick = () => fold(g);
-    groups.push(g);
+    insts.push(g);
     groupEl.set(el, g);
-    members.forEach((m) => membership.set(m, g));
     layer.append(el);
-    adopt(g); // the starting interface: whatever is wired across the border
+    expand(g);
     render(g);
     return g;
   };
 
-  const groupIn = (t: Element) => {
-    const e = t.closest<HTMLElement>(`.${groupCss.group}`);
-    return e ? groupEl.get(e) : undefined;
-  };
-  // Flags act on the nodes behind the group's outputs.
-  const outNodes = (g: Group) => [...new Set(g.outs.map((p) => p.el))];
-
-  const rename = (g: Group) => {
-    const b = g.el.querySelector<HTMLInputElement>(`.${groupCss.name}`)!;
-    b.readOnly = false;
-    // after the menu click has finished, or its mouseup takes the focus back
-    setTimeout(() => (b.focus(), b.select()));
-  };
-
-  const fold = (g: Group) => {
-    g.shut = !g.shut;
-    if (g.shut) adopt(g); // links made while it was open
-    render(g);
-  };
-
-  const dissolve = (g: Group) => {
-    unbind(g, () => true);
-    g.members.forEach((m) => {
-      membership.delete(m);
-      m.style.display = "";
-    });
-    groups.splice(groups.indexOf(g), 1);
+  const removeInst = (g: Inst) => {
+    teardown(g);
     g.el.remove();
-    redraw();
-  };
-
-  const leave = (el: HTMLElement) => {
-    picked.delete(el);
-    const g = membership.get(el);
-    if (!g) return;
-    membership.delete(el);
-    g.members.splice(g.members.indexOf(el), 1);
-    unbind(g, (p) => p.el === el);
-    g.ins = g.ins.filter((p) => p.el !== el);
-    g.outs = g.outs.filter((p) => p.el !== el);
-    g.members.length ? render(g) : dissolve(g);
+    insts.splice(insts.indexOf(g), 1);
+    changed();
   };
 
   const deselect = () => {
@@ -378,68 +495,84 @@ export function createScene(
     picked.clear();
   };
 
-  const edge = (g: Group, out: boolean, node: number, j: number): Pt => {
+  const open = (id: string) => {
+    if (id === tab) return;
+    const left = defs.find((d) => d.id === tab);
+    if (left) reexpand(left);
+    tab = id;
+    deselect();
+    applyTab();
+    changed();
+    redraw();
+  };
+
+  const newDef = (name?: string): Def => {
+    let id: string;
+    do id = `0x${Math.floor(Math.random() * 16 ** 5).toString(16).padStart(5, "0")}`;
+    while (defs.some((d) => d.id === id));
+    const d = { id, name: (name ?? `Node ${defs.length + 1}`).slice(0, NAME_MAX), params: [] };
+    defs.push(d);
+    changed();
+    return d;
+  };
+
+  const removeDef = (d: Def) => {
+    if (tab === d.id) {
+      tab = "";
+      applyTab();
+    }
+    insts.filter((g) => g.def === d).forEach(removeInst);
+    dom()
+      .filter((e) => spaceOf(e) === d.id)
+      .sort(byN)
+      .reverse()
+      .forEach(drop);
+    defs.splice(defs.indexOf(d), 1);
+    changed();
+    redraw();
+  };
+
+  const groupIn = (t: Element) => {
+    const e = t.closest<HTMLElement>(`.${groupCss.group}`);
+    return e ? groupEl.get(e) : undefined;
+  };
+
+  const edge = (g: Inst, out: boolean, node: number, _j: number): Pt => {
     const list = out ? g.outs : g.ins,
       [x, y, w, h] = g.rect;
-    const i = list.findIndex((p) => +p.el.dataset.n! === node && p.j === j);
+    const i = list.findIndex((e) => +e.dataset.n! === node);
     return [x + (out ? w : 0), y + (h * (i + 1)) / (list.length + 1)];
   };
 
-  const socks = (node: number, out: boolean): Sock[] =>
-    Array.from({ length: sockets(node)[+out] }, (_, j) => ({ node, out, j }));
-  const portSocks = (g: Group, out: boolean): Sock[] =>
-    (out ? g.outs : g.ins).map((p) => ({ node: +p.el.dataset.n!, out, j: p.j }));
+  // Input nodes only have an output in a definition, Output nodes only an input.
+  const socks = (node: number, out: boolean): Sock[] => {
+    const k = wasm.node_kind(node);
+    if ((k === GIN && !out) || (k === GOUT && out)) return [];
+    return Array.from({ length: sockets(node)[+out] }, (_, j) => ({ node, out, j }));
+  };
+  const portSocks = (g: Inst, out: boolean): Sock[] =>
+    (out ? g.outs : g.ins).map((el) => ({ node: +el.dataset.n!, out, j: 0 }));
 
-  const layout = (g: Group, f: Float32Array, driven: Set<number>) => {
-    let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
-    for (const m of g.members) {
-      const i = at(m);
-      x0 = Math.min(x0, f[i]);
-      y0 = Math.min(y0, f[i + 1]);
-      x1 = Math.max(x1, f[i] + f[i + 2]);
-      y1 = Math.max(y1, f[i + 1] + f[i + 3]);
-    }
+  const layout = (g: Inst, f: Float32Array, driven: Set<number>) => {
+    g.body
+      .querySelectorAll<HTMLElement>(`.${knobCss.knob}`)
+      .forEach((k) => paint(k, rowOwner.get(k)!, f, driven));
+    const bits = flagsOf(g);
+    g.body
+      .querySelectorAll<HTMLElement>(`.${nodeCss.flag}`)
+      .forEach((b) => b.classList.toggle(nodeCss.active, !!(bits & (1 << +b.dataset.b!))));
     const s = g.el.style;
-    if (g.shut) {
-      g.body
-        .querySelectorAll<HTMLElement>(`.${knobCss.knob}`)
-        .forEach((k) => paint(k, rowOwner.get(k)!, f, driven));
-      const ns = outNodes(g);
-      g.body.querySelectorAll<HTMLElement>(`.${nodeCss.flag}`).forEach((b) =>
-        b.classList.toggle(
-          nodeCss.active,
-          !!ns.length && ns.every((e) => u8()[+e.dataset.p! + FLAGS_AT] & (1 << +b.dataset.b!)),
-        ),
-      );
-      s.width = `${GW}px`;
-      s.height = "";
-      s.minHeight = `${GHEAD + 16 * Math.max(g.ins.length, g.outs.length)}px`;
-      g.rect = [x0, y0, GW, g.el.offsetHeight];
-    } else {
-      g.rect = [
-        x0 - GPAD,
-        y0 - GPAD - GHEAD,
-        x1 - x0 + 2 * GPAD,
-        y1 - y0 + 2 * GPAD + GHEAD,
-      ];
-      s.width = `${g.rect[2]}px`;
-      s.height = `${g.rect[3]}px`;
-    }
-    s.transform = `translate(${g.rect[0]}px, ${g.rect[1]}px)`;
+    s.width = `${GW}px`;
+    s.minHeight = `${GHEAD + 16 * Math.max(g.ins.length, g.outs.length)}px`;
+    g.rect = [g.pos[0], g.pos[1], GW, g.el.offsetHeight];
+    s.transform = `translate(${g.pos[0]}px, ${g.pos[1]}px)`;
   };
 
-  // The member node and param index a knob element stands for, with its group.
+  // The member node and param index a knob element stands for, with its definition.
   const knobPort = (k: HTMLElement) => {
     const el = k.closest<HTMLElement>(`.${nodeCss.node}`);
-    const g = el && membership.get(el);
-    return g ? { g, p: { el, j: +k.dataset.j! } } : undefined;
-  };
-  const sockPort = (s: HTMLElement) => {
-    const el = s.closest<HTMLElement>(`.${nodeCss.node}`);
-    const g = el && membership.get(el);
-    return g
-      ? { g, out: s.dataset.o === "1", p: { el, j: +s.dataset.j! } }
-      : undefined;
+    const d = el && defOf(el);
+    return d ? { d, p: { el, j: +k.dataset.j! } } : undefined;
   };
 
   return {
@@ -473,22 +606,26 @@ export function createScene(
     write: (addr: number, v: number) => void (f32()[addr >> 2] = v),
 
     add(kind: number, x: number, y: number) {
-      const p = wasm.add_node(kind, x, y, ...sizeOf(kind));
-      if (p < 0) return;
-      mount(wasm.nodes_len() - 1, p, kind);
-      changed();
+      // Input/Output only make sense in a definition; its nodes can't hold state outside params
+      const port = kind === GIN || kind === GOUT;
+      if (tab ? STATEFUL.has(kind) || kind === OUTPUT : port) return;
+      if (spawn(kind, x, y, tab)) changed();
     },
 
     load() {
       [...root.children].forEach(unmountNode);
-      groups.splice(0).forEach((g) => g.el.remove());
+      insts.splice(0).forEach((g) => g.el.remove());
+      defs.length = 0;
       membership.clear();
       picked.clear();
+      tab = "";
+      applyTab();
       for (let i = 0; i < wasm.nodes_len(); i++) {
         const [p, k] = [wasm.get_node(i), wasm.node_kind(i)];
         // size is derived, not trusted
         f32().set(sizeOf(k), (p >> 2) + 2);
         mount(i, p, k);
+        hideSocks(root.lastElementChild as HTMLElement);
       }
       changed();
     },
@@ -498,13 +635,13 @@ export function createScene(
         u = u8();
       layer.style.transform = root.style.transform;
       // params that follow another are driven too
-      for (const g of groups)
-        for (const q of g.params)
+      for (const d of defs)
+        for (const q of d.params)
           for (const t of q.targets.slice(1))
             driven.add(wasm.get_param(+t.el.dataset.n!, t.j));
-      // nodes hidden inside a collapsed group are skipped everywhere, so z-order = index here
+      // other tabs' nodes and instances' copies are skipped everywhere, so z-order = index here
       const els = visible();
-      const inst = new Float32Array((els.length + groups.length) * STRIDE);
+      const inst = new Float32Array((els.length + insts.length) * STRIDE);
       for (let i = 0; i < els.length; i++) {
         const el = els[i];
         const p = +el.dataset.p!;
@@ -534,12 +671,13 @@ export function createScene(
           paint(k, el, f, driven),
         );
       }
-      // collapsed groups are drawn like nodes (occlude ropes, glow); open ones are plain frames
+      // instances are drawn like nodes (occlude ropes, glow), after them
       let n = els.length;
-      for (const g of groups) {
-        layout(g, f, driven);
-        if (g.shut) inst.set([...g.rect, n++, 2], (n - 1) * STRIDE);
-      }
+      if (!tab)
+        for (const g of insts) {
+          layout(g, f, driven);
+          inst.set([...g.rect, n++, 2], (n - 1) * STRIDE);
+        }
       return inst.subarray(0, n * STRIDE);
     },
 
@@ -566,15 +704,14 @@ export function createScene(
           });
         });
       }
-      // collapsed groups are drawn after the nodes: waveform of their first output
+      // instances are drawn after the nodes: waveform of their first output
       let order = els.length;
-      for (const g of groups) {
-        if (!g.shut) continue;
-        const sc = g.body.querySelector<HTMLElement>(`.${nodeCss.scope}`);
-        const o = g.outs[0];
-        if (sc && o) {
-          const len = wasm.scope_fill(+o.el.dataset.n!, 2 + o.j);
-          if (len >= 2) {
+      if (!tab)
+        for (const g of insts) {
+          const sc = g.body.querySelector<HTMLElement>(`.${nodeCss.scope}`);
+          const o = g.outs[0];
+          const len = sc && o ? wasm.scope_fill(+o.dataset.n!, 0) : 0;
+          if (sc && len >= 2) {
             const [ox, oy] = offsetIn(sc, g.el);
             out.push({
               rect: [g.rect[0] + ox, g.rect[1] + oy, sc.offsetWidth, sc.offsetHeight],
@@ -583,9 +720,8 @@ export function createScene(
               pts: new Float32Array(wasm.memory.buffer, wasm.scope_ptr(), len).slice(),
             });
           }
+          order++;
         }
-        order++;
-      }
       return out;
     },
 
@@ -644,14 +780,17 @@ export function createScene(
       return out;
     },
 
-    // null ends: the link lies inside a collapsed group, so it has no rope
+    // null ends: no rope (inside an instance, or in another tab)
     *links(): Generator<[number, Pt | null, Pt | null]> {
       const els = byIndex();
       for (let i = 0; i < wasm.links_len(); i++) {
         const [s, ss, t, ts] = ends(i);
-        const [gs, gt] = [shut(els.get(s)), shut(els.get(t))];
-        // no DOM here = a guide demo's link, parked in this graph: no rope
-        if ((gs && gs === gt) || !els.has(s) || !els.has(t)) {
+        const [a, b] = [els.get(s), els.get(t)];
+        // no DOM here = a guide demo's link, parked in this graph
+        const gs = shut(a);
+        const gone = !a || !b || (gs && gs === shut(b));
+        const host = (e?: HTMLElement) => (e && membership.has(e) ? !tab : e && shown(e));
+        if (gone || !host(a) || !host(b)) {
           yield [i, null, null];
           continue;
         }
@@ -695,13 +834,13 @@ export function createScene(
       return last;
     },
 
-    // Closest free-side socket of whatever `hit` is (a node, or a collapsed group) to world point `w`.
+    // Closest free-side socket of whatever `hit` is (a node, or an instance) to world point `w`.
     nearest(from: Sock, hit: Element, [x, y]: Pt): Sock | null {
-      const g = groupIn(hit);
+      const g = tab ? undefined : groupIn(hit);
       const el = hit.closest<HTMLElement>(`.${nodeCss.node}`);
-      const list = g?.shut
+      const list = g
         ? portSocks(g, !from.out)
-        : el
+        : el && shown(el)
           ? socks(+el.dataset.n!, !from.out)
           : [];
       const els = byIndex();
@@ -719,9 +858,9 @@ export function createScene(
     targets(from: Sock): Pt[] {
       const els = byIndex();
       const all = [...els]
-        .filter(([, el]) => !shut(el))
+        .filter(([, el]) => shown(el))
         .flatMap(([node]) => socks(node, !from.out));
-      for (const g of groups) if (g.shut) all.push(...portSocks(g, !from.out));
+      if (!tab) for (const g of insts) all.push(...portSocks(g, !from.out));
       return all.filter((s) => s.node !== from.node).map((s) => socketPos(s, els));
     },
 
@@ -732,7 +871,8 @@ export function createScene(
       Array.from(root.children as HTMLCollectionOf<HTMLElement>).forEach(
         (el) => {
           const n = +el.dataset.n!;
-          if (+el.dataset.k! === OUTPUT && (first < 0 || n < first)) first = n;
+          if (!spaceOf(el) && +el.dataset.k! === OUTPUT && (first < 0 || n < first))
+            first = n;
         },
       );
       if (first < 0) return new Float32Array(TABLE);
@@ -746,17 +886,13 @@ export function createScene(
     },
 
     remove(el: HTMLElement) {
-      const n = +el.dataset.n!;
-      leave(el);
-      wasm.remove_node(n);
-      unmountNode(el);
+      const g = membership.get(el);
+      if (g) return removeInst(g); // a copy is not the user's to delete alone
+      picked.delete(el);
+      const d = defOf(el);
+      if (d) unbind(d, (p) => p.el === el);
+      drop(el);
       changed();
-
-      root
-        .querySelectorAll<HTMLElement>(`.${nodeCss.node}, .${nodeCss.socket}`)
-        .forEach((e) => {
-          if (+e.dataset.n! > n) e.dataset.n = `${+e.dataset.n! - 1}`;
-        });
     },
 
     resetKnob(k: HTMLElement) {
@@ -790,11 +926,11 @@ export function createScene(
       return copy;
     },
 
-    // ---- groups ----
+    // ---- custom nodes ----
 
-    /** Which knob's real node: a param-list knob inside a collapsed group belongs to a hidden one. */
+    /** Which knob's real node: an instance's knob edits a hidden copy. */
     owner,
-    groupOf: (el: HTMLElement) => membership.get(el),
+    defOf,
     groupAt: groupIn,
     picked: () => [...picked],
     select(el: HTMLElement) {
@@ -803,103 +939,239 @@ export function createScene(
     },
     deselect,
 
-    /** Group the selected nodes (all must be ungrouped). */
-    group(): Group | undefined {
-      const m = [...picked].sort((a, b) => +a.dataset.n! - +b.dataset.n!);
-      if (!m.length || m.some((e) => membership.has(e))) return;
-      deselect();
-      return makeGroup(m, `Node ${groups.length + 1}`, false);
+    tab: () => tab,
+    defs: () => defs,
+    open,
+    newDef,
+    removeDef,
+    renameDef(d: Def, name: string) {
+      d.name = name.trim().slice(0, NAME_MAX) || d.name;
+      insts.filter((g) => g.def === d).forEach(render);
+      changed();
     },
-
-    ungroup: dissolve,
-    fold,
-    rename,
-
-    // ---- the group's interface: right-click a member's socket / knob ----
-    exposed(s: HTMLElement) {
-      const x = sockPort(s);
-      return !!x && (x.out ? x.g.outs : x.g.ins).some((p) => sameKnob(p, x.p));
+    addParam(d: Def, name: string) {
+      d.params.push({ name: name.trim().slice(0, NAME_MAX) || "Param", targets: [] });
+      changed();
     },
-    expose(s: HTMLElement) {
-      const x = sockPort(s);
-      if (!x) return;
-      const list = x.out ? x.g.outs : x.g.ins;
-      const i = list.findIndex((p) => sameKnob(p, x.p));
-      i < 0 ? list.push(x.p) : list.splice(i, 1);
-      render(x.g);
+    renameParam(q: GParam, name: string) {
+      q.name = name.trim().slice(0, NAME_MAX) || q.name;
+      changed();
     },
-    paramOf(k: HTMLElement) {
-      const x = knobPort(k);
-      return x?.g.params.find((q) => q.targets.some((t) => sameKnob(t, x.p)));
+    removeParam(d: Def, q: GParam) {
+      q.targets.forEach((t) => follow(t, t, false));
+      d.params.splice(d.params.indexOf(q), 1);
+      changed();
     },
-    /** Make a member's knob part of the group param `name` (new if there is none); a knob is in one param. */
-    linkParam(k: HTMLElement, name: string) {
+    /** Make a definition's knob part of the param `name`; a knob is in one param. */
+    linkParam(k: HTMLElement, name: string, inv = false) {
       const x = knobPort(k);
       if (!x) return;
       this.unlinkParam(k);
-      const { g, p } = x;
-      let q = g.params.find((q) => q.name === name);
-      if (!q) g.params.push((q = { name: name.slice(0, NAME_MAX), targets: [] }));
-      q.targets.push(p);
-      if (q.targets.length > 1) follow(p, q.targets[0], true);
-      render(g);
+      const { d, p } = x;
+      let q = d.params.find((q) => q.name === name);
+      if (!q) d.params.push((q = { name: name.slice(0, NAME_MAX), targets: [] }));
+      q.targets.push(q.targets.length ? { ...p, inv } : p); // the first one is the master
+      if (q.targets.length > 1) follow(q.targets.at(-1)!, q.targets[0], true);
+      changed();
     },
     unlinkParam(k: HTMLElement) {
       const x = knobPort(k);
       if (!x) return;
-      unbind(x.g, (t) => sameKnob(t, x.p));
-      render(x.g);
+      unbind(x.d, (t) => sameKnob(t, x.p));
+      changed();
+    },
+    paramOf(k: HTMLElement) {
+      const x = knobPort(k);
+      return x?.d.params.find((q) => q.targets.some((t) => sameKnob(t, x.p)));
     },
 
-    // Copies the members (params, flags), the links between them and the interface, as one new group.
-    duplicateGroup(g: Group) {
-      const copies = new Map<HTMLElement, HTMLElement>(); // member -> copy
-      for (const m of g.members) {
-        const c = this.duplicate(m);
-        if (c) copies.set(m, c);
+    // Why the selection can't become a custom node, if so.
+    defineBlocked(): string | undefined {
+      if (tab) return "Only from the main tab";
+      if (!picked.size) return "Select nodes first";
+      for (const e of picked) {
+        const k = +e.dataset.k!;
+        if (k === OUTPUT || k === GIN || k === GOUT || STATEFUL.has(k) || membership.has(e))
+          return "Output, Data, Math, Waveshaper and Draw Filter can't be part of one";
       }
-      const idx = (e: HTMLElement) => +e.dataset.n!;
-      const was = new Map([...copies].map(([m, c]) => [idx(m), c]));
-      for (let i = 0, n = wasm.links_len(); i < n; i++) {
-        const [s, ss, t, ts] = ends(i);
-        const [a, b] = [was.get(s), was.get(t)];
-        if (a && b) wasm.add_link(idx(a), ss, idx(b), ts);
-      }
-      if (!copies.size) return;
-      const c = makeGroup(
-        [...copies.values()],
-        `${g.name} copy`.slice(0, NAME_MAX),
-        g.shut,
-      );
-      const map = (ps: Port[]) =>
-        ps.flatMap((p) => (copies.has(p.el) ? { el: copies.get(p.el)!, j: p.j } : []));
-      c.ins = map(g.ins);
-      c.outs = map(g.outs);
-      c.params = g.params
-        .map((q) => ({ name: q.name, targets: map(q.targets) }))
-        .filter((q) => q.targets.length);
-      c.params.forEach((q) => q.targets.slice(1).forEach((f) => follow(f, q.targets[0], true)));
-      render(c);
     },
 
-    // The file still stores the old group shape: name, 0 open / 1 collapsed, members.
-    // The interface (ports, params) is not saved yet; restore() derives ports again.
-    list: () =>
-      groups.map((g) => ({
-        name: g.name,
-        mode: +g.shut,
-        nodes: g.members.map((m) => +m.dataset.n!),
-      })),
-
-    // After load(): node indices are valid again, so groups can be rebuilt over them.
-    restore(list: { name: string; mode: number; nodes: number[] }[]) {
+    /** The selected nodes become a definition (a new tab) and are replaced by one instance. */
+    define(): Inst | undefined {
+      if (this.defineBlocked()) return;
+      const sel = [...picked].sort(byN);
+      const mine = new Set(sel);
+      deselect();
+      const d = newDef();
       const els = byIndex();
-      for (const { name, mode, nodes: ns } of list) {
-        const m = [...new Set(ns)]
-          .map((n) => els.get(n))
-          .filter((e): e is HTMLElement => !!e && !membership.has(e));
-        if (m.length) makeGroup(m, name.slice(0, NAME_MAX), mode > 0);
+      const cross: [HTMLElement, number, HTMLElement, number][] = [];
+      for (let i = 0; i < wasm.links_len(); i++) {
+        const [s, ss, t, ts] = ends(i);
+        const [a, b] = [els.get(s), els.get(t)];
+        if (a && b && mine.has(a) !== mine.has(b)) cross.push([a, ss, b, ts]);
       }
+      const box = sel.map((e) => f32().subarray(at(e), at(e) + 4));
+      const x0 = Math.min(...box.map((b) => b[0])),
+        y0 = Math.min(...box.map((b) => b[1])),
+        x1 = Math.max(...box.map((b) => b[0] + b[2]));
+      sel.forEach((e) => (e.dataset.s = d.id));
+      // one Input per crossing link into the selection, one Output per distinct source out of it
+      const ins: [HTMLElement, number][] = [],
+        outs: [HTMLElement, number][] = [];
+      for (const [a, ss, b, ts] of cross) {
+        if (mine.has(b)) ins.push([b, ts]);
+        else if (!outs.some(([e, j]) => e === a && j === ss)) outs.push([a, ss]);
+      }
+      ins.forEach(([b, ts], k) => {
+        const p = spawn(GIN, x0 - 200, y0 + 70 * k, d.id);
+        if (p) wasm.add_link(+p.dataset.n!, 0, +b.dataset.n!, ts);
+      });
+      outs.forEach(([a, ss], k) => {
+        const p = spawn(GOUT, x1 + 40, y0 + 70 * k, d.id);
+        if (p) wasm.add_link(+a.dataset.n!, ss, +p.dataset.n!, 0);
+      });
+      const g = addInst(d, x0, y0);
+      // the old crossing links are overwritten: every one ends on a socket that gets a new source
+      for (const [a, ss, b, ts] of cross) {
+        if (mine.has(b)) {
+          const k = ins.findIndex(([e, j]) => e === b && j === ts);
+          if (g.ins[k]) wasm.add_link(+a.dataset.n!, ss, +g.ins[k].dataset.n!, 0);
+        } else {
+          const k = outs.findIndex(([e, j]) => e === a && j === ss);
+          if (g.outs[k]) wasm.add_link(+g.outs[k].dataset.n!, 0, +b.dataset.n!, ts);
+        }
+      }
+      applyTab();
+      changed();
+      return g;
+    },
+
+    addInst(d: Def, x: number, y: number) {
+      if (tab) return;
+      const g = addInst(d, x, y);
+      changed();
+      return g;
+    },
+    removeInst,
+    duplicateInst(g: Inst) {
+      const c = addInst(g.def, g.pos[0] + 24, g.pos[1] + 24);
+      for (const q of g.def.params) {
+        const [a, b] = [masterOf(g, q), masterOf(c, q)];
+        if (a && b) f32()[slot(b)] = f32()[slot(a)];
+      }
+      setFlags(c, flagsOf(g));
+      changed();
+      return c;
+    },
+    instPos: (g: Inst): Pt => [g.pos[0], g.pos[1]],
+    moveInst(g: Inst, x: number, y: number) {
+      g.pos = [x, y];
+    },
+
+    // What the file stores. `space`: "" main, a definition id, "i" an instance's copy; `port`: which
+    // instance port a copy is (its links are the instance's links).
+    snapshot() {
+      const spaces = new Map<number, string>();
+      const port = new Map<number, { inst: number; out: boolean; port: number }>();
+      for (const [n, e] of byIndex()) {
+        const g = membership.get(e);
+        spaces.set(n, g ? "i" : spaceOf(e));
+        if (!g) continue;
+        const [i, o] = [g.ins.indexOf(e), g.outs.indexOf(e)];
+        const inst = insts.indexOf(g);
+        if (i >= 0) port.set(n, { inst, out: false, port: i });
+        if (o >= 0) port.set(n, { inst, out: true, port: o });
+      }
+      return {
+        space: spaces,
+        port,
+        defs: defs.map(
+          (d): DefSpec => ({
+            id: d.id,
+            name: d.name,
+            nodes: dom()
+              .filter((e) => spaceOf(e) === d.id)
+              .sort(byN)
+              .map((e) => +e.dataset.n!),
+            params: d.params.map((q) => ({
+              name: q.name,
+              targets: q.targets.map((t) => ({ n: +t.el.dataset.n!, j: t.j, inv: t.inv })),
+            })),
+          }),
+        ),
+        insts: insts.map(
+          (g): InstSpec => ({
+            def: g.def.id,
+            x: g.pos[0],
+            y: g.pos[1],
+            flags: flagsOf(g),
+            vals: g.def.params.map((q) => {
+              const m = masterOf(g, q);
+              return m ? f32()[slot(m)] : 0;
+            }),
+          }),
+        ),
+      };
+    },
+
+    // After load(): node indices are valid again. Tags the definitions' nodes and expands the
+    // instances; anything pointing at something missing is dropped.
+    restore({ defs: ds, insts: is, links }: Restore) {
+      const els = byIndex();
+      for (const s of ds) {
+        const d: Def = { id: s.id, name: s.name.slice(0, NAME_MAX), params: [] };
+        const mine = new Set<HTMLElement>();
+        for (const n of s.nodes) {
+          const e = els.get(n);
+          if (!e) continue;
+          e.dataset.s = d.id;
+          mine.add(e);
+        }
+        const used: Port[] = [];
+        d.params = s.params.map((q) => ({
+          name: q.name.slice(0, NAME_MAX),
+          targets: q.targets.flatMap((t): Port[] => {
+            const el = els.get(t.n);
+            if (!el || !mine.has(el) || wasm.get_param(t.n, t.j) < 0) return [];
+            const p = { el, j: t.j, inv: !!t.inv };
+            if (used.some((u) => sameKnob(u, p))) return [];
+            used.push(p);
+            return [p];
+          }),
+        }));
+        for (const q of d.params) {
+          if (q.targets[0]) q.targets[0].inv = false;
+          q.targets.slice(1).forEach((f) => follow(f, q.targets[0], true));
+        }
+        defs.push(d);
+      }
+      applyTab();
+      const made = is.map((s) => {
+        const d = defs.find((d) => d.id === s.def);
+        if (!d) return;
+        const g = addInst(d, s.x, s.y);
+        d.params.forEach((q, k) => {
+          const m = masterOf(g, q);
+          const v = s.vals[k];
+          if (m && Number.isFinite(v)) f32()[slot(m)] = Math.min(1, Math.max(0, v));
+        });
+        setFlags(g, s.flags & 7);
+        return g;
+      });
+      const end = (e: EndSpec, out: boolean, sock: number): [HTMLElement, number] | undefined => {
+        if (typeof e === "number") {
+          const el = els.get(e);
+          return el && [el, sock];
+        }
+        const g = made[e.i];
+        const el = g && (out ? g.outs : g.ins)[sock];
+        return el && [el, 0];
+      };
+      for (const [a, sa, b, sb] of links) {
+        const [x, y] = [end(a, true, sa), end(b, false, sb)];
+        if (x && y) wasm.add_link(+x[0].dataset.n!, x[1], +y[0].dataset.n!, y[1]);
+      }
+      changed();
     },
 
     pos(el: HTMLElement): Pt {
@@ -918,7 +1190,7 @@ export function createScene(
     flag(b: HTMLElement) {
       const bit = 1 << +b.dataset.b!;
       const g = groupIn(b);
-      const els = g ? outNodes(g) : [b.closest<HTMLElement>(`.${nodeCss.node}`)!];
+      const els = g ? g.outs : [b.closest<HTMLElement>(`.${nodeCss.node}`)!];
       const on = !els.every((e) => u8()[+e.dataset.p! + FLAGS_AT] & bit);
       for (const e of els) {
         const p = +e.dataset.p! + FLAGS_AT;

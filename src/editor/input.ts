@@ -1,7 +1,7 @@
 import { knobDrag, unlock } from "./fine";
 import { editParam } from "../components/param_edit/param_edit";
 import type { Pt, Ropes } from "../gfx/ropes";
-import type { Group, Scene, Sock } from "./scene";
+import type { Inst, Scene, Sock } from "./scene";
 import type { ViewCtl } from "../gfx/view";
 import knobCss from "../components/node/knob.module.css";
 import nodeCss from "../components/node/node.module.css";
@@ -55,17 +55,14 @@ export function createInput(
     };
   };
 
-  // Moves every member; a collapsed group sits at its members' top-left, so it follows.
-  const dragGroup = (e: PointerEvent, g: Group): Drag => {
+  // An instance is one box (its nodes are hidden copies), so only its position moves.
+  const dragInst = (e: PointerEvent, g: Inst): Drag => {
     const [wx, wy] = view.world(e);
-    const from = g.members.map((m) => scene.pos(m));
-    g.members.forEach((m) => scene.raise(m));
+    const [x0, y0] = scene.instPos(g);
     return {
       move(e) {
         const [x, y] = view.world(e);
-        g.members.forEach((m, i) =>
-          scene.move(m, from[i][0] + x - wx, from[i][1] + y - wy),
-        );
+        scene.moveInst(g, x0 + x - wx, y0 + y - wy);
       },
     };
   };
@@ -179,7 +176,6 @@ export function createInput(
     if (e.button) return;
     const t = e.target as HTMLElement;
     const grp = scene.groupAt(t);
-    if (grp && t.closest("input, button")) return; // the name box and view button handle themselves
     const flag = t.closest<HTMLElement>(`.${nodeCss.flag}`);
     if (flag) return (scene.flag(flag), schedule());
     const knob = t.closest<HTMLElement>(`.${knobCss.knob}`);
@@ -203,7 +199,7 @@ export function createInput(
           : node
             ? dragNode(e, node)
             : grp
-              ? dragGroup(e, grp)
+              ? dragInst(e, grp)
               : dragPan(e);
     }
     schedule();

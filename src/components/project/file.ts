@@ -19,13 +19,22 @@ export type Lane = {
   lfo: number[]; // L: shape, phase, amp, freq, skew, dc offset. R: seed, freq, type, amp, phase, dc
   keys: { t: number; v: number; c?: number }[];
 };
-// Visual only: a name, how it is shown (0 expanded, 1 params, 2 name only) and its nodes by id.
-export type Group = { name: string; mode: number; nodes: string[] };
+// A custom node definition: its own graph (ids are local to it, 4 hex digits) and named params. The
+// first target of a param is the knob shown on instances; the others follow it (inv: as 1 - value).
+// An instance is a normal node of kind `&` + the definition's 5 hex digits: its params are the
+// definition's params in order, its sockets the definition's Input/Output nodes in order.
+export type Def = {
+  id: string; // 0x + 5 hex digits
+  name: string;
+  nodes: Node[]; // no Data/Math/Waveshaper/Draw Filter, no assets
+  links: [string, number, string, number][];
+  params: { name: string; targets: { id: string; j: number; inv?: boolean }[] }[];
+};
 export type Project = {
   nodes: Node[];
   links: [string, number, string, number][];
   lanes: Lane[];
-  groups: Group[];
+  defs: Def[];
   assets: { id: string; data: Uint8Array }[]; // original files, not rendered frames
 };
 
@@ -133,9 +142,15 @@ export async function unpack(zip: Uint8Array): Promise<Project> {
 //   .cur 0.346153855323792.    curve of the key above, when not 0.5
 //   -\.................../-
 //
-//   <- group "Group 1" 1 ->    name as a JSON string, mode only when not 0
-//   0xd04d5dfbe42              one member id per line
-//   <- group ->
+//   <- def 0x1a2b3 "Filter" -> a custom node: name as a JSON string, then its own graph with local ids
+//   [=- 0x1a2b -=]             nodes and links as above (ids: 4 hex digits); Input/Output ports are
+//   ...                        the nodes of kind grpin / grpout, numbered by their order here
+//   == "Cutoff"                a param: name as a JSON string, then its targets
+//   .. 0x1a2b[2]               the knob shown on instances
+//   .. 0x3c4d[0] ~             a knob that follows it (~: inverted)
+//   <- def ->
+//   [=- 0x4a77abc5d17 -=]      an instance is a normal node: kind &1a2b3, its params = the custom
+//   | _&1a2b3_ 0 &null |       node's params in order; its links use socket = port number
 
 // Data settings: file key <-> the 3-letter key the Data node uses. Unknown keys pass through.
 const LONG: Record<string, string> = {
@@ -193,9 +208,10 @@ enum Tok {
   LaneKey,
   LaneCurve,
   LaneEnd,
-  GroupOpen,
-  GroupNode,
-  GroupEnd,
+  DefOpen,
+  DefParam,
+  DefTarget,
+  DefEnd,
 }
 
 type Token = { tok: Tok; m: RegExpExecArray; line: number };
@@ -220,12 +236,10 @@ const RULES: [Tok, RegExp][] = [
   [Tok.LaneKey, re(`^\\.([#\\d]{3,})\\s+${NUM}\\.$`)],
   [Tok.LaneCurve, re(`^\\.cur\\s+${NUM}\\.$`)],
   [Tok.LaneEnd, re("^-\\\\\\.+/-$")],
-  [
-    Tok.GroupOpen,
-    re('^<-\\sgroup\\s("(?:[^"\\\\]|\\\\.)*")(?:\\s([12]))?\\s->$'),
-  ],
-  [Tok.GroupNode, re(`^${ID}$`)],
-  [Tok.GroupEnd, re("^<-\\sgroup\\s->$")],
+  [Tok.DefOpen, re(`^<-\\sdef\\s${ID}\\s("(?:[^"\\\\]|\\\\.)*")\\s->$`)],
+  [Tok.DefParam, re('^==\\s*("(?:[^"\\\\]|\\\\.)*")$')],
+  [Tok.DefTarget, re(`^\\.\\.\\s*${ID}\\[(\\d+)\\](\\s*~)?$`)],
+  [Tok.DefEnd, re("^<-\\sdef\\s->$")],
 ];
 
 function lex(text: string): Token[] {
@@ -259,7 +273,7 @@ export function parse(
     nodes: [],
     links: [],
     lanes: [],
-    groups: [],
+    defs: [],
     assets: [],
   };
   const tex = new Map<string, string>(); // Math asset id -> its LaTeX
@@ -354,17 +368,33 @@ export function parse(
     }
   };
 
-  const group = (): Group => {
-    const t = next(Tok.GroupOpen);
-    const g: Group = {
-      name: JSON.parse(t.m[1]),
-      mode: +(t.m[2] ?? 0),
+  const def = (): Def => {
+    const t = next(Tok.DefOpen);
+    const d: Def = {
+      id: t.m[1].toLowerCase(),
+      name: JSON.parse(t.m[2]),
       nodes: [],
+      links: [],
+      params: [],
     };
-    while (peek() === Tok.GroupNode)
-      g.nodes.push(next(Tok.GroupNode).m[1].toLowerCase());
-    next(Tok.GroupEnd);
-    return g;
+    for (;;) {
+      const t = next(Tok.NodeHead, Tok.Link, Tok.DefParam, Tok.DefTarget, Tok.DefEnd);
+      if (t.tok === Tok.DefEnd) return d;
+      if (t.tok === Tok.NodeHead) {
+        at--;
+        d.nodes.push(node());
+      } else if (t.tok === Tok.Link)
+        d.links.push([t.m[1].toLowerCase(), +t.m[2], t.m[3].toLowerCase(), +t.m[4]]);
+      else if (t.tok === Tok.DefParam)
+        d.params.push({ name: JSON.parse(t.m[1]), targets: [] });
+      else if (!d.params.length) throw bad(t, "param target before any param");
+      else
+        d.params[d.params.length - 1].targets.push({
+          id: t.m[1].toLowerCase(),
+          j: +t.m[2],
+          ...(t.m[3] ? { inv: true } : {}),
+        });
+    }
   };
 
   while (at < toks.length) {
@@ -380,11 +410,11 @@ export function parse(
       case Tok.LaneTop:
         p.lanes.push(lane());
         break;
-      case Tok.GroupOpen:
-        p.groups.push(group());
+      case Tok.DefOpen:
+        p.defs.push(def());
         break;
       default:
-        next(Tok.NodeHead, Tok.Link, Tok.LaneTop, Tok.GroupOpen); // throws
+        next(Tok.NodeHead, Tok.Link, Tok.LaneTop, Tok.DefOpen); // throws
     }
   }
 
@@ -450,26 +480,36 @@ export function format(p: Project): string {
       `-\\${".".repeat(19)}/-`,
     ].join("\n");
 
-  const group = (g: Group) =>
-    [
-      `<- group ${JSON.stringify(g.name)}${g.mode ? ` ${g.mode}` : ""} ->`,
-      ...g.nodes,
-      "<- group ->",
-    ].join("\n");
-
   // a link is written right after the later of its two nodes
-  const index = new Map(p.nodes.map((n, i) => [n.id, i]));
+  const graph = (nodes: Node[], links: Project["links"]) => {
+    const index = new Map(nodes.map((n, i) => [n.id, i]));
+    return nodes.flatMap((n, i) => [
+      node(n),
+      links
+        .filter(([a, , b]) => Math.max(index.get(a)!, index.get(b)!) === i)
+        .map(([a, sa, b, sb]) => `${a}:${sa} -> ${b}:${sb}`)
+        .join("\n"),
+    ]);
+  };
+
+  const def = (d: Def) =>
+    [
+      `<- def ${d.id} ${JSON.stringify(d.name)} ->`,
+      ...graph(d.nodes, d.links),
+      ...d.params.flatMap((q) => [
+        `== ${JSON.stringify(q.name)}`,
+        ...q.targets.map((t) => `.. ${t.id}[${t.j}]${t.inv ? " ~" : ""}`),
+      ]),
+      "<- def ->",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
   return (
     [
-      ...p.nodes.flatMap((n, i) => [
-        node(n),
-        p.links
-          .filter(([a, , b]) => Math.max(index.get(a)!, index.get(b)!) === i)
-          .map(([a, sa, b, sb]) => `${a}:${sa} -> ${b}:${sb}`)
-          .join("\n"),
-      ]),
+      ...graph(p.nodes, p.links),
       ...p.lanes.map(lane),
-      ...p.groups.map(group),
+      ...p.defs.map(def),
     ]
       .filter(Boolean)
       .join("\n\n") + "\n"

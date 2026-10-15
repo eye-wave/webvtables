@@ -47,28 +47,29 @@ impl State {
 
 impl State {
     // A follower param mirrors its master (custom-node params fan out to inner params).
-    // `None` un-follows. One master per follower.
-    pub fn follow(&mut self, f: (u32, u8), m: Option<(u32, u8)>) -> bool {
+    // `Some((master, inverted))`: the follower is 1 - master when inverted. `None` un-follows.
+    // One master per follower.
+    pub fn follow(&mut self, f: (u32, u8), m: Option<((u32, u8), bool)>) -> bool {
         let ok =
             |(o, p): (u32, u8)| self.nodes.contains(&o) && self.param_slot(o, p as usize).is_some();
-        if m.is_some_and(|m| m == f || !ok(m) || !ok(f)) {
+        if m.is_some_and(|(m, _)| m == f || !ok(m) || !ok(f)) {
             return false;
         }
         self.follows.retain(|x| x.0 != f);
-        self.follows.extend(m.map(|m| (f, m)));
+        self.follows.extend(m.map(|(m, inv)| (f, m, inv)));
         true
     }
 
     // Runs once per evaluation, after keyframes (the master wins over a lane on the follower).
     pub fn propagate(&mut self) {
         for i in 0..self.follows.len() {
-            let ((fo, fp), (mo, mp)) = self.follows[i];
+            let ((fo, fp), (mo, mp), inv) = self.follows[i];
             if let (Some(f), Some(m)) = (
                 self.param_slot(fo, fp as usize),
                 self.param_slot(mo, mp as usize),
             ) {
                 let v = self.arena.slice::<f32>(m, 1)[0];
-                self.arena.slice_mut::<f32>(f, 1)[0] = v;
+                self.arena.slice_mut::<f32>(f, 1)[0] = if inv { 1.0 - v } else { v };
             }
         }
     }
@@ -125,20 +126,27 @@ mod tests {
             s.add_node(NodeKind::Gain, [0.0; 2], [0.0; 2]).unwrap();
         }
         let o = s.nodes.clone();
-        assert!(s.follow((o[1], 0), Some((o[0], 0))));
-        assert!(s.follow((o[2], 0), Some((o[0], 0))));
-        assert!(!s.follow((o[0], 0), Some((o[0], 0))), "not its own master");
+        assert!(s.follow((o[1], 0), Some(((o[0], 0), false))));
+        assert!(s.follow((o[2], 0), Some(((o[0], 0), true))));
+        assert!(
+            !s.follow((o[0], 0), Some(((o[0], 0), false))),
+            "not its own master"
+        );
         let slot = |s: &State, i: usize| s.param_slot(o[i], 0).unwrap();
         let m = slot(&s, 0);
         s.arena.slice_mut::<f32>(m, 1)[0] = 0.25;
         s.propagate();
         assert_eq!(s.arena.slice::<f32>(slot(&s, 1), 1)[0], 0.25);
-        assert_eq!(s.arena.slice::<f32>(slot(&s, 2), 1)[0], 0.25);
+        assert_eq!(s.arena.slice::<f32>(slot(&s, 2), 1)[0], 0.75);
         assert!(s.follow((o[2], 0), None));
-        s.arena.slice_mut::<f32>(m, 1)[0] = 0.75;
+        s.arena.slice_mut::<f32>(m, 1)[0] = 0.5;
         s.propagate();
-        assert_eq!(s.arena.slice::<f32>(slot(&s, 1), 1)[0], 0.75);
-        assert_ne!(s.arena.slice::<f32>(slot(&s, 2), 1)[0], 0.75);
+        assert_eq!(s.arena.slice::<f32>(slot(&s, 1), 1)[0], 0.5);
+        assert_eq!(
+            s.arena.slice::<f32>(slot(&s, 2), 1)[0],
+            0.75,
+            "no longer follows"
+        );
         s.remove_node(0);
         assert!(s.follows.is_empty());
     }

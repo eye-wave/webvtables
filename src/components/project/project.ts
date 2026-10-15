@@ -1,6 +1,6 @@
 import { nodes as kinds } from "../../generated/nodes";
 import type { Kf, LazyKf } from "../../editor/kf";
-import type { Scene } from "../../editor/scene";
+import type { DefSpec, EndSpec, InstSpec, Restore, Scene } from "../../editor/scene";
 import type { WasmExports } from "../../wasm";
 import {
   decode,
@@ -13,7 +13,7 @@ import {
   type Asset,
 } from "../node/data_asset";
 import { texBoot, texOf } from "../node/math";
-import type { Project } from "./file";
+import type { Node as PNode, Project } from "./file";
 
 const fileLib = () => import("./file");
 import projectCss from "./project.module.css";
@@ -87,18 +87,21 @@ export function createProject(
 
   // Live state -> model. Node ids exist only in the file, so they are made up here.
   const snapshot = ({ newIds }: typeof import("./file")): Project => {
+    const info = scene.snapshot();
     const n = wasm.nodes_len();
-    const ids = newIds(n);
+    const ids = newIds(n + info.insts.length); // node index -> id; then one per instance
+    const instId = (k: number) => ids[n + k];
     const aids = newIds(n, 20); // spare ids; only nodes holding data use one
     const at = new Map<number, { id: string; j: number }>();
     const p: Project = {
       nodes: [],
       links: [],
       lanes: [],
-      groups: [],
+      defs: [],
       assets: [],
     };
-    for (let i = 0; i < n; i++) {
+    // Node i as the file has it. Only main nodes can be keyframed or hold data (a definition's can't).
+    const nodeOf = (i: number, id: string, main: boolean): PNode => {
       const [x, y] = f32().subarray(
         wasm.get_node(i) >> 2,
         (wasm.get_node(i) >> 2) + 2,
@@ -106,19 +109,19 @@ export function createProject(
       const params: number[] = [];
       for (let j = 0, a; (a = wasm.get_param(i, j)) >= 0; j++) {
         params.push(f32()[a >> 2]);
-        at.set(a, { id: ids[i], j });
+        if (main) at.set(a, { id, j });
       }
       const flags = new Uint8Array(wasm.memory.buffer)[
         wasm.get_node(i) + FLAGS_AT
       ];
-      const d = savedAt(i); // the original import and its settings, not the rendered frames
+      const d = main ? savedAt(i) : undefined; // the original import and its settings, not the rendered frames
       // Math nodes: the LaTeX is the asset, a plain text file
-      const tex = texOf(wasm.get_node(i));
+      const tex = main ? texOf(wasm.get_node(i)) : undefined;
       if (d) p.assets.push({ id: aids[i], data: d.bytes });
       else if (tex !== undefined)
         p.assets.push({ id: aids[i], data: new TextEncoder().encode(tex) });
-      p.nodes.push({
-        id: ids[i],
+      return {
+        id,
         kind: kinds[wasm.node_kind(i)].id,
         params,
         x,
@@ -126,22 +129,60 @@ export function createProject(
         flags,
         asset: d || tex !== undefined ? aids[i] : undefined,
         spec: d?.spec,
-      });
+      };
+    };
+    for (let i = 0; i < n; i++)
+      if (info.space.get(i) === "") p.nodes.push(nodeOf(i, ids[i], true));
+    info.insts.forEach((g, k) =>
+      p.nodes.push({
+        id: instId(k),
+        kind: "&" + g.def.slice(2),
+        params: g.vals,
+        x: g.x,
+        y: g.y,
+        flags: g.flags,
+      }),
+    );
+    const local = new Map<number, string>(); // definition node index -> its local id
+    for (const d of info.defs) {
+      const lids = newIds(d.nodes.length, 16);
+      d.nodes.forEach((i, k) => local.set(i, lids[k]));
     }
+    const inside = new Map<string, Project["links"]>();
     const u8 = new Uint8Array(wasm.memory.buffer),
       u16 = new Uint16Array(wasm.memory.buffer);
     for (let i = 0; i < wasm.links_len(); i++) {
-      const a = wasm.get_link(i);
-      p.links.push([
-        ids[u16[a >> 1]],
-        u8[a + 2],
-        ids[u16[(a >> 1) + 2]],
-        u8[a + 6],
-      ]);
+      const l = wasm.get_link(i);
+      const [a, sa, b, sb] = [u16[l >> 1], u8[l + 2], u16[(l >> 1) + 2], u8[l + 6]];
+      const [pa, pb] = [info.port.get(a), info.port.get(b)];
+      const [ka, kb] = [info.space.get(a), info.space.get(b)];
+      if ((ka === "i" && !pa) || (kb === "i" && !pb)) continue; // inside an instance
+      if (pa && pb && pa.inst === pb.inst) continue;
+      if ((pa || ka === "") && (pb || kb === ""))
+        p.links.push([
+          pa ? instId(pa.inst) : ids[a],
+          pa ? pa.port : sa,
+          pb ? instId(pb.inst) : ids[b],
+          pb ? pb.port : sb,
+        ]);
+      else if (ka && ka === kb) {
+        const list = inside.get(ka) ?? [];
+        inside.set(ka, list);
+        list.push([local.get(a)!, sa, local.get(b)!, sb]);
+      }
     }
-    p.groups = scene
-      .list()
-      .map((g) => ({ ...g, nodes: g.nodes.map((i) => ids[i]) }));
+    p.defs = info.defs.map((d) => ({
+      id: d.id,
+      name: d.name,
+      nodes: d.nodes.map((i) => nodeOf(i, local.get(i)!, false)),
+      links: inside.get(d.id) ?? [],
+      params: d.params.map((q) => ({
+        name: q.name,
+        targets: q.targets.flatMap((t) =>
+          local.has(t.n) ? [{ id: local.get(t.n)!, j: t.j, inv: t.inv }] : [],
+        ),
+      })),
+    }));
     p.lanes = kf.lanes().map((l) => ({
       name: l.name,
       type: l.rand
@@ -158,27 +199,44 @@ export function createProject(
 
   // Model -> fresh wasm state, replayed through the normal editing calls.
   // Unknown node kinds are dropped along with their links and lane targets.
-  // Returns the groups with node ids turned into indices, for scene.restore() once the nodes are mounted.
-  const apply = (p: Project, decoded: Map<string, Asset>, real?: Kf) => {
+  // Returns the definitions and instances with node ids turned into indices, for scene.restore() once
+  // the nodes are mounted. A definition's nodes come after the main ones, so those keep their indices.
+  const apply = (p: Project, decoded: Map<string, Asset>, real?: Kf): Restore => {
     wasm.project_new();
     pending.clear();
     texBoot.clear();
     ptsBoot.clear();
     drawBoot.clear();
     const at = new Map<string, number>();
-    for (const n of p.nodes) {
+
+    // size is derived, scene.load() fills it in
+    const place = (n: PNode) => {
       const kind = kinds.findIndex((k) => k.id === n.kind);
-      // size is derived, scene.load() fills it in
-      if (kind < 0 || wasm.add_node(kind, n.x || 0, n.y || 0, 0, 0) < 0)
-        continue;
+      if (kind < 0 || wasm.add_node(kind, n.x || 0, n.y || 0, 0, 0) < 0) return -1;
       const i = wasm.nodes_len() - 1;
-      at.set(n.id, i);
-      new Uint8Array(wasm.memory.buffer)[wasm.get_node(i) + FLAGS_AT] =
-        n.flags & 7;
+      new Uint8Array(wasm.memory.buffer)[wasm.get_node(i) + FLAGS_AT] = n.flags & 7;
       n.params.forEach((v, j) => {
         const a = wasm.get_param(i, j);
         if (a >= 0) f32()[a >> 2] = Math.min(Math.max(v, 0), 1);
       });
+      return i;
+    };
+
+    const defIds = new Set(p.defs.map((d) => d.id));
+    const insts: InstSpec[] = [];
+    const instAt = new Map<string, number>();
+    for (const n of p.nodes) {
+      if (n.kind[0] === "&") {
+        // an instance: it becomes real nodes in scene.restore()
+        const def = "0x" + n.kind.slice(1);
+        if (!defIds.has(def)) continue;
+        instAt.set(n.id, insts.length);
+        insts.push({ def, x: n.x || 0, y: n.y || 0, flags: n.flags & 7, vals: n.params });
+        continue;
+      }
+      const i = place(n);
+      if (i < 0) continue;
+      at.set(n.id, i);
       // the Data node view renders it into frames when it mounts (scene.load below);
       // assets can be shared, but each node keeps its own file name
       const text = n.kind === "math" && n.asset;
@@ -199,8 +257,40 @@ export function createProject(
           spec: n.spec ?? {},
         });
     }
-    for (const [a, sa, b, sb] of p.links)
-      if (at.has(a) && at.has(b)) wasm.add_link(at.get(a)!, sa, at.get(b)!, sb);
+
+    // nodes with state outside their params can't be copied into instances
+    const STATE = ["output", "data", "math", "wavshape", "drawfilt"];
+    const defs = p.defs.map((d): DefSpec => {
+      const local = new Map<string, number>();
+      for (const n of d.nodes) {
+        const i = STATE.includes(n.kind) ? -1 : place(n);
+        if (i >= 0) local.set(n.id, i);
+      }
+      for (const [a, sa, b, sb] of d.links)
+        if (local.has(a) && local.has(b))
+          wasm.add_link(local.get(a)!, sa, local.get(b)!, sb);
+      return {
+        id: d.id,
+        name: d.name,
+        nodes: [...local.values()],
+        params: d.params.map((q) => ({
+          name: q.name,
+          targets: q.targets.flatMap((t) =>
+            local.has(t.id) ? [{ n: local.get(t.id)!, j: t.j, inv: t.inv }] : [],
+          ),
+        })),
+      };
+    });
+
+    const links: Restore["links"] = [];
+    const end = (id: string): EndSpec | undefined =>
+      at.has(id) ? at.get(id)! : instAt.has(id) ? { i: instAt.get(id)! } : undefined;
+    for (const [a, sa, b, sb] of p.links) {
+      const [x, y] = [end(a), end(b)];
+      if (x === undefined || y === undefined) continue;
+      if (typeof x === "number" && typeof y === "number") wasm.add_link(x, sa, y, sb);
+      else links.push([x, sa, y, sb]);
+    }
     for (const l of p.lanes) {
       const lane = real!.addLane(
         { P: 0, C: 0, S: 0, L: 1, R: 2 }[l.type],
@@ -229,10 +319,7 @@ export function createProject(
         if (at.has(t.id))
           real!.link(lane, wasm.get_node(at.get(t.id)!), t.j, true);
     }
-    return p.groups.map((g) => ({
-      ...g,
-      nodes: g.nodes.flatMap((id) => at.get(id) ?? []),
-    }));
+    return { defs, insts, links };
   };
 
   // Strip characters filesystems reject; fall back to "project".
@@ -310,14 +397,14 @@ export function createProject(
       fileMsg.textContent = `Could not decode an asset (${(e as Error).message}).`;
       return;
     }
-    const groups = apply(
+    const restored = apply(
       p,
       decoded,
       p.lanes.length ? await kf.load() : undefined,
     );
     fileName.value = file.name.replace(/\.(wtp|wtx)$/i, "");
     scene.load();
-    scene.restore(groups);
+    scene.restore(restored);
     // pending.clear();
     texBoot.clear();
     ptsBoot.clear();

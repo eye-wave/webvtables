@@ -174,16 +174,16 @@ pub extern "C" fn scope_begin() {
     graph::scope::begin(s)
 }
 
-// `on`: param `fp` of node `f` mirrors param `mp` of node `m`; off: it stops (m is ignored).
+// `on`: param `fp` of node `f` mirrors param `mp` of node `m` (1 - it when `inv`); off: it stops (m is ignored).
 // Nodes are absolute addresses as from get_node.
 #[unsafe(no_mangle)]
-pub extern "C" fn param_follow(f: u32, fp: u8, m: u32, mp: u8, on: bool) -> bool {
+pub extern "C" fn param_follow(f: u32, fp: u8, m: u32, mp: u8, on: bool, inv: bool) -> bool {
     let s = state();
     let Some(f) = s.node_off(f as usize) else {
         return false;
     };
     let m = if on {
-        s.node_off(m as usize).map(|m| (m, mp))
+        s.node_off(m as usize).map(|m| ((m, mp), inv))
     } else {
         None
     };

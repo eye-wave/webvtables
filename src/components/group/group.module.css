@@ -1,4 +1,4 @@
-/* Same transform as the node grid (scene.sync copies it), stacked over it; only groups take the pointer. */
+/* Same transform as the node grid (scene.sync copies it), stacked over it; only instances take the pointer. */
 .layer {
   position: absolute;
   inset: 0;
@@ -6,35 +6,26 @@
   pointer-events: none;
 }
 
+/* An instance of a custom node: a node-like box (its real nodes are hidden copies). */
 .group {
   position: absolute;
   top: 0;
   left: 0;
   box-sizing: border-box;
-  color: var(--text-600);
-  font:
-    13px system-ui,
-    sans-serif;
-  user-select: none;
-  touch-action: none;
-}
-
-/* Expanded: a dashed frame around the members; only the title bar takes the pointer. */
-.group:not([data-shut]) {
-  border: 1px dashed var(--border-300);
-  border-radius: 10px;
-}
-
-/* Collapsed: a node-like box. */
-.group[data-shut] {
   pointer-events: auto;
   display: flex;
   flex-direction: column;
   gap: 4px;
   padding: 4px;
+  color: var(--text-600);
+  font:
+    13px system-ui,
+    sans-serif;
   background: var(--surface-400);
   border: 2px solid var(--border-300);
   border-radius: 8px;
+  user-select: none;
+  touch-action: none;
   cursor: grab;
 }
 
@@ -43,66 +34,18 @@
   height: 20px;
   display: flex;
   align-items: center;
-  gap: 4px;
-  pointer-events: auto;
-  cursor: grab;
-}
-
-.group:not([data-shut]) .head {
-  padding: 0 4px;
-  background: color-mix(in srgb, var(--accent-200) 12%, var(--surface-400));
-  border-radius: 9px 9px 0 0;
 }
 
 .name {
   flex: 1;
   min-width: 0;
   padding: 0 4px;
-  font: inherit;
-  color: inherit;
-  background: transparent;
-  border: 0;
-  border-radius: 4px;
-  outline: 0;
+  overflow: hidden;
+  white-space: nowrap;
   text-overflow: ellipsis;
-  pointer-events: none;
-}
-
-.name:not([readonly]) {
-  pointer-events: auto;
-  user-select: text; /* .group is user-select: none, which can make inputs untypable */
-  cursor: text;
-}
-
-.name:focus {
-  background: var(--surface-700);
-}
-
-.mode {
-  flex: none;
-  width: 18px;
-  height: 18px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  font-size: 11px;
-  color: var(--text-400);
-  background: var(--surface-600);
-  border: 1px solid var(--border-200);
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.mode:hover {
-  border-color: var(--border-400);
 }
 
 .body {
   display: flex;
   flex-direction: column;
-}
-
-.body:empty,
-.group:not([data-shut]) .body {
-  display: none;
 }
