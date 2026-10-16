@@ -107,6 +107,7 @@ void loadWasm().then((wasm) => {
   const kf: LazyKf = {
     lanes: () => real?.lanes() ?? [],
     apply: (f) => real?.apply(f) ?? new Set<number>(),
+    link: (l, n, j, on) => void real?.link(l, n, j, on),
     load: () =>
       (booting ??= (async () => {
         const [{ createKf }, { Keyframes }] = await Promise.all([
@@ -134,6 +135,7 @@ void loadWasm().then((wasm) => {
         return k;
       })()),
   };
+  scene.useKf(kf);
   const preview = createPreview(wasm, scene, kf, drawMap);
   createProject(
     document.querySelector<HTMLElement>(".box-playback")!,

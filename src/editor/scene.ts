@@ -21,6 +21,9 @@ export type GParam = { name: string; targets: Port[] }; // targets[0] is the kno
 export type Def = { id: string; name: string; params: GParam[] };
 export type Inst = {
   def: Def;
+  space: string; // where its box lives: "" main, a definition id, or "i" (a hidden copy inside another instance)
+  parent?: Inst; // the instance whose copy this is, for "i"
+  children: Inst[]; // the hidden copies of the instances inside its definition
   pos: [number, number];
   members: HTMLElement[]; // the hidden copies of the definition's nodes
   ins: HTMLElement[]; // copies of its Input nodes, in order: the box's input sockets
@@ -33,6 +36,11 @@ export type Inst = {
   rect: [number, number, number, number];
 };
 export const NAME_MAX = 22;
+// What the scene needs from the keyframes: which lanes drive which param slots, and to re-aim them.
+export type LaneHook = {
+  lanes(): { addrs: number[] }[];
+  link(lane: number, nodeAddr: number, param: number, on: boolean): unknown;
+};
 // What the file stores, by node index (project.ts turns indices into ids).
 export type DefSpec = {
   id: string;
@@ -40,7 +48,16 @@ export type DefSpec = {
   nodes: number[];
   params: { name: string; targets: { n: number; j: number; inv?: boolean }[] }[];
 };
-export type InstSpec = { def: string; x: number; y: number; flags: number; vals: number[] };
+export type InstSpec = {
+  def: string;
+  space: string; // "" main, or the definition it sits in
+  x: number;
+  y: number;
+  flags: number;
+  vals: number[];
+};
+// Where an instance's param really lives, to aim a keyframe lane at it.
+export type ParamAt = (inst: number, param: number) => { node: number; j: number } | undefined;
 export type EndSpec = number | { i: number }; // a node index, or an instance (its port = the socket)
 export type Restore = {
   defs: DefSpec[];
@@ -175,6 +192,7 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
   const portSock = new WeakMap<HTMLElement, () => Sock>(); // instance socket -> the copy's socket
   const picked = new Set<HTMLElement>();
   let tab = ""; // "" = main, else the id of the definition being edited
+  let kf: LaneHook | undefined;
   // Same transform as the grid (copied in sync). It has to sit after the grid, which covers the
   // whole area and would otherwise swallow every click meant for an instance.
   const layer = Object.assign(document.createElement("div"), {
@@ -190,7 +208,7 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
   const defOf = (el: HTMLElement) => defs.find((d) => d.id === spaceOf(el));
   const applyTab = () => {
     dom().forEach((e) => (e.style.display = shown(e) ? "" : "none"));
-    layer.style.display = tab ? "none" : "";
+    insts.forEach((g) => (g.el.style.display = g.space === tab ? "" : "none"));
   };
   const owner = (k: HTMLElement) => rowOwner.get(k) ?? k.closest<HTMLElement>(`.${nodeCss.node}`)!;
 
@@ -230,6 +248,30 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
     const k = +el.dataset.k!;
     if (k === GIN || k === GOUT)
       el.querySelector(`.${nodeCss.socket}[data-o="${+(k === GOUT)}"]`)?.remove();
+  };
+
+  const PORT_GAP = 48;
+  // Where a new Input/Output of the definition in space `sp` goes: Inputs to the left of its nodes,
+  // Outputs to the right, stacked one under the other. (cx, cy) is where to start if it is empty.
+  const portSpot = (kind: number, sp: string, cx: number, cy: number): [number, number] => {
+    const mine = dom().filter((e) => spaceOf(e) === sp);
+    const box = (e: HTMLElement) => f32().subarray(at(e), at(e) + 4);
+    const isPort = (e: HTMLElement) => +e.dataset.k! === GIN || +e.dataset.k! === GOUT;
+    const [body, same] = [
+      mine.filter((e) => !isPort(e)),
+      mine.filter((e) => +e.dataset.k! === kind),
+    ];
+    let [x, y] = [kind === GIN ? cx - 150 : cx + 90, cy];
+    if (body.length) {
+      const bs = body.map(box);
+      x =
+        kind === GIN
+          ? Math.min(...bs.map((b) => b[0])) - PORT_GAP - sizeOf(kind)[0]
+          : Math.max(...bs.map((b) => b[0] + b[2])) + PORT_GAP;
+      y = Math.min(...bs.map((b) => b[1]));
+    } else if (same.length) [x, y] = box(same[0]);
+    for (const e of same) y = Math.max(y, box(e)[1] + box(e)[3] + 16);
+    return [x, y];
   };
 
   // A real node in space `sp` ("" main, a definition id, or "i" for an instance's copy).
@@ -288,6 +330,7 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
     g.outs.forEach((e) => (u8()[+e.dataset.p! + FLAGS_AT] = bits));
 
   const render = (g: Inst) => {
+    if (g.space === "i") return; // a hidden copy has no box
     g.head.textContent = g.def.name;
     g.el.querySelectorAll(`.${nodeCss.socket}`).forEach((e) => e.remove());
     g.body.replaceChildren();
@@ -335,6 +378,7 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
       .filter((e) => spaceOf(e) === d.id)
       .sort(byN);
     const idx = new Map<number, HTMLElement>(); // definition node index -> copy
+    g.children = [];
     g.members = [];
     g.ins = [];
     g.outs = [];
@@ -354,6 +398,19 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
       if (k === GIN) g.ins.push(el);
       if (k === GOUT) g.outs.push(el);
     }
+    // instances inside the definition: hidden copies with the same values, wired like the box is
+    for (const h of insts.filter((x) => x.space === d.id)) {
+      const vals = new Map<GParam, number>();
+      for (const q of h.def.params) {
+        const m = masterOf(h, q);
+        if (m) vals.set(q, f32()[slot(m)]);
+      }
+      const c = makeInst(h.def, "i", h.pos[0], h.pos[1], g, vals);
+      setFlags(c, flagsOf(h));
+      g.children.push(c);
+      h.ins.forEach((e, i) => c.ins[i] && idx.set(+e.dataset.n!, c.ins[i]));
+      h.outs.forEach((e, i) => c.outs[i] && idx.set(+e.dataset.n!, c.outs[i]));
+    }
     for (let i = 0, n = wasm.links_len(); i < n; i++) {
       const [s, ss, t, ts] = ends(i);
       const [a, b] = [idx.get(s), idx.get(t)];
@@ -371,6 +428,11 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
   };
 
   const teardown = (g: Inst) => {
+    for (const c of g.children) {
+      teardown(c);
+      insts.splice(insts.indexOf(c), 1);
+    }
+    g.children = [];
     for (const m of [...g.members].sort(byN).reverse()) {
       membership.delete(m);
       drop(m);
@@ -381,14 +443,19 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
     g.copy = new Map();
   };
 
-  // Rebuilds every instance of `d`, keeping what is theirs (params, flags) and the links into them.
+  // Rebuilds every instance of `d` (boxes and hidden copies alike), keeping what is theirs (params,
+  // flags, lanes) and the links into them.
   type End = HTMLElement | { g: Inst; out: boolean; i: number };
   const reexpand = (d: Def) => {
     const mine = insts.filter((g) => g.def === d);
     if (!mine.length) return;
     const els = byIndex();
+    // the instance of `d` an element is part of, however deep
+    const top = (el: HTMLElement) => {
+      for (let g = membership.get(el); g; g = g.parent) if (mine.includes(g)) return g;
+    };
     const endOf = (el: HTMLElement): End | undefined => {
-      const g = membership.get(el);
+      const g = top(el);
       if (!g) return el;
       const [i, o] = [g.ins.indexOf(el), g.outs.indexOf(el)];
       return i >= 0 ? { g, out: false, i } : o >= 0 ? { g, out: true, i: o } : undefined;
@@ -398,20 +465,46 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
       const [s, ss, t, ts] = ends(l);
       const [a, b] = [els.get(s), els.get(t)];
       if (!a || !b) continue;
-      const [ga, gb] = [membership.get(a), membership.get(b)];
-      if ((!ga || !mine.includes(ga)) && (!gb || !mine.includes(gb))) continue;
-      if (ga && ga === gb) continue; // inside one instance: expand() makes it again
+      const [ta, tb] = [top(a), top(b)];
+      if ((!ta && !tb) || ta === tb) continue; // not ours, or inside one: expand() makes it again
       const [ea, eb] = [endOf(a), endOf(b)];
       if (ea && eb) saved.push([ea, ss, eb, ts]);
     }
     const flags = mine.map(flagsOf);
-    for (const g of mine)
+    // lanes driving an instance's params: a lane left without targets is deleted, so the new copies
+    // must be aimed at before the old ones go
+    const lanes = kf?.lanes() ?? [];
+    const driving = new Map<Inst, Map<GParam, number[]>>();
+    for (const g of mine) {
+      const per = new Map<GParam, number[]>();
+      driving.set(g, per);
       for (const q of d.params) {
         const m = masterOf(g, q);
-        if (m) g.vals.set(q, f32()[slot(m)]);
+        if (!m) continue;
+        g.vals.set(q, f32()[slot(m)]);
+        const addr = slot(m) << 2;
+        per.set(
+          q,
+          lanes.flatMap((l, i) => (l.addrs.includes(addr) ? [i] : [])),
+        );
       }
-    mine.forEach(teardown);
+    }
+    const [old, kids] = [mine.map((g) => g.members), mine.map((g) => g.children)];
     mine.forEach(expand);
+    for (const g of mine)
+      for (const [q, ls] of driving.get(g)!) {
+        const m = masterOf(g, q);
+        if (m) ls.forEach((l) => kf?.link(l, +m.el.dataset.p!, m.j, true));
+      }
+    for (const ms of old)
+      for (const m of [...ms].sort(byN).reverse()) {
+        membership.delete(m);
+        drop(m);
+      }
+    for (const c of kids.flat()) {
+      teardown(c);
+      insts.splice(insts.indexOf(c), 1);
+    }
     mine.forEach((g, i) => setFlags(g, flags[i]));
     const resolve = (e: End, sock: number): [HTMLElement, number] | undefined => {
       if (e instanceof HTMLElement) return [e, sock];
@@ -425,7 +518,27 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
     mine.forEach(render);
   };
 
-  const addInst = (d: Def, x: number, y: number) => {
+  // Does definition `a` contain, however deep, an instance of `b`?
+  const uses = (a: Def, b: Def, seen = new Set<Def>()): boolean => {
+    if (seen.has(a)) return false;
+    seen.add(a);
+    return insts.some((g) => g.space === a.id && (g.def === b || uses(g.def, b, seen)));
+  };
+  // An instance of `d` can sit in space `host` unless `d` already contains `host` (it would never end).
+  const canNest = (d: Def, host: string) => {
+    const h = defs.find((x) => x.id === host);
+    return !host || (!!h && d !== h && !uses(d, h));
+  };
+
+  // space: "" main, a definition id, or "i" for a hidden copy made while expanding `parent`
+  const makeInst = (
+    d: Def,
+    sp: string,
+    x: number,
+    y: number,
+    parent?: Inst,
+    vals = new Map<GParam, number>(),
+  ) => {
     const name = div(groupCss.name);
     const head = div(groupCss.head);
     head.append(name);
@@ -440,20 +553,26 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
     };
     const g: Inst = {
       def: d,
+      space: sp,
+      parent,
+      children: [],
       pos: [x, y],
       members: [],
       ins: [],
       outs: [],
       copy: new Map(),
-      vals: new Map(),
+      vals,
       el,
       head: name,
       body,
       rect: [x, y, GW, GHEAD],
     };
     insts.push(g);
-    groupEl.set(el, g);
-    layer.append(el);
+    if (sp !== "i") {
+      groupEl.set(el, g);
+      layer.append(el);
+      el.style.display = sp === tab ? "" : "none";
+    }
     expand(g);
     render(g);
     return g;
@@ -500,13 +619,17 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
       tab = "";
       applyTab();
     }
-    insts.filter((g) => g.def === d).forEach(removeInst);
+    // definitions holding an instance of `d` are rebuilt without it afterwards
+    const hosts = defs.filter((x) => x !== d && insts.some((g) => g.def === d && g.space === x.id));
+    insts.filter((g) => g.def === d && g.space !== "i").forEach(removeInst);
+    insts.filter((g) => g.space === d.id).forEach(removeInst);
     dom()
       .filter((e) => spaceOf(e) === d.id)
       .sort(byN)
       .reverse()
       .forEach(drop);
     defs.splice(defs.indexOf(d), 1);
+    hosts.forEach(reexpand);
     changed();
     redraw();
   };
@@ -562,22 +685,43 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
     nodes(): NodeInfo[] {
       const els = sorted();
       const label = names();
-      return els.map((el) => {
-        const kind = nodes[+el.dataset.k!];
-        const info = kind.params as readonly ParamInfo[];
-        return {
-          p: +el.dataset.p!,
-          n: +el.dataset.n!,
-          name: label.get(el)!,
-          params: [...el.querySelectorAll<HTMLElement>(`.${knobCss.knob}`)].map((k) => ({
-            addr: +k.dataset.a!,
-            j: +k.dataset.j!,
-            name: info[+k.dataset.j!].n,
-            o: info[+k.dataset.j!].o,
-            u: info[+k.dataset.j!].u,
-          })),
-        };
-      });
+      return els
+        .map((el) => {
+          const kind = nodes[+el.dataset.k!];
+          const info = kind.params as readonly ParamInfo[];
+          return {
+            p: +el.dataset.p!,
+            n: +el.dataset.n!,
+            name: label.get(el)!,
+            params: [...el.querySelectorAll<HTMLElement>(`.${knobCss.knob}`)].map((k) => ({
+              addr: +k.dataset.a!,
+              j: +k.dataset.j!,
+              name: info[+k.dataset.j!].n,
+              o: info[+k.dataset.j!].o,
+              u: info[+k.dataset.j!].u,
+            })),
+          };
+        })
+        .concat(
+          // an instance's params are its hidden copies' knobs: one entry per param
+          insts.flatMap((g) => {
+            if (g.space) return []; // only the main graph's can be keyframed
+            const rank = insts.filter((x) => x.def === g.def && !x.space).indexOf(g) + 1;
+            return g.def.params.flatMap((q) => {
+              const m = masterOf(g, q);
+              if (!m) return [];
+              const info = nodes[+m.el.dataset.k!].params as readonly ParamInfo[];
+              return {
+                p: +m.el.dataset.p!,
+                n: +m.el.dataset.n!,
+                name: `${g.def.name} ${rank}`,
+                params: [
+                  { addr: slot(m) << 2, j: m.j, name: q.name, o: info[m.j].o, u: info[m.j].u },
+                ],
+              };
+            });
+          }),
+        );
     },
 
     write: (addr: number, v: number) => void (f32()[addr >> 2] = v),
@@ -586,6 +730,7 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
       // Input/Output only make sense in a definition; its nodes can't hold state outside params
       const port = kind === GIN || kind === GOUT;
       if (tab ? STATEFUL.has(kind) || kind === OUTPUT : port) return;
+      if (tab && port) [x, y] = portSpot(kind, tab, x, y);
       if (spawn(kind, x, y, tab)) changed();
     },
 
@@ -617,7 +762,8 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
           for (const t of q.targets.slice(1)) driven.add(wasm.get_param(+t.el.dataset.n!, t.j));
       // other tabs' nodes and instances' copies are skipped everywhere, so z-order = index here
       const els = visible();
-      const inst = new Float32Array((els.length + insts.length) * STRIDE);
+      const boxes = insts.filter((g) => g.space === tab);
+      const inst = new Float32Array((els.length + boxes.length) * STRIDE);
       for (let i = 0; i < els.length; i++) {
         const el = els[i];
         const p = +el.dataset.p!;
@@ -646,11 +792,10 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
       }
       // instances are drawn like nodes (occlude ropes, glow), after them
       let n = els.length;
-      if (!tab)
-        for (const g of insts) {
-          layout(g, f, driven);
-          inst.set([...g.rect, n++, 2], (n - 1) * STRIDE);
-        }
+      for (const g of boxes) {
+        layout(g, f, driven);
+        inst.set([...g.rect, n++, 2], (n - 1) * STRIDE);
+      }
       return inst.subarray(0, n * STRIDE);
     },
 
@@ -675,22 +820,21 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
       }
       // instances are drawn after the nodes: waveform of their first output
       let order = els.length;
-      if (!tab)
-        for (const g of insts) {
-          const sc = g.body.querySelector<HTMLElement>(`.${nodeCss.scope}`);
-          const o = g.outs[0];
-          const len = sc && o ? wasm.scope_fill(+o.dataset.n!, 0) : 0;
-          if (sc && len >= 2) {
-            const [ox, oy] = offsetIn(sc, g.el);
-            out.push({
-              rect: [g.rect[0] + ox, g.rect[1] + oy, sc.offsetWidth, sc.offsetHeight],
-              order,
-              color: GREEN,
-              pts: new Float32Array(wasm.memory.buffer, wasm.scope_ptr(), len).slice(),
-            });
-          }
-          order++;
+      for (const g of insts.filter((x) => x.space === tab)) {
+        const sc = g.body.querySelector<HTMLElement>(`.${nodeCss.scope}`);
+        const o = g.outs[0];
+        const len = sc && o ? wasm.scope_fill(+o.dataset.n!, 0) : 0;
+        if (sc && len >= 2) {
+          const [ox, oy] = offsetIn(sc, g.el);
+          out.push({
+            rect: [g.rect[0] + ox, g.rect[1] + oy, sc.offsetWidth, sc.offsetHeight],
+            order,
+            color: GREEN,
+            pts: new Float32Array(wasm.memory.buffer, wasm.scope_ptr(), len).slice(),
+          });
         }
+        order++;
+      }
       return out;
     },
 
@@ -760,7 +904,8 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
         // no DOM here = a guide demo's link, parked in this graph
         const gs = shut(a);
         const gone = !a || !b || (gs && gs === shut(b));
-        const host = (e?: HTMLElement) => (e && membership.has(e) ? !tab : e && shown(e));
+        const host = (e?: HTMLElement) =>
+          e && membership.has(e) ? shut(e)!.space === tab : e && shown(e);
         if (gone || !host(a) || !host(b)) {
           yield [i, null, null];
           continue;
@@ -807,7 +952,7 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
 
     // Closest free-side socket of whatever `hit` is (a node, or an instance) to world point `w`.
     nearest(from: Sock, hit: Element, [x, y]: Pt): Sock | null {
-      const g = tab ? undefined : groupIn(hit);
+      const g = groupIn(hit);
       const el = hit.closest<HTMLElement>(`.${nodeCss.node}`);
       const list = g
         ? portSocks(g, !from.out)
@@ -834,7 +979,7 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
       const all = [...els]
         .filter(([, el]) => shown(el))
         .flatMap(([node]) => socks(node, !from.out));
-      if (!tab) for (const g of insts) all.push(...portSocks(g, !from.out));
+      for (const g of insts) if (g.space === tab) all.push(...portSocks(g, !from.out));
       return all.filter((s) => s.node !== from.node).map((s) => socketPos(s, els));
     },
 
@@ -907,6 +1052,9 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
     },
     deselect,
 
+    useKf(k: LaneHook) {
+      kf = k;
+    },
     tab: () => tab,
     defs: () => defs,
     open,
@@ -955,7 +1103,6 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
 
     // Why the selection can't become a custom node, if so.
     defineBlocked(): string | undefined {
-      if (tab) return "Only from the main tab";
       if (!picked.size) return "Select nodes first";
       for (const e of picked) {
         const k = +e.dataset.k!;
@@ -971,6 +1118,8 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
       const mine = new Set(sel);
       deselect();
       const d = newDef();
+      const cur = defs.find((x) => x.id === tab);
+      if (cur) unbind(cur, (p) => mine.has(p.el)); // these nodes leave this definition
       const els = byIndex();
       const cross: [HTMLElement, number, HTMLElement, number][] = [];
       for (let i = 0; i < wasm.links_len(); i++) {
@@ -980,8 +1129,7 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
       }
       const box = sel.map((e) => f32().subarray(at(e), at(e) + 4));
       const x0 = Math.min(...box.map((b) => b[0])),
-        y0 = Math.min(...box.map((b) => b[1])),
-        x1 = Math.max(...box.map((b) => b[0] + b[2]));
+        y0 = Math.min(...box.map((b) => b[1]));
       sel.forEach((e) => (e.dataset.s = d.id));
       // one Input per crossing link into the selection, one Output per distinct source out of it
       const ins: [HTMLElement, number][] = [],
@@ -990,15 +1138,15 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
         if (mine.has(b)) ins.push([b, ts]);
         else if (!outs.some(([e, j]) => e === a && j === ss)) outs.push([a, ss]);
       }
-      ins.forEach(([b, ts], k) => {
-        const p = spawn(GIN, x0 - 200, y0 + 70 * k, d.id);
+      for (const [b, ts] of ins) {
+        const p = spawn(GIN, ...portSpot(GIN, d.id, x0, y0), d.id);
         if (p) wasm.add_link(+p.dataset.n!, 0, +b.dataset.n!, ts);
-      });
-      outs.forEach(([a, ss], k) => {
-        const p = spawn(GOUT, x1 + 40, y0 + 70 * k, d.id);
+      }
+      for (const [a, ss] of outs) {
+        const p = spawn(GOUT, ...portSpot(GOUT, d.id, x0, y0), d.id);
         if (p) wasm.add_link(+a.dataset.n!, ss, +p.dataset.n!, 0);
-      });
-      const g = addInst(d, x0, y0);
+      }
+      const g = makeInst(d, tab, x0, y0);
       // the old crossing links are overwritten: every one ends on a socket that gets a new source
       for (const [a, ss, b, ts] of cross) {
         if (mine.has(b)) {
@@ -1015,14 +1163,16 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
     },
 
     addInst(d: Def, x: number, y: number) {
-      if (tab) return;
-      const g = addInst(d, x, y);
+      if (!canNest(d, tab)) return;
+      const g = makeInst(d, tab, x, y);
       changed();
       return g;
     },
+    /** Can an instance of `d` go in the open tab? (Not if `d` contains it: that would never end.) */
+    canNest: (d: Def) => canNest(d, tab),
     removeInst,
     duplicateInst(g: Inst) {
-      const c = addInst(g.def, g.pos[0] + 24, g.pos[1] + 24);
+      const c = makeInst(g.def, g.space, g.pos[0] + 24, g.pos[1] + 24);
       for (const q of g.def.params) {
         const [a, b] = [masterOf(g, q), masterOf(c, q)];
         if (a && b) f32()[slot(b)] = f32()[slot(a)];
@@ -1039,16 +1189,20 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
     // What the file stores. `space`: "" main, a definition id, "i" an instance's copy; `port`: which
     // instance port a copy is (its links are the instance's links).
     snapshot() {
+      const shown = insts.filter((g) => g.space !== "i");
       const spaces = new Map<number, string>();
       const port = new Map<number, { inst: number; out: boolean; port: number }>();
       for (const [n, e] of byIndex()) {
         const g = membership.get(e);
-        spaces.set(n, g ? "i" : spaceOf(e));
-        if (!g) continue;
-        const [i, o] = [g.ins.indexOf(e), g.outs.indexOf(e)];
-        const inst = insts.indexOf(g);
-        if (i >= 0) port.set(n, { inst, out: false, port: i });
-        if (o >= 0) port.set(n, { inst, out: true, port: o });
+        if (!g) {
+          spaces.set(n, spaceOf(e));
+          continue;
+        }
+        const [i, o, k] = [g.ins.indexOf(e), g.outs.indexOf(e), shown.indexOf(g)];
+        // a port lives where its box does; every other copy is derived from the definition
+        spaces.set(n, k < 0 || (i < 0 && o < 0) ? "i" : g.space);
+        if (k >= 0 && i >= 0) port.set(n, { inst: k, out: false, port: i });
+        if (k >= 0 && o >= 0) port.set(n, { inst: k, out: true, port: o });
       }
       return {
         space: spaces,
@@ -1065,8 +1219,9 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
             targets: q.targets.map((t) => ({ n: +t.el.dataset.n!, j: t.j, inv: t.inv })),
           })),
         })),
-        insts: insts.map((g): InstSpec => ({
+        insts: shown.map((g): InstSpec & { addrs: number[] } => ({
           def: g.def.id,
+          space: g.space,
           x: g.pos[0],
           y: g.pos[1],
           flags: flagsOf(g),
@@ -1074,13 +1229,18 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
             const m = masterOf(g, q);
             return m ? f32()[slot(m)] : 0;
           }),
+          // each param's slot address (a lane's target), -1 if it has no knob
+          addrs: g.def.params.map((q) => {
+            const m = masterOf(g, q);
+            return m ? slot(m) << 2 : -1;
+          }),
         })),
       };
     },
 
     // After load(): node indices are valid again. Tags the definitions' nodes and expands the
     // instances; anything pointing at something missing is dropped.
-    restore({ defs: ds, insts: is, links }: Restore) {
+    restore({ defs: ds, insts: is, links }: Restore): ParamAt {
       const els = byIndex();
       for (const s of ds) {
         const d: Def = { id: s.id, name: s.name.slice(0, NAME_MAX), params: [] };
@@ -1110,18 +1270,21 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
         defs.push(d);
       }
       applyTab();
-      const made = is.map((s) => {
-        const d = defs.find((d) => d.id === s.def);
-        if (!d) return;
-        const g = addInst(d, s.x, s.y);
-        d.params.forEach((q, k) => {
-          const m = masterOf(g, q);
-          const v = s.vals[k];
-          if (m && Number.isFinite(v)) f32()[slot(m)] = Math.min(1, Math.max(0, v));
-        });
-        setFlags(g, s.flags & 7);
-        return g;
+      // Instances deepest first (an instance needs the ones inside its definition to exist), and
+      // never one that would contain itself.
+      const edges = new Map<string, Set<string>>(); // definition -> the definitions it holds instances of
+      const reach = (a: string, b: string, seen = new Set<string>()): boolean =>
+        a === b ||
+        (!seen.has(a) && !!seen.add(a) && [...(edges.get(a) ?? [])].some((x) => reach(x, b, seen)));
+      const ok = is.map((s) => {
+        if (!defs.some((d) => d.id === s.def) || (s.space && !defs.some((d) => d.id === s.space)))
+          return false;
+        if (s.space && reach(s.def, s.space)) return false;
+        if (s.space) edges.set(s.space, (edges.get(s.space) ?? new Set()).add(s.def));
+        return true;
       });
+      const made: (Inst | undefined)[] = is.map(() => undefined);
+      const built = new Set<string>();
       const end = (e: EndSpec, out: boolean, sock: number): [HTMLElement, number] | undefined => {
         if (typeof e === "number") {
           const el = els.get(e);
@@ -1131,11 +1294,42 @@ export function createScene(wasm: WasmExports, root: HTMLElement, redraw: () => 
         const el = g && (out ? g.outs : g.ins)[sock];
         return el && [el, 0];
       };
-      for (const [a, sa, b, sb] of links) {
-        const [x, y] = [end(a, true, sa), end(b, false, sb)];
-        if (x && y) wasm.add_link(+x[0].dataset.n!, x[1], +y[0].dataset.n!, y[1]);
-      }
+      const spaceOfEnd = (e: EndSpec) => {
+        const el = typeof e === "number" ? els.get(e) : undefined;
+        return typeof e === "number" ? el && spaceOf(el) : is[e.i]?.space;
+      };
+      const build = (sp: string) => {
+        if (built.has(sp)) return;
+        built.add(sp);
+        is.forEach((s, i) => {
+          const d = defs.find((x) => x.id === s.def);
+          if (!ok[i] || s.space !== sp || !d) return;
+          build(d.id);
+          const g = makeInst(d, sp, s.x, s.y);
+          d.params.forEach((q, k) => {
+            const m = masterOf(g, q);
+            const v = s.vals[k];
+            if (m && Number.isFinite(v)) f32()[slot(m)] = Math.min(1, Math.max(0, v));
+          });
+          setFlags(g, s.flags & 7);
+          made[i] = g;
+        });
+        // a space's links (some end on instances' ports) go in before anything copies the space
+        for (const [a, sa, b, sb] of links) {
+          if (spaceOfEnd(a) !== sp) continue;
+          const [x, y] = [end(a, true, sa), end(b, false, sb)];
+          if (x && y) wasm.add_link(+x[0].dataset.n!, x[1], +y[0].dataset.n!, y[1]);
+        }
+      };
+      build("");
+      defs.forEach((d) => build(d.id));
       changed();
+      return (i, param) => {
+        const g = made[i];
+        const q = g?.def.params[param];
+        const m = g && q && masterOf(g, q);
+        return m ? { node: +m.el.dataset.p!, j: m.j } : undefined;
+      };
     },
 
     pos(el: HTMLElement): Pt {

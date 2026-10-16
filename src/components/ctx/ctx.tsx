@@ -64,6 +64,12 @@ export function createContextMenu(
   const paramItems = (e: MouseEvent, node: HTMLElement): Item[] => {
     const knob = (e.target as HTMLElement).closest<HTMLElement>(`.${knobCss.knob}`);
     if (!knob) return [];
+    // a definition's nodes are never evaluated in the graph: keyframes belong on instances
+    if (scene.defOf(node))
+      return [
+        { label: "Enter value…", run: () => editParam(knob, scene.param(knob, schedule)) },
+        "-",
+      ];
     const [p, j, addr] = [+node.dataset.p!, +knob.dataset.j!, +knob.dataset.a!];
     const lanes = kf.lanes();
     const owner = lanes.findIndex((l) => l.addrs.includes(addr));
@@ -224,33 +230,25 @@ export function createContextMenu(
     const t = e.target as HTMLElement;
     const g = scene.groupAt(t);
     if (g) {
-      // an instance's knob edits a hidden copy: its value only (keyframes can't follow a rebuild)
+      // an instance's knob edits a hidden copy of the node, so it keyframes like any other
       const knob = t.closest<HTMLElement>(`.${knobCss.knob}`);
-      return [
-        ...(knob
-          ? [
-              {
-                label: "Enter value…",
-                run: () => editParam(knob, scene.param(knob, schedule)),
-              } satisfies Item,
-              "-" as const,
-            ]
-          : []),
-        ...instItems(g),
-      ];
+      return [...(knob ? paramItems(e, scene.owner(knob)) : []), ...instItems(g)];
     }
     const node = t.closest<HTMLElement>(`.${nodeCss.node}`);
     if (!node)
       return [
         { label: "Add node…", run: () => openAdd(e) },
-        ...(!scene.tab() && scene.defs().length
+        ...(scene.defs().some((d) => scene.canNest(d))
           ? [
               {
                 label: "Add custom node",
-                sub: scene.defs().map((d): Item => ({
-                  label: d.name,
-                  run: () => void scene.addInst(d, ...view.world(e)),
-                })),
+                sub: scene
+                  .defs()
+                  .filter((d) => scene.canNest(d))
+                  .map((d): Item => ({
+                    label: d.name,
+                    run: () => void scene.addInst(d, ...view.world(e)),
+                  })),
               } satisfies Item,
             ]
           : []),

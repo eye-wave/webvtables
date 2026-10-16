@@ -26,7 +26,7 @@ export type Lane = {
 export type Def = {
   id: string; // 0x + 5 hex digits
   name: string;
-  nodes: Node[]; // no Data/Math/Waveshaper/Draw Filter, no assets
+  nodes: Node[]; // plain nodes and instances; no Data/Math/Waveshaper/Draw Filter, no assets
   links: [string, number, string, number][];
   params: { name: string; targets: { id: string; j: number; inv?: boolean }[] }[];
 };
@@ -142,8 +142,9 @@ export async function unpack(zip: Uint8Array): Promise<Project> {
 //   .. 0x1a2b[2]               the knob shown on instances
 //   .. 0x3c4d[0] ~             a knob that follows it (~: inverted)
 //   <- def ->
-//   [=- 0x4a77abc5d17 -=]      an instance is a normal node: kind &1a2b3, its params = the custom
-//   | _&1a2b3_ 0 &null |       node's params in order; its links use socket = port number
+//   [=- 0x4a77abc5d17 -=]      an instance is a normal node: kind & + the definition's address, its
+//   | &0x1a2b3 0 &null |       params = the custom node's params in order; its links use socket = port
+//                              number. Instances may also sit inside a definition (nesting; no cycles).
 
 // Data settings: file key <-> the 3-letter key the Data node uses. Unknown keys pass through.
 const LONG: Record<string, string> = {

@@ -88,8 +88,6 @@ export function createProject(
   const snapshot = ({ newIds }: typeof import("./file")): Project => {
     const info = scene.snapshot();
     const n = wasm.nodes_len();
-    const ids = newIds(n + info.insts.length); // node index -> id; then one per instance
-    const instId = (k: number) => ids[n + k];
     const aids = newIds(n, 20); // spare ids; only nodes holding data use one
     const at = new Map<number, { id: string; j: number }>();
     const p: Project = {
@@ -125,22 +123,39 @@ export function createProject(
         spec: d?.spec,
       };
     };
-    for (let i = 0; i < n; i++) if (info.space.get(i) === "") p.nodes.push(nodeOf(i, ids[i], true));
-    info.insts.forEach((g, k) =>
-      p.nodes.push({
-        id: instId(k),
-        kind: "&" + g.def.slice(2),
+    // Ids: the main graph's are global, a definition's nodes and instances get 4-digit ones local to it.
+    const ids = newIds(n + info.insts.length); // node index -> id; then one per main instance
+    const nodeId = new Map<number, string>();
+    const instId = new Map<number, string>(); // position in info.insts -> id
+    for (let i = 0; i < n; i++) if (info.space.get(i) === "") nodeId.set(i, ids[i]);
+    info.insts.forEach((g, k) => g.space === "" && instId.set(k, ids[n + k]));
+    const held = (sp: string) => info.insts.flatMap((g, k) => (g.space === sp ? [k] : []));
+    for (const d of info.defs) {
+      const inside = held(d.id);
+      const lids = newIds(d.nodes.length + inside.length, 16);
+      d.nodes.forEach((i, j) => nodeId.set(i, lids[j]));
+      inside.forEach((k, j) => instId.set(k, lids[d.nodes.length + j]));
+    }
+    const instNode = (k: number): PNode => {
+      const g = info.insts[k];
+      return {
+        id: instId.get(k)!,
+        kind: "&" + g.def, // & + the definition's address
         params: g.vals,
         x: g.x,
         y: g.y,
         flags: g.flags,
-      }),
-    );
-    const local = new Map<number, string>(); // definition node index -> its local id
-    for (const d of info.defs) {
-      const lids = newIds(d.nodes.length, 16);
-      d.nodes.forEach((i, k) => local.set(i, lids[k]));
-    }
+      };
+    };
+    for (let i = 0; i < n; i++)
+      if (info.space.get(i) === "") p.nodes.push(nodeOf(i, nodeId.get(i)!, true));
+    info.insts.forEach((g, k) => {
+      if (g.space !== "") return;
+      g.addrs.forEach((a, param) => {
+        if (a >= 0) at.set(a, { id: instId.get(k)!, j: param }); // lanes can drive an instance's params
+      });
+      p.nodes.push(instNode(k));
+    });
     const inside = new Map<string, Project["links"]>();
     const u8 = new Uint8Array(wasm.memory.buffer),
       u16 = new Uint16Array(wasm.memory.buffer);
@@ -149,30 +164,27 @@ export function createProject(
       const [a, sa, b, sb] = [u16[l >> 1], u8[l + 2], u16[(l >> 1) + 2], u8[l + 6]];
       const [pa, pb] = [info.port.get(a), info.port.get(b)];
       const [ka, kb] = [info.space.get(a), info.space.get(b)];
-      if ((ka === "i" && !pa) || (kb === "i" && !pb)) continue; // inside an instance
-      if (pa && pb && pa.inst === pb.inst) continue;
-      if ((pa || ka === "") && (pb || kb === ""))
-        p.links.push([
-          pa ? instId(pa.inst) : ids[a],
-          pa ? pa.port : sa,
-          pb ? instId(pb.inst) : ids[b],
-          pb ? pb.port : sb,
-        ]);
-      else if (ka && ka === kb) {
-        const list = inside.get(ka) ?? [];
-        inside.set(ka, list);
-        list.push([local.get(a)!, sa, local.get(b)!, sb]);
-      }
+      // both ends in one place (a port counts as where its box is), not inside an instance
+      if (ka === undefined || ka === "i" || ka !== kb) continue;
+      if ((pa && !pa.out) || (pb && pb.out)) continue; // an instance's inner links
+      const row: Project["links"][number] = [
+        pa ? instId.get(pa.inst)! : nodeId.get(a)!,
+        pa ? pa.port : sa,
+        pb ? instId.get(pb.inst)! : nodeId.get(b)!,
+        pb ? pb.port : sb,
+      ];
+      if (ka === "") p.links.push(row);
+      else inside.set(ka, [...(inside.get(ka) ?? []), row]);
     }
     p.defs = info.defs.map((d) => ({
       id: d.id,
       name: d.name,
-      nodes: d.nodes.map((i) => nodeOf(i, local.get(i)!, false)),
+      nodes: [...d.nodes.map((i) => nodeOf(i, nodeId.get(i)!, false)), ...held(d.id).map(instNode)],
       links: inside.get(d.id) ?? [],
       params: d.params.map((q) => ({
         name: q.name,
         targets: q.targets.flatMap((t) =>
-          local.has(t.n) ? [{ id: local.get(t.n)!, j: t.j, inv: t.inv }] : [],
+          nodeId.has(t.n) ? [{ id: nodeId.get(t.n)!, j: t.j, inv: t.inv }] : [],
         ),
       })),
     }));
@@ -190,7 +202,12 @@ export function createProject(
   // Unknown node kinds are dropped along with their links and lane targets.
   // Returns the definitions and instances with node ids turned into indices, for scene.restore() once
   // the nodes are mounted. A definition's nodes come after the main ones, so those keep their indices.
-  const apply = (p: Project, decoded: Map<string, Asset>, real?: Kf): Restore => {
+  type InstLane = { lane: number; inst: number; param: number };
+  const apply = (
+    p: Project,
+    decoded: Map<string, Asset>,
+    real?: Kf,
+  ): Restore & { lanes: InstLane[] } => {
     wasm.project_new();
     pending.clear();
     texBoot.clear();
@@ -214,13 +231,22 @@ export function createProject(
     const defIds = new Set(p.defs.map((d) => d.id));
     const insts: InstSpec[] = [];
     const instAt = new Map<string, number>();
+    const links: Restore["links"] = []; // the ones that end on an instance
+    // an instance (kind `&` + definition address) becomes real nodes in scene.restore()
+    const inst = (n: PNode, space: string) => {
+      insts.push({
+        def: n.kind.slice(1),
+        space,
+        x: n.x || 0,
+        y: n.y || 0,
+        flags: n.flags & 7,
+        vals: n.params,
+      });
+      return insts.length - 1;
+    };
     for (const n of p.nodes) {
       if (n.kind[0] === "&") {
-        // an instance: it becomes real nodes in scene.restore()
-        const def = "0x" + n.kind.slice(1);
-        if (!defIds.has(def)) continue;
-        instAt.set(n.id, insts.length);
-        insts.push({ def, x: n.x || 0, y: n.y || 0, flags: n.flags & 7, vals: n.params });
+        if (defIds.has(n.kind.slice(1))) instAt.set(n.id, inst(n, ""));
         continue;
       }
       const i = place(n);
@@ -250,12 +276,23 @@ export function createProject(
     const STATE = ["output", "data", "math", "wavshape", "drawfilt"];
     const defs = p.defs.map((d): DefSpec => {
       const local = new Map<string, number>();
+      const instLocal = new Map<string, number>();
       for (const n of d.nodes) {
+        if (n.kind[0] === "&") {
+          instLocal.set(n.id, inst(n, d.id));
+          continue;
+        }
         const i = STATE.includes(n.kind) ? -1 : place(n);
         if (i >= 0) local.set(n.id, i);
       }
-      for (const [a, sa, b, sb] of d.links)
-        if (local.has(a) && local.has(b)) wasm.add_link(local.get(a)!, sa, local.get(b)!, sb);
+      const e = (id: string): EndSpec | undefined =>
+        local.has(id) ? local.get(id)! : instLocal.has(id) ? { i: instLocal.get(id)! } : undefined;
+      for (const [a, sa, b, sb] of d.links) {
+        const [x, y] = [e(a), e(b)];
+        if (x === undefined || y === undefined) continue;
+        if (typeof x === "number" && typeof y === "number") wasm.add_link(x, sa, y, sb);
+        else links.push([x, sa, y, sb]);
+      }
       return {
         id: d.id,
         name: d.name,
@@ -269,7 +306,6 @@ export function createProject(
       };
     });
 
-    const links: Restore["links"] = [];
     const end = (id: string): EndSpec | undefined =>
       at.has(id) ? at.get(id)! : instAt.has(id) ? { i: instAt.get(id)! } : undefined;
     for (const [a, sa, b, sb] of p.links) {
@@ -278,6 +314,7 @@ export function createProject(
       if (typeof x === "number" && typeof y === "number") wasm.add_link(x, sa, y, sb);
       else links.push([x, sa, y, sb]);
     }
+    const lanes: InstLane[] = [];
     for (const l of p.lanes) {
       const lane = real!.addLane(
         { P: 0, C: 0, S: 0, L: 1, R: 2 }[l.type],
@@ -300,8 +337,9 @@ export function createProject(
       }
       for (const t of l.targets)
         if (at.has(t.id)) real!.link(lane, wasm.get_node(at.get(t.id)!), t.j, true);
+        else if (instAt.has(t.id)) lanes.push({ lane, inst: instAt.get(t.id)!, param: t.j }); // aimed once scene.restore has made it
     }
-    return { defs, insts, links };
+    return { defs, insts, links, lanes };
   };
 
   // Strip characters filesystems reject; fall back to "project".
@@ -374,10 +412,15 @@ export function createProject(
       fileMsg.textContent = `Could not decode an asset (${(e as Error).message}).`;
       return;
     }
-    const restored = apply(p, decoded, p.lanes.length ? await kf.load() : undefined);
+    const real = p.lanes.length ? await kf.load() : undefined;
+    const restored = apply(p, decoded, real);
     fileName.value = file.name.replace(/\.(wtp|wtx)$/i, "");
     scene.load();
-    scene.restore(restored);
+    const paramAt = scene.restore(restored);
+    for (const l of restored.lanes) {
+      const t = paramAt(l.inst, l.param);
+      if (t) real?.link(l.lane, t.node, t.j, true);
+    }
     // pending.clear();
     texBoot.clear();
     ptsBoot.clear();
